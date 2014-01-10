@@ -1,0 +1,93 @@
+###
+#! SEQLinco: A novel method to use sequence data for linkage analysis
+###
+# This program is written to re-encode sequence data for linkage analysis. The core concept here is that instead of treating each variant from the sequence data a separate marker, we create ``super marker'' of groups of variants under certain "encoding themes" and perform linkage analysis on data thus generated.
+
+###
+# Latest version
+###
+#[{{icons:download.png?64}}|@http://tigerwang.org/downloads/SEQLinco@]
+#! ChangeLog
+#{list
+# ""2013.12.19"" version 0.0.2, Replace vtools backbone with tabix
+# ""2013.11.25"" version 0.0.1, First public release
+# ""2013.10.17"" First version completed for in-house data analysis
+#}
+###
+# Encoding methods
+###
+#! ``Collapse''
+# Create one super marker out of each group by a simple rule that genotype of the super marker is "wildtype" if ""EVERY variant in the group is wildtype"", otherwise is "heterozygous".
+
+###
+# Usage
+###
+# To see basic usage, type
+encode-linkage -h
+#{out
+usage: encode-linkage [-h] [--version] [--encoder {collapse}]
+                      [--blueprint FILE] [--format [FORMAT [FORMAT ...]]]
+                      [--allele1 STRING] [--allele2 STRING] [--missing STRING]
+                      --vcf FILE --tfam FILE [-o FILE] [-j N] [--vanilla]
+
+SEQLinkageCoder, encode sequence data for linkage analysis
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+
+Encoder arguments:
+  --encoder {collapse}  Encoder theme. Default to "collapse."
+  --blueprint FILE      Blueprint file for super marker (format: "chr startpos
+                        endpos name distance").
+  --allele1 STRING      Coding for allele 1. Default to "1".
+  --allele2 STRING      Coding for allele 2. Default to "2".
+  --missing STRING      Coding for missing allele. Default to "NA".
+
+Input / output options:
+  --vcf FILE.gz         Input VCF file, bgzipped.
+  --tfam FILE           Input pedigree and phenotype information in TFAM
+                        format.
+  -o FILE, --output FILE
+                        Output file name prefix.
+  --format [FORMAT [FORMAT ...]]
+                        Output format, choose from ['mega2', 'plink']
+                        (multiple choices allowed). Default to PLINK format.
+
+Runtime arguments:
+  -j N, --jobs N        Number of CPUs to use.
+  --vanilla             Encode data from scratch without loading cache.
+
+Copyright (c) 2013 Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu>
+under GNU General Public License
+#}
+###
+# Input format
+###
+# Input data is [bgzipped|@http://samtools.sourceforge.net/tabix.shtml@] VCF file for genotypes and TFAM file for pedigree & phenotype information. A ``blueprint'' file can be supplied to customize super marker grouping units. Example input files containing 10,558 variants of 1,092 subjects from 1000 genomes project phase I can be downloaded from this website: [VCF|@http://tigerwang.org/uploads/1000g1.vcf.gz@]/[TFAM|@http://tigerwang.org/uploads/1000g1.tfam@]/[BPT|@http://tigerwang.org/uploads/units.bpt@].
+###
+# Example
+###
+encode-linkage --vcf 1000g1.vcf.gz --tfam 1000g1.tfam -j8
+encode-linkage --vcf 1000g1.vcf.gz --tfam 1000g1.tfam -j8 --vanilla --allele1 A --allele2 C
+encode-linkage --vcf 1000g1.vcf.gz --tfam 1000g1.tfam -j8 --blueprint units.bpt
+
+###
+# Comments & bug reports
+###
+# gaow [at] bcm [dot] edu
+#{-----
+###
+# Cautions
+###
+# Input data have to be prefect, i.e., absence of the following conditions:
+#{list
+# TFAM file has complete sex information
+# TFAM file all offspring should have parents ID
+# TFAM file has complete affection status 
+# TFAM's ID can be found in VCF
+#}
+
+tigernotes dokuwiki SEQLinco.notes -o encode-linkage --lite --showall
+scp encode-linkage.txt tigerwang@tigerwang.org:./html/data/pages/software
+#}-----
