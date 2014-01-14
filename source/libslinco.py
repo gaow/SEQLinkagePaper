@@ -24,11 +24,6 @@ class Environment:
         self.delimiter = ' '
         self.ped_missing = ['0', '-9'] + ['none', 'null', 'na', 'nan', '.']
         self.missing = 'NA'
-        self.wlt = '1 1'
-        self.het = '1 2'
-        self.hom = '2 2'
-        self.hap1 = '1 NA'
-        self.hap2 = '2 NA'
         self.trait = 'binary'
         # Input & output options
         self.output = 'LINKAGE'
@@ -302,6 +297,23 @@ def extractFamilies(tfam):
         fam[k][1] = [x for x in fam[k][1] if x not in fam[k][0]]
     return fam
 
+def rewriteFamfile(tfam, samples):
+    '''remove samples from tfam file that are not in the
+    input sample list'''
+    if sorted(getColumn(tfam,2)) == sorted(samples):
+        return
+    os.rename(tfam, tfam + '.bak')
+    try:
+        with open(tfam + '.bak', 'r') as f:
+            data = f.readlines()
+        with open(tfam, 'w') as f:
+            for item in data:
+                if item.split()[1] in samples:
+                    f.write(item)
+    except:
+        os.rename(tfam + '.bak', tfam)
+        raise
+
 def checkSamples(samp1, samp2):
     '''check if two sample lists agree
     1. samples in TFAM but not in VCF --> ERROR
@@ -445,10 +457,7 @@ class RegionExtractor:
                         [i for i, x in enumerate(data.samples()) if x in eachfam]]
                 if len(set(flatten([list(x) for x in set(geno) if x != '.']))) == 1:
                     # monomorphic site for this family
-                    # mark every site missing
-                    # for person in eachfam:
-                    #     data[person].append('.')
-                    # skip this
+                    # skip this site
                     continue
                 else:
                     for person, x in zip(eachfam, geno):
@@ -525,59 +534,52 @@ class GenoEncoder:
         self.size = wsize
 
     def apply(self, data):
-        print data
-        # print data.samples()
-        print data.families()
-        # sys.exit()
-        # if self.theme == 'collapse':
-        #     # collapse a region by indicator functions for having a mutation or not
-        #     data['__variant_info'] = sum(data['__variant_info']) / len(data['__variant_info'])
-        #     for k in data.samples():
-        #         for item in data[k]:
-        #             if item not in ['00', '0', '.']:
-        #                 data[k] = env.het
-        #                 break
-        #         if data[k] != env.het:
-        #             if '00' in data[k] or '0' in data[k]:
-        #                 data[k] = env.wlt
-        #             else:
-        #                 data[k] = '{0} {0}'.format(env.missing)
-        # elif self.theme == 'pattern':
-        #     # For families of samples, find genotype patterns within each family
-        #     # and recode into numeric indicators
-        #     data['__variant_info'] = sum(data['__variant_info']) / len(data['__variant_info'])
-        #     # for k in data.samples():
-        #     #     for item in data[k]:
-        #     #         if item not in ['00', '0', '.']:
-        #     #             data[k] = env.het
-        #     #             break
-        #     #     if data[k] != env.het:
-        #     #         if '00' in data[k] or '0' in data[k]:
-        #     #             data[k] = env.wlt
-        #     #         else:
-        #     #             data[k] = '{0} {0}'.format(env.missing)
-        # else:
-        #     for k in data.samples():
-        #         # do not know what to do
-        #         data[k] = '{0} {0}'.format(env.missing)
-        # # drop the region if it is monomorphic
-        # for k in data.samples():
-        #     if data[k] == env.het:
-        #         # at least one sample is polymorphic
-        #         return True
-
-
         data['__variant_info'] = sum(data['__variant_info']) / len(data['__variant_info'])
         for k, eachfam in data.ffamilies().items():
             pool = []
             for person in eachfam:
                 # set missing value to major allele
-                pool.append(''.join([x[0] if x[0] != '.' else \
+                if len(data[person]) == 0:
+                    pool.extend(['0','0'])
+                else:
+                    pool.append(''.join([x[0] if x[0] != '.' else \
                                      data['__{}_major'.format(k)] for x in data[person]]))
-                pool.append(''.join([x[1] if len(x) > 1 else \
+                    pool.append(''.join([x[1] if len(x) > 1 else \
                                      (x[0] if x[0] != '.' else data['__{}_major'.format(k)]) \
                                      for x in data[person]]))
-            print pool
+            # pool: [allele1@samp1, allele2@samp1, allele1@samp2, allele2@samp2, ...]
+            if self.size > 1 or self.size == -1:
+                pool = self.collapse(pool)
+            # find unique pattern
+            mapping = {item : idx + 1 for idx, item in enumerate(sorted(set(pool)))}
+            # reset data
+            idx = 0
+            for person in eachfam:
+                data[person] = '{} {}'.format(mapping[pool[idx]], mapping[pool[idx+1]])
+                idx += 2
+        # drop the region if it is monomorphic
+        for k in data.samples():
+            if data[k] != '1 1':
+                # at least one sample is polymorphic
+                return True
+        return False
+    
+    def collapse(self, x):
+        '''input data is a list of binary strings
+        will be collapsed on every self.size characters'''
+        # adjust size
+        size = self.__adjust_size(len(x[0]))
+        for idx, item in enumerate(x):
+           x[idx] = ''.join(['1' if '1' in iitem else '0' \
+                     for iitem in [item[i:i+size] for i in range(0, len(item), size)]])
+        return x
+
+    def __adjust_size(self, n):
+        if self.size < 0:
+            return n
+        res, rem = divmod(n, self.size)
+        # reduce size by x such that rem + res * x = self.size - x
+        return self.size - (self.size - rem) / (res + 1)
 
 class LinkageWritter:
     def __init__(self):

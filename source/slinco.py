@@ -5,12 +5,7 @@ def checkParams(args):
     args.vcf = os.path.abspath(os.path.expanduser(args.vcf))
     if args.output:
         env.output = os.path.split(args.output)[-1]
-    #
-    env.wlt = args.allele1 + ' ' + args.allele1
-    env.hom = args.allele2 + ' ' + args.allele2
-    env.het = args.allele1 + ' ' + args.allele2
-    env.hap1 = args.allele1 + ' ' + args.missing
-    env.hap2 = args.allele2 + ' ' + args.missing
+    env.missing = args.missing
     #
     if len([x for x in set(getColumn(args.tfam, 6)) if x.lower() not in env.ped_missing]) > 2:
         env.trait = 'quantitative'
@@ -47,6 +42,8 @@ def main(args):
             samples = [x for x in samples_vcf if x in flatten([flatten(item) for item in families.values()])]
             env.log('{:,d} families with a total of {:,d} samples will be processed'.\
                     format(len(families), len(samples)))
+        status = rewriteFamfile(args.tfam, samples)
+        #
         with open(args.blueprint, 'r') as f:
             regions = [x.strip().split() for x in f.readlines()]
         env.log('Scanning [{}] for {:,d} pre-defined units'.format(args.vcf, len(regions)))
@@ -62,7 +59,7 @@ def main(args):
                 RData(samples, families),
                 RegionExtractor(args.vcf, [idx + 9 for idx, x in enumerate(samples_vcf) if x not in samples]),
                 MendelianErrorChecker(),
-                GenoEncoder(args.encoder),
+                GenoEncoder(args.size),
                 LinkageWritter()
                 ) for i in range(env.jobs)]
             for j in jobs:
@@ -112,15 +109,12 @@ class Args:
 
     def getEncoderArguments(self, parser):
         vargs = parser.add_argument_group('Encoder arguments')
-        vargs.add_argument('--encoder', choices=['collapse', 'pattern'], default='pattern',
-                           help='''Encoder theme. Default to "pattern".''')
+        vargs.add_argument('--size', default = 1, type = int,
+                           help='''Number of variants to collapse into a bin. Set to -1 to collapse
+        all variants into one bin. Default to 1 (1 variant per bin).''')
         vargs.add_argument('--blueprint', metavar = 'FILE',
                            help='''Blueprint file for super marker
         (format: "chr startpos endpos name distance").''')
-        vargs.add_argument('--allele1', metavar = 'STRING', default="1",
-                           help='''Coding for allele 1. Default to "1".''')
-        vargs.add_argument('--allele2', metavar = 'STRING', default="2",
-                           help='''Coding for allele 2. Default to "2".''')
         vargs.add_argument('--missing', metavar = 'STRING', default="NA",
                            help='''Coding for missing allele. Default to "NA".''')
 
