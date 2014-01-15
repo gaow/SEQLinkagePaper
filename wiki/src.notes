@@ -1,0 +1,6 @@
+###
+#! SEQLinco combined source download
+###
+#{python slinco-combined-source
+file:////home/usr/bin/slinco
+#}
