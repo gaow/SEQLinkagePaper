@@ -668,8 +668,8 @@ class EncoderWorker(Process):
 
 def formatPlink(tpeds, tfams, outdir):
     mkpath(outdir)
-    cmds = ['plink --noweb --tped {} --tfam {} --missing-genotype {} --missing-phenotype {} --recode --out {}'.\
-            format(i,j, env.missing, env.ped_missing[0], os.path.join(outdir, os.path.splitext(os.path.split(i)[-1])[0])) for i, j in zip(tpeds, tfams)]
+    cmds = ['transpose.pl --tped {} --tfam {} --out {}'.\
+            format(i,j, os.path.join(outdir, os.path.splitext(os.path.split(i)[-1])[0])) for i, j in zip(tpeds, tfams)]
     env.jobs = max(min(args.jobs, cmds), 1)
     runCommands(cmds, env.jobs)
                 
