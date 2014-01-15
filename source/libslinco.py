@@ -441,9 +441,9 @@ class RegionExtractor:
         lines = [parseVCFline(x, exclude = self.exclude_idx, info=info) for x in \
                   runCommand('tabix {} {}:{}-{}'.\
                              format(self.vcf, self.chrom, self.startpos, self.endpos)).strip().split('\n')]
-        if len(lines) == 0:
+        if len(lines) == 0 or len(lines[0]) == 0:
             return False
-        #     
+        #
         if not len(lines[0]) - len(info) == len(data.samples()):
             raise ValueError('Genotype and sample mismatch for region {}: {:,d} vs {:,d}'.\
                              format(self.name,len(lines[0]) - len(info), len(data.samples())))
@@ -674,8 +674,9 @@ def formatPlink(tpeds, tfams, outdir):
     runCommands(cmds, env.jobs)
                 
 def formatMega2(plinkfiles):
+    copyFiles('PLINK/{}*'.format(env.output), 'MEGA2')
     trait = 'A' if env.trait == 'binary' else 'T'
-    preheader = ['Pedigree', 'ID', 'Father', 'Mother', 'Sex', 'TRAIT.{}'.format(trait)]
+    preheader = ['Pedigree', 'ID', 'Father', 'Mother', 'Sex', 'Trait.{}'.format(trait)]
     maps = loadMap(os.path.join(env.resource_dir, 'genemap.pkl')) 
     for item in sorted(glob.glob(plinkfiles), key=lambda x: os.path.splitext(x)[1], reverse = True):
         if item.endswith('.ped'):
@@ -708,3 +709,37 @@ def formatMega2(plinkfiles):
             os.rename(item + '.tmp', item)
         else:
            continue
+
+def formatMlink():
+    formatMega2('MEGA2/{}*'.format(env.output))
+    chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
+    #template = os.path.join(env.resource_dir, 'MEGA2.template')
+    for chrNum in range(25):
+        pedfile = 'MEGA2/{}.{}.pre'.format(env.output, chrs[chrNum])
+        mapfile = 'MEGA2/{}.{}.map'.format(env.output, chrs[chrNum])
+        namefile = 'MEGA2/{}.{}.name'.format(env.output, chrs[chrNum])
+        if not (os.path.isfile(pedfile) and os.path.isfile(mapfile) and os.path.isfile(namefile)):
+            continue
+        outpath = 'MLINK/{}.{}'.format(env.output,chrs[chrNum])
+        batchfile = os.path.join(outpath, 'MEGA2.BATCH')
+        mkpath(outpath)
+        with open(batchfile, 'w') as f:
+            f.write('Input_Pedigree_File={}'.format(pedfile) + '\n')
+            f.write('Input_Locus_File={}'.format(namefile) + '\n')
+            f.write('Input_Map_File={}'.format(mapfile) + '\n')
+            f.write('Input_Untyped_Ped_Option=2' + '\n')
+            f.write('Input_Do_Error_Sim=no' + '\n')
+            f.write('Output_Path={}'.format(outpath) + '\n')
+            f.write('AlleleFreq_SquaredDev=999999999.000000' + '\n')
+            f.write('Value_Marker_Compression=1' + '\n')
+            f.write('Analysis_Option=Vitesse' + '\n')
+            f.write('Count_Genotypes=1' + '\n')
+            f.write('Count_Halftyped=no' + '\n')
+            f.write('Value_Genetic_Distance_Index=0' + '\n')
+            f.write('Value_Genetic_Distance_SexTypeMap=0' + '\n')
+            f.write('Value_Base_Pair_Position_Index=1' + '\n')
+            f.write('Chromosome_Single={}'.format(chrNum + 1) + '\n')
+            f.write('Traits_Combine=1 2 e' + '\n')
+            f.write('Analysis_Sub_Option=MLINK' + '\n')
+            f.write('Default_Outfile_Names=yes' + '\n')
+        runCommand('mega2 -wx {}'.format(batchfile))
