@@ -76,17 +76,20 @@ def main(args):
     tpeds = [os.path.join(env.cache_dir, item) for item in os.listdir(env.cache_dir) if item.startswith(env.output) and item.endswith('.tped')]
     if 'plink' in args.format:
         env.log('Saving data to directory [PLINK] ...')
-    formatPlink(tpeds, [args.tfam] * len(tpeds), 'PLINK')
+        formatPlink(tpeds, [args.tfam] * len(tpeds), 'PLINK')
     if 'mega2' in args.format:
         env.log('Saving data to directory [MEGA2] ...')
         formatMega2('MEGA2/{}*'.format(env.output))
     if 'mlink' in args.format:
         env.log('Saving data to directory [MLINK] ...')
-        formatMlink()
+        formatMlink(tpeds, [args.tfam] * len(tpeds), 'MLINK')
+    runMlink()
+    plotMlink()
+    #please implement this section
     # STEP final: clean up unwanted files
-    for item in args.format:
-        removeFiles(item.upper(), exclude = env.formats[item])
-    removeFiles(env.cache_dir, exclude = ['.cache'])
+    #for item in args.format:
+    #    removeFiles(item.upper(), exclude = env.formats[item])
+    #removeFiles(env.cache_dir, exclude = ['.cache'])
     
 class Args:
     def __init__(self):

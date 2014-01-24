@@ -3,6 +3,8 @@ from multiprocessing import Process, Queue, Lock, Value
 from distutils.dir_util import mkpath, remove_tree
 from argparse import ArgumentParser, SUPPRESS
 from collections import Counter
+import numpy as np
+import matplotlib.pyplot as plt
 
 VERSION = "1.0.alpha"
 
@@ -668,7 +670,7 @@ class EncoderWorker(Process):
 
 def formatPlink(tpeds, tfams, outdir):
     mkpath(outdir)
-    cmds = ['transpose.pl --tped {} --tfam {} --out {}'.\
+    cmds = ['transpose.pl --format plink --tped {} --tfam {} --out {}'.\
             format(i,j, os.path.join(outdir, os.path.splitext(os.path.split(i)[-1])[0])) for i, j in zip(tpeds, tfams)]
     env.jobs = max(min(args.jobs, cmds), 1)
     runCommands(cmds, env.jobs)
@@ -710,8 +712,18 @@ def formatMega2(plinkfiles):
         else:
            continue
 
-def formatMlink():
-    formatMega2('MEGA2/{}*'.format(env.output))
+def formatMlink(tpeds, tfams, outdir):
+    mkpath(outdir)
+    cmds = ['transpose.pl --format mlink --tped {} --tfam {} --out {}'.\
+            format(i,j, os.path.join(outdir, os.path.splitext(os.path.split(i)[-1])[0])) for i, j in zip(tpeds, tfams)]
+    env.jobs = max(min(args.jobs, cmds), 1)
+    runCommands(cmds, env.jobs)
+
+
+def formatMlinkfrommega2():
+    if 'mega2' not in env.formats:
+	mkpath('MEGA2')
+        formatMega2('MEGA2/{}*'.format(env.output))
     chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
     #template = os.path.join(env.resource_dir, 'MEGA2.template')
     for chrNum in range(25):
@@ -731,7 +743,7 @@ def formatMlink():
             f.write('Input_Do_Error_Sim=no' + '\n')
             f.write('Output_Path={}'.format(outpath) + '\n')
             f.write('AlleleFreq_SquaredDev=999999999.000000' + '\n')
-            f.write('Value_Marker_Compression=1' + '\n')
+            #f.write('Value_Marker_Compression=1' + '\n')
             f.write('Analysis_Option=Vitesse' + '\n')
             f.write('Count_Genotypes=1' + '\n')
             f.write('Count_Halftyped=no' + '\n')
@@ -743,3 +755,27 @@ def formatMlink():
             f.write('Analysis_Sub_Option=MLINK' + '\n')
             f.write('Default_Outfile_Names=yes' + '\n')
         runCommand('mega2 -wx {}'.format(batchfile))
+
+def runMlink():
+    #if 'mlink' not in env.formats:
+    #    formatMlink()
+    chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
+    cmds = ['runMlink.pl MLINK/{}.{} {}'.format(env.output, chrs[i], env.resource_dir) for i in range(25)]
+    env.jobs = max(min(args.jobs, cmds), 1)
+    runCommands(cmds, env.jobs)
+
+def plotMlink():
+    chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
+    for dir in ['MLINK/{}.{}'.format(env.output, i) for i in chrs]:
+        lods = []
+        with open(dir + '/all_lodscores.txt', 'r') as f:
+            for line in f.readlines():
+                lod = line.split()[-1]
+                lods.append(lod)
+        lods = np.array(map(float,lods)).reshape((10,-1))
+        plt.pcolormesh(lods)
+        plt.savefig(dir + '/lods.pdf')
+    #cmds = ['runMlink.pl MLINK/{}.{} {}'.format(env.output, chrs[i], env.resource_dir) for i in range(25)]
+    #env.jobs = max(min(args.jobs, cmds), 1)
+    #runCommands(cmds, env.jobs)
+    
