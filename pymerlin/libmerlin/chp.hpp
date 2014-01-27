@@ -24,12 +24,15 @@ public:
 	PedigreeData() {};
 	~PedigreeData() {};
 	Pedigree data;
-	void LoadVariants(std::vector<std::string> & names, std::vector<int> & positions, std::string chrom);
+	void LoadVariants(std::vector<std::string> & names,
+		std::vector<int> & positions,
+		std::string chrom);
 
 	void LoadSamples(std::vector< std::vector<std::string> > & samples);
 
 private:
-	void __AddPerson(std::vector<std::string> & fam_info, std::vector<std::string> & genotypes);
+	void __AddPerson(std::vector<std::string> & fam_info,
+		std::vector<std::string> & genotypes);
 
 };
 

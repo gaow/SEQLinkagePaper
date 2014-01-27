@@ -133,7 +133,7 @@ Index: merlin/MerlinHaplotype.h
  
  // Haplotyping routines
  //
-@@ -69,4 +71,8 @@
+@@ -69,5 +71,9 @@
                              const char * header_format, ...);
        void HorizontalOutput(StringArray * haplo);
  
@@ -143,3 +143,91 @@ Index: merlin/MerlinHaplotype.h
 +
        // Founder haplotypes output broker
        void OutputFounders(StringArray * haplo, const char * label, int weight = 1);
+       Index: merlin/MerlinFamily.h
+===================================================================
+--- merlin/MerlinFamily.h	(revision 14)
++++ merlin/MerlinFamily.h	(working copy)
+@@ -118,6 +118,9 @@
+ 
+       // haplotype output, a hack by gw
+       std::vector< std::vector<std::string> > hapOutput;
++      // wipe errors from ped, hacked by gw
++      void ErrorWipeHack(Tree & withMarker, Tree & without, int marker);
++      int errorCountHack;
+ 
+    protected:
+       // This function actually carries out most analyses
+// Index: merlin/MerlinFamily.cpp
+// ===================================================================
+// --- merlin/MerlinFamily.cpp	(revision 13)
+// +++ merlin/MerlinFamily.cpp	(working copy)
+// @@ -429,5 +429,68 @@
+//        }
+//     }
+ 
+// +void FamilyAnalysis::ErrorWipeHack
+// +    (Tree & withMarker, Tree & without, int informativeMarker)
+// +{
+// +	errorCountHack = 0;
+// +	int marker = markers[informativeMarkers[informativeMarker]];
+// +	MarkerCluster * cluster = clusters.Enabled() ? clusters.markerToCluster[marker] : NULL;
+// +
+// +	if (cluster == NULL && informativeCount <= 1) return;
+// +
+// +	FuzzyInheritanceTree alternative;
+// +
+// +	double multipoint_likelihood = stats.GetMean(withMarker);
+// +
+// +	int markers = cluster == NULL ? 1 : cluster->markerIds.Length();
+// +	for (int m = 0; m < markers; m++) {
+// +		double singlepoint_likelihood;
+// +		if (cluster != NULL) {
+// +			marker = cluster->markerIds[m];
+// +			mantra.SelectMarker(marker);
+// +			alternative.FuzzyScoreVectors(mantra);
+// +
+// +			singlepoint_likelihood = stats.GetMean(alternative);
+// +		}else
+// +			singlepoint_likelihood = stats.GetMean(singlepoint[informativeMarker]);
+// +
+// +		for (int error = family->first; error <= family->last; error++)
+// +			if (ped[error].markers[marker].isKnown()) {
+// +				bool iswiped = false;
+// +				Alleles saved_genotype = ped[error].markers[marker];
+// +				ped[error].markers[marker][0] = ped[error].markers[marker][1] = 0;
+// +
+// +				mantra.SelectMarker(marker);
+// +				alternative.FuzzyScoreVectors(mantra);
+// +
+// +				double alternative_likelihood = stats.GetMean(alternative);
+// +
+// +				if (alternative_likelihood != singlepoint_likelihood) {
+// +					if (cluster != NULL)
+// +						cluster->ScoreLikelihood(mantra, alternative);
+// +
+// +					double alternative_multipoint = alternative.MeanProduct(without);
+// +
+// +					double score =
+// +					    (multipoint_likelihood / alternative_multipoint) /
+// +					    (singlepoint_likelihood / alternative_likelihood);
+// +
+// +					if (cluster != NULL)
+// +						score *= exp(singlepoint[informativeMarker].logOffset -
+// +							alternative.logOffset);
+// +
+// +					// wipe error
+// +					if (score < 0.025) iswiped = true;
+// +				}
+// +
+// +				if (!iswiped) ped[error].markers[marker] = saved_genotype;
+// +				else {
+// +					ped[error].markers[marker][0] = ped[error].markers[marker][1] = 0;
+// +					errorCountHack += 1;
+// +				}
+// +			}
+// +	}
+// +}
+// +
+//  void FamilyAnalysis::ShowLODs()
+//     {
+//     if (storeKinshipForVc)

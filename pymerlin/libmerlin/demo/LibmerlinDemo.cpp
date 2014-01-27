@@ -88,6 +88,9 @@ int main(int argc, char ** argv)
 	} else ;
 	if (atoi(argv[2]) == 1) showPed(ped.data);
 	else if (atoi(argv[2]) == 2) {
+      MendelianErrorChecker mc;
+      mc.apply(ped.data);
+      std::cout << "Mendelian Errors " << mc.errorCount << std::endl;
 		GeneticHaplotyper gh(chrom);
 		gh.apply(ped.data);
 		for (unsigned f = 0; f < gh.data.size(); f++) {
