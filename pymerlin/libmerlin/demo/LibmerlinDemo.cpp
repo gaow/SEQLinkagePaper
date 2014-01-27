@@ -51,8 +51,8 @@ void readData(Pedigree & ped,
 
 int main(int argc, char ** argv)
 {
-	if (argc != 3) {
-		printf("usage: %s <data source code: 1, 2, 3> <task: 1 or 2>\n", argv[0]);
+	if (argc != 3 && argc != 4) {
+		printf("usage: %s <data source code: 1, 2, 3> <task: 1 or 2> -v\n", argv[0]);
 		return 0;
 	}
 
@@ -88,19 +88,36 @@ int main(int argc, char ** argv)
 	} else ;
 	if (atoi(argv[2]) == 1) showPed(ped.data);
 	else if (atoi(argv[2]) == 2) {
-      MendelianErrorChecker mc;
-      mc.apply(ped.data);
-      std::cout << "Mendelian Errors " << mc.errorCount << std::endl;
+		MendelianErrorChecker mc;
+		mc.Apply(ped.data);
+		std::cout << "Mendelian Errors " << mc.errorCount << std::endl;
 		GeneticHaplotyper gh(chrom);
-		gh.apply(ped.data);
-		for (unsigned f = 0; f < gh.data.size(); f++) {
-			for (unsigned p = 0; p < gh.data[f].size(); p++) {
-				for (unsigned i = 0; i < gh.data[f][p].size(); i++) {
-					std::cout << gh.data[f][p][i] << "\t";
+		gh.Apply(ped.data);
+		if (argc == 4) {
+			for (unsigned f = 0; f < gh.data.size(); f++) {
+				for (unsigned p = 0; p < gh.data[f].size(); p++) {
+					for (unsigned i = 0; i < gh.data[f][p].size(); i++) {
+						std::cout << gh.data[f][p][i] << "\t";
+					}
+					std::cout << std::endl;
 				}
 				std::cout << std::endl;
 			}
-			std::cout << std::endl;
+		}
+		HaplotypeCoder hc(1);
+		hc.Apply(gh.data);
+		if (argc == 4) {
+			for (unsigned f = 0; f < hc.data.size(); f++) {
+				for (unsigned p = 0; p < hc.data[f].size(); p++) {
+					for (unsigned i = 0; i < hc.data[f][p].size(); i++) {
+						std::cout << hc.data[f][p][i] << "\t";
+					}
+					std::cout << std::endl;
+				}
+				std::cout << std::endl;
+			}
 		}
 	}   else ;
 }
+
+

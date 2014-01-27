@@ -42,7 +42,7 @@ public:
 	MendelianErrorChecker() {};
 	~MendelianErrorChecker() {};
 	int errorCount;
-	void apply(Pedigree & ped);
+	void Apply(Pedigree & ped);
 
 };
 
@@ -53,7 +53,7 @@ public:
 	~GeneticHaplotyper() {};
 	// [family][sample][haplotypes]
 	std::vector< std::vector< std::vector<std::string> > > data;
-	void apply(Pedigree & ped);
+	void Apply(Pedigree & ped);
 
 private:
 	std::string __chrom;
@@ -64,11 +64,14 @@ class HaplotypeCoder
 public:
 	HaplotypeCoder(int size) : __size(size) {}
 	~HaplotypeCoder() {};
-	std::vector< std::vector<std::string> > data;
-	void apply(std::vector< std::vector<std::string> > ghdata);
+	// [family][sample][haplotypes]
+	std::vector< std::vector< std::vector<std::string> > > data;
+	void Apply(std::vector< std::vector< std::vector<std::string> > > & ghdata);
 
 private:
 	int __size;
+	int __AdjustSize(int n);
+
 };
 }
 #endif

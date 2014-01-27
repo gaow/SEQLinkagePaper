@@ -5,6 +5,7 @@
 // GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 #include "chp.hpp"
 #include <iostream>
+#include <cstdlib>
 void SEQLinco::PedigreeData::LoadVariants(std::vector<std::string> & names,
                                           std::vector<int> & positions, std::string chrom)
 {
@@ -53,7 +54,7 @@ void SEQLinco::PedigreeData::__AddPerson(std::vector<std::string> & fam_info,
 }
 
 
-void SEQLinco::GeneticHaplotyper::apply(Pedigree & ped)
+void SEQLinco::GeneticHaplotyper::Apply(Pedigree & ped)
 {
 	data.resize(0);
 	// activate these analysis options
@@ -82,56 +83,76 @@ void SEQLinco::GeneticHaplotyper::apply(Pedigree & ped)
 }
 
 
-void SEQLinco::MendelianErrorChecker::apply(Pedigree & ped)
+void SEQLinco::MendelianErrorChecker::Apply(Pedigree & ped)
 {
 	// check mendelian error for everyone's every marker in input ped object
 	errorCount = 0;
 	for (int i = 0; i < ped.count; i++) {
 		// skip founder
-		if (ped[i].fatid == "0" || ped[i].motid == "0") continue;
+		if (ped[i].isFounder()) continue;
 		// identify founders for this person
 		Person * mom = ped[i].mother;
 		Person * dad = ped[i].father;
 		for (int m = 0; m < ped.markerCount; m++) {
-          //
+			//
 			// genotype data missing for both founders
-          //
-          if (!mom->markers[m].isKnown() && !dad->markers[m].isKnown()) continue;
-            //
-            // if mother/father missing, substitute with uninformative marker
-            // otherwise use as is
-            //
-            int gdad1, gdad2, gmom1, gmom2;
-            if (!mom->markers[m].isKnown()) {
-              gmom1 = 1; gmom2 = 2;
-            } else {
-              gmom1 = mom->markers[m][0]; gmom2 = mom->markers[m][1];
-            }
-            if (!dad->markers[m].isKnown()) {
-              gdad1 = 1; gdad2 = 2;
-            } else {
-              gdad1 = dad->markers[m][0]; gdad2 = dad->markers[m][1];
-            }
-            //
-            // check for mendelian error
-            //
-            // person missing data
-            if (!ped[i].markers[m].isKnown()) {
-              if (dad->markers[m].isHomozygous() && mom->markers[m].isHomozygous() && gdad1 == gmom1) {
-                ped[i].markers[m][0] = gdad1; ped[i].markers[m][1] = gdad2; continue;
-              }
-            }
-            // no error
-            if (((ped[i].markers[m][0] == gdad1 || ped[i].markers[m][0] == gdad2) &&
-                (ped[i].markers[m][1] == gmom1 || ped[i].markers[m][1] == gmom2)) ||
-               ((ped[i].markers[m][1] == gdad1 || ped[i].markers[m][1] == gdad2) &&
-                (ped[i].markers[m][0] == gmom1 || ped[i].markers[m][0] == gmom2)))
-              continue;
-            // error found, make missing
-            else {
-              errorCount += 1;
-              ped[i].markers[m][0] = ped[i].markers[m][1] = 0;
-            }
+			//
+			if (!mom->markers[m].isKnown() && !dad->markers[m].isKnown()) continue;
+			//
+			// if mother/father missing, substitute with uninformative marker
+			// otherwise use as is
+			//
+			int gdad1, gdad2, gmom1, gmom2;
+			if (!mom->markers[m].isKnown()) {
+				gmom1 = 1; gmom2 = 2;
+			} else {
+				gmom1 = mom->markers[m][0]; gmom2 = mom->markers[m][1];
+			}
+			if (!dad->markers[m].isKnown()) {
+				gdad1 = 1; gdad2 = 2;
+			} else {
+				gdad1 = dad->markers[m][0]; gdad2 = dad->markers[m][1];
+			}
+			//
+			// check for mendelian error
+			//
+			// person missing data
+			if (!ped[i].markers[m].isKnown()) {
+				if (dad->markers[m].isHomozygous() && mom->markers[m].isHomozygous() && gdad1 == gmom1) {
+					ped[i].markers[m][0] = gdad1; ped[i].markers[m][1] = gdad2; continue;
+				}
+			}
+			// no error
+			if (((ped[i].markers[m][0] == gdad1 || ped[i].markers[m][0] == gdad2) &&
+			     (ped[i].markers[m][1] == gmom1 || ped[i].markers[m][1] == gmom2)) ||
+			    ((ped[i].markers[m][1] == gdad1 || ped[i].markers[m][1] == gdad2) &&
+			     (ped[i].markers[m][0] == gmom1 || ped[i].markers[m][0] == gmom2)))
+				continue;
+			// error found, make missing
+			else {
+				errorCount += 1;
+				ped[i].markers[m][0] = ped[i].markers[m][1] = 0;
+			}
 		}
 	}
 }
+
+
+void SEQLinco::HaplotypeCoder::Apply(std::vector< std::vector< std::vector<std::string> > > & ghdata)
+{
+	data.resize(0);
+	if (!ghdata.size()) return;
+
+}
+
+
+int SEQLinco::HaplotypeCoder::__AdjustSize(int n)
+{
+	if (__size < 0) return n;
+	div_t divresult;
+	divresult = div(n, __size);
+	// reduce size by x such that rem + res * x = self.size - x
+	return __size - (int)((__size - divresult.rem) / (double)(divresult.quot + 1));
+}
+
+
