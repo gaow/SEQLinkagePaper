@@ -130,8 +130,9 @@ void MerlinHaplotype::UninformativeFamily(FamilyAnalysis & which, bool sample)
          LabelChromosomes(m, inheritanceVector[0], haploString[m]);
       }
 
-   OutputHaplotypes(haploString, recombinantString, "[Uninformative]");
-   OutputFounders(haploString, "[Uninformative]");
+   // OutputHaplotypes(haploString, recombinantString, "[Uninformative]");
+   // OutputFounders(haploString, "[Uninformative]");
+   OutputHaplotypesHacked(haploString, recombinantString, which.hapOutput);
 
    // Free temporary storage
    delete [] haploString;
@@ -238,9 +239,10 @@ void MerlinHaplotype::HaplotypeFamily(FamilyAnalysis & which, bool sample)
          marker++;
          }
 
-      OutputHaplotypes(haploString, recombinantString,
-                       sample ? "[Sampled]" : "[Most Likely]");
-      OutputFounders(haploString, sample ? "[Sampled]" : "[Most Likely]");
+      // OutputHaplotypes(haploString, recombinantString,
+      //                  sample ? "[Sampled]" : "[Most Likely]");
+      // OutputFounders(haploString, sample ? "[Sampled]" : "[Most Likely]");
+      OutputHaplotypesHacked(haploString, recombinantString, which.hapOutput);
 
       delete [] haploString;
       if (!sample && !family->zeroRecombination) delete [] right;
@@ -255,6 +257,53 @@ void MerlinHaplotype::HaplotypeFamily(FamilyAnalysis & which, bool sample)
       throw;
       }
    }
+void MerlinHaplotype::OutputHaplotypesHacked(StringArray * haplo, StringArray & recomb,
+                                             std::vector< std::vector<std::string> > & hout)
+{
+	// sample output below -- famid, pid, haplotypes w/ recombination symbol
+	// 1	1	2:	2:	2:	2:	2:	2:	2:	2:
+	// 1	1	2:	2:	2:	2:	2:	2:	2:	2:
+	// 1	2	2:	2:	2:	2:	2:	2:	2:	2:
+	// 1	2	2:	2:	2:	2:	2:	2:	2:	2:
+	// 1	3	1:	A1,2:	1:	1:	1:	1:	1:	1:
+	// 1	3	2:	A2,1:	2:	2:	2:	2:	2:	2:
+	// 1	4	2:	2:	2:	2:	2:	2:	2:	2:
+	// 1	4	2:	2:	2:	2:	2:	2:	2:	2:
+	hout.resize(0);
+	// Output two haplotypes for each individual
+	for (int i = 0; i < family->mantra.two_n; i++) {
+		Person & person = family->ped[family->family->path[i >> 1]];
+		if ((person.sex == SEX_MALE && PedigreeGlobals::chromosomeX) && (i & 1)) continue;
+		//
+		std::vector<std::string> buffer(0);
+		std::string swapper;
+		swapper.assign((const char *)person.famid);
+		buffer.push_back(swapper);
+		swapper.assign((const char *)person.pid);
+		buffer.push_back(swapper);
+
+		String prefix, suffix;
+
+		for (int m = 0; m < family->markerCount; m++) {
+			prefix.Clear();
+			suffix.Clear();
+
+			for (int j = 0; j < haplo[m][i].Length(); j++)
+				if (haplo[m][i][j] == ' ')
+					continue;
+				else if (isalpha(haplo[m][i][j]))
+					prefix += haplo[m][i][j];
+				else
+					suffix += haplo[m][i][j];
+
+			swapper.assign((const char *)(prefix + suffix));
+			swapper.push_back(recomb[m].IsEmpty() ? ':' : recomb[m][i >> 1]);
+			buffer.push_back(swapper);
+		}
+		hout.push_back(buffer);
+	}
+}
+
 
 void MerlinHaplotype::OutputHaplotypes(
      StringArray * haploString, StringArray & recombString,

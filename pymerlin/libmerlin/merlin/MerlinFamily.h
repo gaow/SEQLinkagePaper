@@ -34,6 +34,9 @@
 // The MerlinCore class manages basic likelihood calculations
 #include "MerlinCore.h"
 
+#include <vector>
+#include <string>
+
 class FamilyAnalysis : public MerlinCore
    {
    public:
@@ -112,6 +115,9 @@ class FamilyAnalysis : public MerlinCore
 
       // Pointer to handler for NPL information
       KongAndCox * kac;
+
+      // haplotype output, a hack by gw
+      std::vector< std::vector<std::string> > hapOutput;
 
    protected:
       // This function actually carries out most analyses

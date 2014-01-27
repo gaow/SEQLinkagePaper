@@ -25,6 +25,8 @@
 #include "MerlinCore.h"
 
 #include <stdio.h>
+#include <vector>
+#include <string>
 
 // Haplotyping routines
 //
@@ -68,6 +70,10 @@ class MerlinHaplotype
       void OutputHaplotypes(StringArray * haplo, StringArray & recomb,
                             const char * header_format, ...);
       void HorizontalOutput(StringArray * haplo);
+
+      // output to std vector, hacked by gw
+      void OutputHaplotypesHacked(StringArray *haplo, StringArray & recomb,
+                                  std::vector< std::vector<std::string> > & hout);
 
       // Founder haplotypes output broker
       void OutputFounders(StringArray * haplo, const char * label, int weight = 1);

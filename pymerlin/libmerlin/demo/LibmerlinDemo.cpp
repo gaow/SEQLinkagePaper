@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 #include <iterator>
+#include <iostream>
 
 void showPed(Pedigree & ped)
 {
@@ -155,11 +156,17 @@ void haplotyping(Pedigree & ped, String chrom)
 	// ped.Trim(true);
 	FamilyAnalysis engine(ped);
 	engine.SetupGlobals();
-	engine.SetupFiles();
 	engine.SetupMap(chrom);
 	for (int i = 0; i < ped.familyCount; i++)
-		if (engine.SelectFamily(ped.families[i]))
+		if (engine.SelectFamily(ped.families[i])) {
 			engine.Analyse();
+			for (unsigned i = 0; i < engine.hapOutput.size(); ++i) {
+				for (unsigned j = 0; j < engine.hapOutput[i].size(); ++j)
+					std::cout << engine.hapOutput[i][j] << "\t";
+				std::cout << std::endl;
+			}
+
+		}
 	engine.CleanupGlobals();
 }
 
@@ -180,3 +187,5 @@ int main(int argc, char ** argv)
 	else if (atoi(argv[2]) == 2) haplotyping(ped, "1");
 	else ;
 }
+
+
