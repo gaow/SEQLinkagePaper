@@ -1,12 +1,6 @@
-#include "Pedigree.h"
-#include "MerlinFamily.h"
-#include "MerlinHaplotype.h"
-#include "MerlinSort.h"
-#include <algorithm>
-#include <vector>
-#include <string>
-#include <iterator>
 #include <iostream>
+#include "chp.hpp"
+using namespace SEQLinco;
 
 void showPed(Pedigree & ped)
 {
@@ -55,122 +49,6 @@ void readData(Pedigree & ped,
 }
 
 
-void loadVariants(Pedigree & ped, std::vector<std::string> & marker_ids,
-                  std::vector<int> & marker_positions,
-                  int chrom = 1)
-{
-	for (unsigned i = 0; i < marker_ids.size(); ++i) {
-		ped.pd.columnHash.Push(ped.GetMarkerID(marker_ids[i].c_str()));
-		ped.pd.columns.Push(1);
-		ped.pd.columnCount++;
-		MarkerInfo * info = ped.GetMarkerInfo(i);
-		info->chromosome = chrom;
-		info->position = (double)marker_positions[i] * 0.01;
-	}
-	return;
-}
-
-
-void addPerson(Pedigree & ped, std::vector<std::string> & fam_info,
-               std::vector<std::string> & genotypes)
-{
-	// add person info
-	bool failure = false;
-
-	ped.AddPerson(fam_info[0].c_str(), fam_info[1].c_str(),
-		fam_info[2].c_str(), fam_info[3].c_str(),
-		ped.TranslateSexCode(fam_info[4].c_str(), failure));
-	// add person genotypes
-	for (unsigned i = 0; i < genotypes.size(); ++i) {
-		String c1 = genotypes[i].c_str()[0];
-		String c2 = genotypes[i].c_str()[1];
-		Alleles new_genotype;
-		new_genotype[0] = ped.LoadAllele(ped.GetMarkerInfo(i), c1);
-		new_genotype[1] = ped.LoadAllele(ped.GetMarkerInfo(i), c2);
-		if (new_genotype.isKnown()) ped[ped.count - 1].markers[i] = new_genotype;
-	}
-}
-
-
-void loadData(Pedigree & ped, int which = 1)
-{
-	if (which == 1) {
-		//
-		// haplo.dat
-		//
-		std::vector<std::string> marker_ids { "V1", "V2", "V3" };
-		std::vector<int> marker_positions { 1, 2, 3 };
-		loadVariants(ped, marker_ids, marker_positions);
-		//
-		// haplo.ped
-		//
-		std::vector<std::string> fam_info { "1", "1", "0", "0", "1" };
-		std::vector<std::string> genotypes { "21", "21", "21" };
-		addPerson(ped, fam_info, genotypes);
-		fam_info = { "1", "2", "0", "0", "2" };
-		genotypes = { "11", "11", "11" };
-		addPerson(ped, fam_info, genotypes);
-		fam_info = { "1", "3", "1", "2", "1" };
-		genotypes = { "21", "21", "21" };
-		addPerson(ped, fam_info, genotypes);
-		fam_info = { "2", "1", "0", "0", "1" };
-		genotypes = { "22", "21", "00" };
-		addPerson(ped, fam_info, genotypes);
-		fam_info = { "2", "2", "0", "0", "2" };
-		genotypes = { "11", "11", "11" };
-		addPerson(ped, fam_info, genotypes);
-		fam_info = { "2", "3", "1", "2", "1" };
-		genotypes = { "21", "21", "21" };
-		addPerson(ped, fam_info, genotypes);
-		fam_info = { "3", "1", "0", "0", "1" };
-		genotypes = { "22", "21", "21" };
-		addPerson(ped, fam_info, genotypes);
-		fam_info = { "3", "2", "0", "0", "2" };
-		genotypes = { "11", "11", "21" };
-		addPerson(ped, fam_info, genotypes);
-		fam_info = { "3", "3", "1", "2", "1" };
-		genotypes = { "21", "21", "21" };
-		addPerson(ped, fam_info, genotypes);
-	}
-	//
-	// sort
-	//
-	ped.Sort();
-	SortFamilies(ped);
-}
-
-
-void haplotyping(Pedigree & ped, String chrom)
-{
-	// activate these analysis options
-	FamilyAnalysis::bestHaplotype = true;
-	FamilyAnalysis::zeroRecombination = false;
-	MerlinHaplotype::outputHorizontal = true;
-	if (chrom == "X") PedigreeGlobals::chromosomeX = true;
-	//
-	ped.EstimateFrequencies(0, true);
-	// recode alleles so more frequent alleles have lower allele numbers internally
-	ped.LumpAlleles(0.0);
-	// remove uninformative family or individuals
-	// !! Do not trim here, because if a family is uninformative we can report as is
-	// ped.Trim(true);
-	FamilyAnalysis engine(ped);
-	engine.SetupGlobals();
-	engine.SetupMap(chrom);
-	for (int i = 0; i < ped.familyCount; i++)
-		if (engine.SelectFamily(ped.families[i])) {
-			engine.Analyse();
-			for (unsigned i = 0; i < engine.hapOutput.size(); ++i) {
-				for (unsigned j = 0; j < engine.hapOutput[i].size(); ++j)
-					std::cout << engine.hapOutput[i][j] << "\t";
-				std::cout << std::endl;
-			}
-
-		}
-	engine.CleanupGlobals();
-}
-
-
 int main(int argc, char ** argv)
 {
 	if (argc != 3) {
@@ -178,14 +56,48 @@ int main(int argc, char ** argv)
 		return 0;
 	}
 
-	Pedigree ped;
-	if (atoi(argv[1]) == 1) readData(ped, "haplo.dat", "haplo.ped", "haplo.map");
-	else if (atoi(argv[1]) == 2) readData(ped, "gene.dat", "gene.ped", "gene.map");
-	else if (atoi(argv[1]) == 3) loadData(ped, 1);
-	else ;
-	if (atoi(argv[2]) == 1) showPed(ped);
-	else if (atoi(argv[2]) == 2) haplotyping(ped, "1");
-	else ;
+	PedigreeData ped;
+	std::string chrom = "1";
+	if (atoi(argv[1]) == 1) readData(ped.data, "haplo.dat", "haplo.ped", "haplo.map");
+	else if (atoi(argv[1]) == 2) readData(ped.data, "gene.dat", "gene.ped", "gene.map");
+	else if (atoi(argv[1]) == 3) {
+		std::vector<std::string> marker_ids { "V1", "V2", "V3" };
+		std::vector<int> marker_positions { 1, 2, 3 };
+		std::vector< std::vector<std::string> > samples;
+		std::vector<std::string> s0 { "1", "1", "0", "0", "1", "21", "21", "21" };
+		samples.push_back(s0);
+		std::vector<std::string> s1 { "1", "2", "0", "0", "2", "11", "11", "11" };
+		samples.push_back(s1);
+		std::vector<std::string> s2 { "1", "3", "1", "2", "1", "21", "21", "21" };
+		samples.push_back(s2);
+		std::vector<std::string> s3 { "2", "1", "0", "0", "1", "22", "21", "00" };
+		samples.push_back(s3);
+		std::vector<std::string> s4 { "2", "2", "0", "0", "2", "11", "11", "11" };
+		samples.push_back(s4);
+		std::vector<std::string> s5 { "2", "3", "1", "2", "1", "21", "21", "21" };
+		samples.push_back(s5);
+		std::vector<std::string> s6 { "3", "1", "0", "0", "1", "22", "21", "21" };
+		samples.push_back(s6);
+		std::vector<std::string> s7 { "3", "2", "0", "0", "2", "11", "11", "21" };
+		samples.push_back(s7);
+		std::vector<std::string> s8 { "3", "3", "1", "2", "1", "21", "21", "21" };
+		samples.push_back(s8);
+		//
+		ped.LoadVariants(marker_ids, marker_positions, chrom);
+		ped.LoadSamples(samples);
+	} else ;
+	if (atoi(argv[2]) == 1) showPed(ped.data);
+	else if (atoi(argv[2]) == 2) {
+		GeneticHaplotyper gh(chrom);
+		gh.apply(ped.data);
+		for (unsigned f = 0; f < gh.data.size(); f++) {
+			for (unsigned p = 0; p < gh.data[f].size(); p++) {
+				for (unsigned i = 0; i < gh.data[f][p].size(); i++) {
+					std::cout << gh.data[f][p][i] << "\t";
+				}
+				std::cout << std::endl;
+			}
+			std::cout << std::endl;
+		}
+	}   else ;
 }
-
-

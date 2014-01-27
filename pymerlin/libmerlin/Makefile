@@ -1,5 +1,5 @@
 CXX = g++ 
-CFLAGS=-O3 -I./libsrc -I./merlin -I./pdf -I./clusters -D_FILE_OFFSET_BITS=64 -D__ZLIB_AVAILABLE__ -Wall -std=c++11
+CFLAGS=-O3 -I ./ -I./libsrc -I./merlin -I./pdf -I./clusters -D_FILE_OFFSET_BITS=64 -D__ZLIB_AVAILABLE__ -Wall -std=c++11
 BINDIR = demo 
 MERLIN = demo/demo.exe
 EXECUTABLES = $(MERLIN)
@@ -21,8 +21,8 @@ MERLINBASE = merlin/AssociationAnalysis merlin/FastAssociation \
  merlin/Tree \
  merlin/TreeBasics merlin/TreeIndex merlin/TreeManager \
  merlin/TreeInfo merlin/TreeFlips merlin/VarianceComponents
-MERLINHDR = $(MERLINBASE:=.h) merlin/TreeNode.h
-MERLINSRC = $(MERLINBASE:=.cpp) demo/LibmerlinDemo.cpp
+MERLINHDR = $(MERLINBASE:=.h) merlin/TreeNode.h chp.hpp
+MERLINSRC = $(MERLINBASE:=.cpp) demo/LibmerlinDemo.cpp chp.cpp
 MERLINOBJ = $(MERLINSRC:.cpp=.o)
 
 # Files for dealing with clustered markers
