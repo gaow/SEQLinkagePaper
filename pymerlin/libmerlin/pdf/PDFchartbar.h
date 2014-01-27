@@ -1,5 +1,5 @@
 ////////////////////////////////////////////////////////////////////// 
-// regress/AutoFit.h 
+// pdf/PDFchartbar.h 
 // (c) 2000-2007 Goncalo Abecasis
 // 
 // This file is distributed as part of the MERLIN source code package   
@@ -15,27 +15,38 @@
 // Tuesday December 18, 2007
 // 
  
-#ifndef __AUTOFIT_H__
-#define __AUTOFIT_H__
+/* This file written by Jan Wigginton */
+ 
+#ifndef __CHARTBAR_H__
+#define __CHARTBAR_H__
 
-#include "MathNormal.h"
-#include "Pedigree.h"
+#include "PDFpage.h"
+#include "PDFchartobject.h"
 
-class NormalEquations;
-
-class AutoFit
+class PDFChartBar : public PDFChartObject
    {
+   friend class PDFHistogram;
+   friend class PDFChartBasics;
+
    public:
-      AutoFit();
 
-      void FitPolygenicModels(Pedigree & ped);
+     PDFChartBar();
+     virtual ~PDFChartBar();
 
-      static bool   useCovariates;
-      static bool   useProbands;
+   private:
 
-      Vector means, variances, heritabilities;
+      bool    hasData;
+      double  count;
+      double  lowerBound, upperBound;
+
+      void operator=(const PDFChartBar & rhs);
+
    };
+
 
 #endif
 
-  
+ 
+ 
+ 
+ 
