@@ -28,7 +28,7 @@
 #include <ctype.h>
 
 // Maximum number of haplotype vectors to list
-#define MAXIMUM_HAPLOTYPES    50
+#define MAXIMUM_HAPLOTYPES    500
 
 // Constructor and destructor
 //

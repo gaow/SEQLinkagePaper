@@ -1,0 +1,13 @@
+Index: merlin/MerlinHaplotype.cpp
+===================================================================
+--- merlin/MerlinHaplotype.cpp	(revision 11)
++++ merlin/MerlinHaplotype.cpp	(working copy)
+@@ -28,7 +28,7 @@
+ #include <ctype.h>
+ 
+ // Maximum number of haplotype vectors to list
+-#define MAXIMUM_HAPLOTYPES    50
++#define MAXIMUM_HAPLOTYPES    500
+ 
+ // Constructor and destructor
+ //
