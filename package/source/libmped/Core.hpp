@@ -3,6 +3,7 @@
 // $Rev:  $
 // Copyright (c) 2014, Gao Wang <ewanggao@gmail.com>
 // GNU General Public License (http://www.gnu.org/licenses/gpl.html)
+
 #ifndef _CORE_HPP_
 #define _CORE_HPP_
 
@@ -17,18 +18,21 @@
 #include <iterator>
 #include <iostream>
 
+#include "Exception.hpp"
+
 namespace SEQLinco {
 class PedigreeData
 {
 public:
 	PedigreeData() {};
 	~PedigreeData() {};
+	PedigreeData * clone() const { return new PedigreeData(*this); }
 	Pedigree data;
-	void LoadVariants(std::vector<std::string> & names,
-		std::vector<int> & positions,
-		std::string chrom);
+	void LoadVariants(const std::vector<std::string> & names,
+		const std::vector<int> & positions,
+		const std::string & chrom);
 
-	void LoadSamples(std::vector< std::vector<std::string> > & samples);
+	void LoadSamples(const std::vector< std::vector<std::string> > & samples);
 
 private:
 	void __AddPerson(std::vector<std::string> & fam_info,
@@ -41,6 +45,7 @@ class MendelianErrorChecker
 public:
 	MendelianErrorChecker() : errorCount(0) {};
 	~MendelianErrorChecker() {};
+	MendelianErrorChecker * clone() const { return new MendelianErrorChecker(*this); }
 	int errorCount;
 	void Apply(Pedigree & ped);
 
@@ -49,8 +54,9 @@ public:
 class GeneticHaplotyper
 {
 public:
-	GeneticHaplotyper(std::string chrom) : __chrom(chrom), data(0) {}
+	GeneticHaplotyper(const std::string & chrom) : data(0), __chrom(chrom) {}
 	~GeneticHaplotyper() {};
+	GeneticHaplotyper * clone() const { return new GeneticHaplotyper(*this); }
 	// [family][sample][haplotypes]
 	std::vector< std::vector< std::vector<std::string> > > data;
 	// Apply haplotyping. Missing data are imputed as possible
@@ -63,8 +69,9 @@ private:
 class HaplotypeCoder
 {
 public:
-	HaplotypeCoder(int size) : __size(size), recombCount(0), data(0) {}
+	HaplotypeCoder(const int size) : data(0), recombCount(0), __size(size) {}
 	~HaplotypeCoder() {};
+	HaplotypeCoder * clone() const { return new HaplotypeCoder(*this); }
 	// [[familyid, sampleid, hap1, hap2] ...]
 	std::vector< std::vector<std::string> > data;
 	int recombCount;

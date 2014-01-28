@@ -1,12 +1,13 @@
+#!/usr/bin/python
+# Copyright (c) 2013, Gao Wang <gaow@bcm.edu>
+# GNU General Public License (http://www.gnu.org/licenses/gpl.html)
+
 import sys, os, subprocess, shutil, glob, shlex, urlparse, re, hashlib, tarfile
 from multiprocessing import Process, Queue, Lock, Value
-from distutils.dir_util import mkpath, remove_tree
-from argparse import ArgumentParser, SUPPRESS
-from collections import Counter
 import numpy as np
 import matplotlib.pyplot as plt
-
-VERSION = "1.0.alpha"
+from distutils.dir_util import mkpath, remove_tree
+from . import VERSION
 
 class Environment:
     '''Ugly globals'''
@@ -23,7 +24,7 @@ class Environment:
         self.path = {'PATH':self.resource_bin}
         # File contents 
         self.build = 'hg19'
-        self.delimiter = ' '
+        self.delimiter = " "
         self.ped_missing = ['0', '-9'] + ['none', 'null', 'na', 'nan', '.']
         self.missing = 'NA'
         self.trait = 'binary'
@@ -37,7 +38,9 @@ class Environment:
         self.batch = 50
         self.total_counter = Value('i',0)
         self.success_counter = Value('i',0)
+        self.triallelic_counter = Value('i',0)
         self.mendelerror_counter = Value('i',0)
+        self.recomb_counter = Value('i',0)
             
     def error(self, msg = None, show_help = False, exit = False):
         if msg is None:
@@ -75,13 +78,6 @@ class Environment:
         sys.stderr.write(start + "\033[1;40;32mMESSAGE: {}\033[0m".format(msg) + end)
 
 env = Environment()
-
-###
-# Utility functions
-###
-
-def flatten(l):
-    return [item for sublist in l for item in sublist]
 
 def runCommand(cmd, instream = None, msg = '', upon_succ=None):
     if isinstance(cmd, str):
@@ -146,13 +142,16 @@ def runCommands(cmds, ncpu):
     except KeyboardInterrupt:
         raise ValueError('Commands terminated!')
 
-def downloadURL(URL, dest_dir, quiet = True, mode = None):
+def downloadURL(URL, dest_dir, quiet = True, mode = None, force = False):
     if not os.path.isdir(dest_dir):
         mkpath(dest_dir)
     filename = os.path.split(urlparse.urlsplit(URL).path)[-1]
     dest = os.path.join(dest_dir, filename)
     if os.path.isfile(dest):
-        return
+        if force:
+            os.remove(dest)
+        else:
+            return
     # use wget
     try:
         # for some strange reason, passing wget without shell=True can fail silently.
@@ -233,439 +232,32 @@ def getColumn(fn, num, delim = None, exclude = None):
                 output.append(parts[num])
     return output
 
-###
-# Workhorse
-###
 
-def indexVCF(vcf):
-    if not os.path.isfile(vcf + '.tbi'):
-        env.log("Generating index file for [{}] ...".format(vcf))
-        runCommand('tabix -p vcf {}'.format(vcf))
+###
+# Check parameter input
+###
+def checkParams(args):
+    '''set default arguments or make warnings'''
+    args.vcf = os.path.abspath(os.path.expanduser(args.vcf))
+    if args.output:
+        env.output = os.path.split(args.output)[-1]
+    env.missing = args.missing
+    #
+    if len([x for x in set(getColumn(args.tfam, 6)) if x.lower() not in env.ped_missing]) > 2:
+        env.trait = 'quantitative'
+    env.log('{} trait detected in [{}]'.format(env.trait.capitalize(), args.tfam))
+    if not args.blueprint:
+        args.blueprint = os.path.join(env.resource_dir, 'genemap.txt')
+    # pop plink/mega2 format to first
+    args.format = [x.lower() for x in set(args.format)]
+    for item in ['mega2', 'plink']:
+        if item in args.format:
+            args.format.insert(0, args.format.pop(args.format.index(item)))
     return True
 
-# @profile
-def parseVCFline(line, exclude = [], info = None, letters = False, phased = True):
-    if len(line) == 0:
-        return []
-    line = line.split('\t')
-    v = ([line[3]] + line[4].split(',')) if letters else None
-    gs = []
-    for idx in range(len(line)):
-        if idx < 9 or idx in exclude:
-            continue
-        if v:
-            try:
-                i, j = re.split('\/|\|', line[idx].split(":")[0])
-                g = '{}{}'.format(v[int(i)], v[int(j)])
-            except:
-                try:
-                    i = re.split('\/|\|', line[idx].split(":")[0])[0]
-                    g = '{}'.format(v[int(i)])
-                except:
-                    g = '.'
-        else:
-            # Remove separater
-            g = re.sub('\/|\|','',line[idx].split(":")[0])
-        if not phased:
-            g = ''.join(sorted(g))
-        gs.append(g)
-    return ([line[x-1] for x in info] + gs) if info is not None else gs
-    
-def extractSamplenames(vcf):
-    samples = runCommand('tabix -H {}'.format(vcf)).strip().split('\n')[-1].split('\t')[9:]
-    if not samples:
-        env.error("Fail to extract samples from [{}]".format(vcf), exit = True)
-    return samples
-
-def extractFamilies(tfam):
-    fam = {}
-    samples = []
-    with open(tfam, 'r') as f:
-        for line in f.readlines():
-            line = line.split()
-            samples.append(line[1])
-            if line[2] in env.ped_missing or line[3] in env.ped_missing:
-                continue
-            if line[0] not in fam:
-                fam[line[0]] = [(line[2], line[3]), [line[1]]]
-            else:
-                fam[line[0]][1].append(line[1])
-    for k in fam.keys():
-        # remove missing father or mather
-        if fam[k][0][0] not in samples or fam[k][0][1] not in samples:
-            del fam[k]
-            continue
-        # remove parents from offsprings, just in case
-        fam[k][1] = [x for x in fam[k][1] if x not in fam[k][0]]
-    return fam
-
-def rewriteFamfile(tfam, samples):
-    '''remove samples from tfam file that are not in the
-    input sample list'''
-    if sorted(getColumn(tfam,2)) == sorted(samples):
-        return
-    os.rename(tfam, tfam + '.bak')
-    try:
-        with open(tfam + '.bak', 'r') as f:
-            data = f.readlines()
-        with open(tfam, 'w') as f:
-            for item in data:
-                if item.split()[1] in samples:
-                    f.write(item)
-    except:
-        os.rename(tfam + '.bak', tfam)
-        raise
-
-def checkSamples(samp1, samp2):
-    '''check if two sample lists agree
-    1. samples in TFAM but not in VCF --> ERROR
-    2. samples in VCF but not in TFAM --> give a message'''
-    a_not_b = list(set(samp1).difference(set(samp2)))
-    b_not_a = list(set(samp2).difference(set(samp1)))
-    if b_not_a:
-        raise RuntimeError('{:,d} samples found in TFAM file but not in VCF file:\n{}'.\
-                           format(len(b_not_a), '\n'.join(b_not_a))) 
-    if a_not_b:
-        env.log('{:,d} samples in VCF file will be ignored due to absence in TFAM file'.format(len(a_not_b)))
-    return True
-
-def loadMap(maps):
-    return {}
-
-class Cache:
-    def __init__(self, cache_dir, cache_name):
-        self.cache_dir = cache_dir
-        self.cache_name = os.path.join(cache_dir, cache_name + '.cache')
-        self.cache_info = cache_info = os.path.join(cache_dir, '.info.' + cache_name)
-        mkpath(cache_dir)
-
-    def check(self):
-        if not os.path.isfile(self.cache_info):
-            return False
-        with open(self.cache_info, 'r') as f:
-            for item in f.readlines():
-                name, key = item.split()
-                if not os.path.isfile(name) or key != calculateFileMD5(name):
-                    return False
-        return True
-
-    def load(self):
-        with tarfile.open(self.cache_name) as f:
-            f.extractall(self.cache_dir)        
-
-    def write(self, ext = None, pre = None, otherfiles = []):
-        '''Add files to cache'''
-        if not self.check():
-            with tarfile.open(self.cache_name, 'w:bz2') as f:
-                for item in os.listdir(self.cache_dir):
-                    if (item.endswith(ext) or ext is None) and (item.startswith(pre) or pre is None):
-                        f.add(os.path.join(self.cache_dir, item), arcname=item)
-            otherfiles.append(self.cache_name)
-            signatures = ['{}\t{}'.format(x, calculateFileMD5(x)) for x in otherfiles]
-            with open(self.cache_info, 'w') as f:
-                f.write('\n'.join(signatures))
 
 ###
-# Encoder core
-###
-
-class PseudoAutoRegion:
-    def __init__(self, chrom, build):
-        if build == ['hg18', 'build36'] and chrom.lower() in ['x', '23']:
-            self.check = self.checkChrX_hg18
-        elif build in ['hg18', 'build36'] and chrom.lower() in ['y', '24']:
-            self.check = self.checkChrY_hg18
-        elif build in ['hg19', 'build37'] and chrom.lower() in ['x', '23']:
-            self.check = self.checkChrX_hg19
-        elif build in ['hg19', 'build37'] and chrom.lower() in ['y', '24']:
-            self.check = self.checkChrY_hg19
-        else:
-            self.check = self.notWithinRegion
-
-    def checkChrX_hg18(self, pos):
-        return (pos >= 1 and pos <= 2709520) or \
-            (pos >= 154584238 and pos <= 154913754)
-
-    def checkChrY_hg18(self, pos):
-        return (pos >= 1 and pos <= 2709520) or \
-            (pos >= 57443438 and pos <= 57772954)
-
-    def checkChrX_hg19(self, pos):
-        return (pos >= 60001 and pos <= 2699520) or \
-            (pos >= 154931044 and pos <= 155270560)
-
-    def checkChrY_hg19(self, pos):
-        return (pos >= 10001 and pos <= 2649520) or \
-            (pos >= 59034050 and pos <= 59373566)
-
-    def notWithinRegion(self, pos):
-        return False
-
-class RData(dict):
-    def __init__(self, samples, families):
-        self.__families = families
-        self.__families_flat = {key : flatten(families[key]) for key in families}
-        self.__samples = samples
-        self.reset()
-
-    def reset(self):
-        data = {}
-        for item in self.__samples:
-            data[item] = []
-        data['__variant_info'] = []
-        self.update(data)
-
-    def samples(self):
-        return self.__samples
-
-    def families(self):
-        # {fid : [(pid, mid), [sids ...]], ...}
-        return self.__families
-
-    def ffamilies(self):
-        # {fid : [pid, mid, sids ...], ...}
-        return self.__families_flat
-    
-class RegionExtractor:
-    '''Extract given genomic region from VCF
-    converting genotypes into dictionary of
-    genotype list'''
-    def __init__(self, filename, exclude_idx, build = env.build):
-        self.vcf = filename
-        self.exclude_idx = exclude_idx
-        self.chrom = self.startpos = self.endpos = self.name = self.distance = None
-        self.xchecker = PseudoAutoRegion('X', build)
-        self.ychecker = PseudoAutoRegion('Y', build)
-        
-    def apply(self, data):
-        # Only keep position information
-        info = (2,)
-        lines = [parseVCFline(x, exclude = self.exclude_idx, info=info) for x in \
-                  runCommand('tabix {} {}:{}-{}'.\
-                             format(self.vcf, self.chrom, self.startpos, self.endpos)).strip().split('\n')]
-        if len(lines) == 0 or len(lines[0]) == 0:
-            return False
-        #
-        if not len(lines[0]) - len(info) == len(data.samples()):
-            raise ValueError('Genotype and sample mismatch for region {}: {:,d} vs {:,d}'.\
-                             format(self.name,len(lines[0]) - len(info), len(data.samples())))
-        #
-        for line in lines:
-            data['__variant_info'].append(int(line[0]))
-            # for each family, mark monomorphic site as missing
-            # and assign their genotype 
-            for k, eachfam in data.ffamilies().items():
-                geno = [y for j, y in enumerate(line[1:]) if j in \
-                        [i for i, x in enumerate(data.samples()) if x in eachfam]]
-                if len(set(flatten([list(x) for x in set(geno) if x != '.']))) == 1:
-                    # monomorphic site for this family
-                    # skip this site
-                    continue
-                else:
-                    for person, x in zip(eachfam, geno):
-                        data[person].append(x)
-                    data['__{}_major'.format(k)] = sorted(Counter(geno).most_common()[0][0])[0]
-        return True
-            
-    def getRegion(self, region):
-        self.chrom, self.startpos, self.endpos, self.name, self.distance = region
-        if self.chrom.lower() in ['x','23','chrx','chr23']:
-            if self.xchecker.check(int(self.startpos)) or self.xchecker.check(int(self.endpos)): 
-                self.chrom = 'XY'
-        if self.chrom.lower() in ['y','24','chry','chr24']:
-            if self.ychecker.check(int(self.startpos)) or self.ychecker.check(int(self.endpos)):
-                self.chrom = 'XY'        
-    
-class MendelianErrorChecker:
-    '''Check and fix Mendelian error in
-    offspring genotypes'''
-    def __init__(self):
-        self.lock = Lock()
-
-    # @profile
-    def apply(self, data):
-        fam = data.families()
-        for f in fam:
-            map(lambda l: self.__check(data, fam[f][0], fam[f][1], l),
-                range(len(data[fam[f][0][0]])))
-        return True
-
-    # @profile
-    def __check(self, data, parents, kids, locus):
-        """ check mendelian error for one marker
-        input are parent ID's, offspring ids and locus index
-        """
-        gdad, gmom = data[parents[0]][locus], data[parents[1]][locus]
-        if gdad == '.' and gmom == '.':
-            return
-        if gdad == '.':
-            gdad = '01'
-        if gmom == '.':
-            gmom = '01'
-        for k in kids:
-            gkid = data[k][locus]
-            if gkid == '.':
-                # try to impute
-                if gdad == '00' and gmom == '00':
-                    data[k][locus] = '00'
-                elif gdad == '11' and gmom == '11':
-                    data[k][locus] = '11'       
-                else:
-                    continue
-            else:
-                try:
-                    if (gkid[0] in gdad and gkid[1] in gmom) \
-                      or (gkid[0] in gmom and gkid[1] in gdad):
-                        continue
-                    else:
-                        with self.lock:
-                            env.mendelerror_counter.value += 1
-                        data[k][locus] = '.'
-                except IndexError:
-                    # kid is haploid, which means chrom X or Y variant on a boy
-                    # FIXME: impossible to correctly identify unless chrom number is given
-                    if gkid in gmom or gdad:
-                        continue
-                    else:
-                        with self.lock:
-                            env.mendelerror_counter.value += 1
-                        data[k][locus] = '.'                        
-        
-class GenoEncoder:
-    def __init__(self, wsize):
-        self.size = wsize
-
-    def apply(self, data):
-        data['__variant_info'] = sum(data['__variant_info']) / len(data['__variant_info'])
-        for k, eachfam in data.ffamilies().items():
-            pool = []
-            for person in eachfam:
-                # set missing value to major allele
-                if len(data[person]) == 0:
-                    pool.extend(['0','0'])
-                else:
-                    pool.append(''.join([x[0] if x[0] != '.' else \
-                                     data['__{}_major'.format(k)] for x in data[person]]))
-                    pool.append(''.join([x[1] if len(x) > 1 else \
-                                     (x[0] if x[0] != '.' else data['__{}_major'.format(k)]) \
-                                     for x in data[person]]))
-            # pool: [allele1@samp1, allele2@samp1, allele1@samp2, allele2@samp2, ...]
-            if self.size > 1 or self.size == -1:
-                pool = self.collapse(pool)
-            # find unique pattern
-            mapping = {item : idx + 1 for idx, item in enumerate(sorted(set(pool)))}
-            # reset data
-            idx = 0
-            for person in eachfam:
-                data[person] = '{} {}'.format(mapping[pool[idx]], mapping[pool[idx+1]])
-                idx += 2
-        # drop the region if it is monomorphic
-        for k in data.samples():
-            if data[k] != '1 1':
-                # at least one sample is polymorphic
-                return True
-        return False
-    
-    def collapse(self, x):
-        '''input data is a list of binary strings
-        will be collapsed on every self.size characters'''
-        # adjust size
-        size = self.__adjust_size(len(x[0]))
-        for idx, item in enumerate(x):
-           x[idx] = ''.join(['1' if '1' in iitem else '0' \
-                     for iitem in [item[i:i+size] for i in range(0, len(item), size)]])
-        return x
-
-    def __adjust_size(self, n):
-        if self.size < 0:
-            return n
-        res, rem = divmod(n, self.size)
-        # reduce size by x such that rem + res * x = self.size - x
-        return self.size - (self.size - rem) / (res + 1)
-
-class LinkageWritter:
-    def __init__(self):
-        self.lock = Lock()
-        self.chrom = self.prev_chrom = self.name = self.distance = None
-        self.__reset()
-
-    def apply(self, data):
-        # input data receieved, call it a "success"
-        with self.lock:
-            env.success_counter.value += 1
-        if self.chrom != self.prev_chrom:
-            if self.prev_chrom is None:
-                self.prev_chrom = self.chrom
-            else:
-                # new chrom entered,
-                # commit whatever is in buffer before accepting new data
-                self.commit()
-        # FIXME: currently only applies to collapsing theme
-        self.output += env.delimiter.join(
-            [self.chrom, self.name, self.distance, str(data['__variant_info'])] + \
-                                          [data[s] for s in data.samples()]) + '\n'
-        if self.counter < env.batch:
-            self.counter += 1
-        else:
-            self.commit()
-
-    def commit(self):
-        if not self.output:
-            return
-        with self.lock:
-            with open(os.path.join(env.cache_dir, '{}.chr{}.tped'.format(env.output, self.prev_chrom)),
-                      'a') as f:
-                f.write(self.output)
-        self.__reset()
-
-    def __reset(self):
-        self.output = ''
-        self.counter = 0
-        self.prev_chrom = self.chrom
-            
-    def getRegion(self, region):
-        self.chrom = region[0]
-        self.name, self.distance = region[3:]
-
-class EncoderWorker(Process):
-    def __init__(self, wid, queue, data, rextractor, mchecker, gencoder, linkwritter):
-        Process.__init__(self)
-        self.worker_id = wid
-        self.queue = queue
-        self.modules = [rextractor, mchecker, gencoder, linkwritter]
-        self.data = data
-        self.lock = Lock()
-
-    def report(self):
-        env.log('{:,d} units processed; {:,d} Mendelian errors fixed; {:,d} super markers generated'.\
-                format(env.total_counter.value, env.mendelerror_counter.value, env.success_counter.value),
-                flush = True)
-        
-    def run(self):
-        while True:
-            try:
-                region = self.queue.get()
-                if region is None:
-                    self.modules[-1].commit()
-                    self.report()
-                    break
-                else:
-                    with self.lock:
-                        env.total_counter.value += 1
-                    self.modules[0].getRegion(region)
-                    self.modules[-1].getRegion(region)
-                    self.data.reset()
-                    for m in self.modules:
-                        if not m.apply(self.data):
-                            # previous module failed
-                            break
-                    if env.total_counter.value % (env.batch * env.jobs) == 0:
-                        self.report()
-            except KeyboardInterrupt:
-                break
-
-###
-# Data converters
+# Data format conversion
 ###
 
 def formatPlink(tpeds, tfams, outdir):
@@ -778,4 +370,3 @@ def plotMlink():
     #cmds = ['runMlink.pl MLINK/{}.{} {}'.format(env.output, chrs[i], env.resource_dir) for i in range(25)]
     #env.jobs = max(min(args.jobs, cmds), 1)
     #runCommands(cmds, env.jobs)
-    

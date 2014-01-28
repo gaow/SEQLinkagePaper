@@ -9,15 +9,15 @@
 #include <vector>
 #include <string>
 #include "Core.hpp"
-using namespace SEQLinco;
-
+namespace SEQLinco {
 class CHP
 {
 public:
-	CHP(int wsize) : __windowSize(wsize) {};
+	CHP(const int wsize) : __windowSize(wsize) {};
 	~CHP() {};
+	CHP * clone() const { return new CHP(*this); }
 	std::vector< std::vector<std::string> >
-	Apply(std::string chrom, const std::vector<std::string> & marker_names,
+	Apply(const std::string & chrom, const std::vector<std::string> & marker_names,
 	      const std::vector<int> & marker_positions, const std::vector< std::vector<std::string> > & samples)
 	{
 		// input chrom must be 1 .. 22 and X
@@ -33,7 +33,7 @@ public:
 		GeneticHaplotyper gh(chrom);
 		gh.Apply(ped.data);
 		HaplotypeCoder hc(__windowSize);
-		hc.apply(gh.data);
+		hc.Apply(gh.data);
 		__recombCount = hc.recombCount;
 		return hc.data;
 	}
@@ -47,4 +47,5 @@ private:
 	int __recombCount;
 	int __windowSize;
 };
+}
 #endif

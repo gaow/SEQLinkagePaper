@@ -17,8 +17,8 @@ inline bool hasEnding(std::string const & fullString, std::string const & ending
 }
 
 
-void SEQLinco::PedigreeData::LoadVariants(std::vector<std::string> & names,
-                                          std::vector<int> & positions, std::string chrom)
+void SEQLinco::PedigreeData::LoadVariants(const std::vector<std::string> & names,
+                                          const std::vector<int> & positions, const std::string & chrom)
 {
 	for (unsigned i = 0; i < names.size(); ++i) {
 		data.pd.columnHash.Push(data.GetMarkerID(names[i].c_str()));
@@ -31,7 +31,7 @@ void SEQLinco::PedigreeData::LoadVariants(std::vector<std::string> & names,
 }
 
 
-void SEQLinco::PedigreeData::LoadSamples(std::vector< std::vector<std::string> > & samples)
+void SEQLinco::PedigreeData::LoadSamples(const std::vector< std::vector<std::string> > & samples)
 {
 
 	for (unsigned i = 0; i < samples.size(); ++i) {

@@ -1,0 +1,21 @@
+#!/usr/bin/python
+# Copyright (c) 2013, Gao Wang <gaow@bcm.edu>
+# GNU General Public License (http://www.gnu.org/licenses/gpl.html)
+
+from SEQLinco.Utils import env
+from SEQLinco.Parameters import Args
+   
+if __name__ == '__main__':
+    # check platform
+    import platform
+    system = platform.system()
+    arch = platform.architecture()[0]
+    if not ((system == 'Linux' and arch == '64bit') or system == 'Darwin'):
+        env.error("{} cannot be executed on {}-{} computers "\
+                  "(only 64bit Linux/Mac environment is supported)".format(env.prog, system, arch), exit = True)
+    try:
+        args = Args().get()
+        args.func(args)
+    except Exception as e:
+        raise
+        env.error("{}".format(e))
