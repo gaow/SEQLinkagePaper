@@ -1,10 +1,10 @@
-// $File: chp.hpp $
+// $File: Core.hpp $
 // $LastChangedDate:  $
 // $Rev:  $
 // Copyright (c) 2014, Gao Wang <ewanggao@gmail.com>
 // GNU General Public License (http://www.gnu.org/licenses/gpl.html)
-#ifndef _CHP_HPP_
-#define _CHP_HPP_
+#ifndef _CORE_HPP_
+#define _CORE_HPP_
 
 #include "Pedigree.h"
 #include "MerlinFamily.h"
@@ -39,7 +39,7 @@ private:
 class MendelianErrorChecker
 {
 public:
-	MendelianErrorChecker() {};
+	MendelianErrorChecker() : errorCount(0) {};
 	~MendelianErrorChecker() {};
 	int errorCount;
 	void Apply(Pedigree & ped);
@@ -49,7 +49,7 @@ public:
 class GeneticHaplotyper
 {
 public:
-	GeneticHaplotyper(std::string chrom) : __chrom(chrom) {}
+	GeneticHaplotyper(std::string chrom) : __chrom(chrom), data(0) {}
 	~GeneticHaplotyper() {};
 	// [family][sample][haplotypes]
 	std::vector< std::vector< std::vector<std::string> > > data;
@@ -63,14 +63,12 @@ private:
 class HaplotypeCoder
 {
 public:
-	HaplotypeCoder(int size) : __size(size) {}
+	HaplotypeCoder(int size) : __size(size), recombCount(0), data(0) {}
 	~HaplotypeCoder() {};
 	// [[familyid, sampleid, hap1, hap2] ...]
 	std::vector< std::vector<std::string> > data;
 	int recombCount;
 	void Apply(std::vector< std::vector< std::vector<std::string> > > & ghdata);
-
-	std::vector< std::vector<std::string> > getdata() { return data; }
 
 private:
 	int __size;

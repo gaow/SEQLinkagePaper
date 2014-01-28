@@ -21,8 +21,8 @@ MERLINBASE = merlin/AssociationAnalysis merlin/FastAssociation \
  merlin/Tree \
  merlin/TreeBasics merlin/TreeIndex merlin/TreeManager \
  merlin/TreeInfo merlin/TreeFlips merlin/VarianceComponents
-MERLINHDR = $(MERLINBASE:=.h) merlin/TreeNode.h chp.hpp
-MERLINSRC = $(MERLINBASE:=.cpp) demo/LibmerlinDemo.cpp chp.cpp
+MERLINHDR = $(MERLINBASE:=.h) merlin/TreeNode.h Core.hpp
+MERLINSRC = $(MERLINBASE:=.cpp) demo/LibmerlinDemo.cpp Core.cpp
 MERLINOBJ = $(MERLINSRC:.cpp=.o)
 
 # Files for dealing with clustered markers

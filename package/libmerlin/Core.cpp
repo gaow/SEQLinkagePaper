@@ -1,9 +1,9 @@
-// $File: chp.cpp $
+// $File: Core.cpp $
 // $LastChangedDate:  $
 // $Rev:  $
 // Copyright (c) 2014, Gao Wang <ewanggao@gmail.com>
 // GNU General Public License (http://www.gnu.org/licenses/gpl.html)
-#include "chp.hpp"
+#include "Core.hpp"
 #include <iostream>
 #include <cstdlib>
 #include <set>
@@ -67,7 +67,6 @@ void SEQLinco::PedigreeData::__AddPerson(std::vector<std::string> & fam_info,
 
 void SEQLinco::GeneticHaplotyper::Apply(Pedigree & ped)
 {
-	data.resize(0);
 	// activate these analysis options
 	FamilyAnalysis::bestHaplotype = true;
 	FamilyAnalysis::zeroRecombination = false;
@@ -97,7 +96,6 @@ void SEQLinco::GeneticHaplotyper::Apply(Pedigree & ped)
 void SEQLinco::MendelianErrorChecker::Apply(Pedigree & ped)
 {
 	// check mendelian error for everyone's every marker in input ped object
-	errorCount = 0;
 	for (int i = 0; i < ped.count; i++) {
 		// skip founder
 		if (ped[i].isFounder()) continue;
@@ -153,8 +151,6 @@ void SEQLinco::HaplotypeCoder::Apply(std::vector< std::vector< std::vector<std::
 {
 	// each element of hpdata is a family's data
 	// each element of hpdata[i] is a haplotype with the first item being sample id
-	data.resize(0);
-	recombCount = 0;
 	if (!ghdata.size()) return;
 	// recode
 	std::vector< std::vector< std::vector<std::string> > > hpdata(ghdata.size());

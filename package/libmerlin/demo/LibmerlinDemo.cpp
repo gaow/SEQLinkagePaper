@@ -1,5 +1,5 @@
 #include <iostream>
-#include "chp.hpp"
+#include "Core.hpp"
 using namespace SEQLinco;
 
 void showPed(Pedigree & ped)
