@@ -107,13 +107,11 @@ int main(int argc, char ** argv)
 		HaplotypeCoder hc(1);
 		hc.Apply(gh.data);
 		if (argc == 4) {
-			for (unsigned f = 0; f < hc.data.size(); f++) {
-				for (unsigned p = 0; p < hc.data[f].size(); p++) {
-					for (unsigned i = 0; i < hc.data[f][p].size(); i++) {
-						std::cout << hc.data[f][p][i] << "\t";
-					}
-					std::cout << std::endl;
+			for (unsigned p = 0; p < hc.data.size(); p++) {
+				for (unsigned i = 0; i < hc.data[p].size(); i++) {
+					std::cout << hc.data[p][i] << "\t";
 				}
+
 				std::cout << std::endl;
 			}
 		}

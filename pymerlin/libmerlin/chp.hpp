@@ -53,6 +53,7 @@ public:
 	~GeneticHaplotyper() {};
 	// [family][sample][haplotypes]
 	std::vector< std::vector< std::vector<std::string> > > data;
+	// Apply haplotyping. Missing data are imputed as possible
 	void Apply(Pedigree & ped);
 
 private:
@@ -64,13 +65,18 @@ class HaplotypeCoder
 public:
 	HaplotypeCoder(int size) : __size(size) {}
 	~HaplotypeCoder() {};
-	// [family][sample][haplotypes]
-	std::vector< std::vector< std::vector<std::string> > > data;
+	// [[familyid, sampleid, hap1, hap2] ...]
+	std::vector< std::vector<std::string> > data;
+	int recombCount;
 	void Apply(std::vector< std::vector< std::vector<std::string> > > & ghdata);
+
+	std::vector< std::vector<std::string> > getdata() { return data; }
 
 private:
 	int __size;
-	int __AdjustSize(int n);
+	unsigned __AdjustSize(int n);
+
+	std::string __Collapse(std::string & haplotype);
 
 };
 }
