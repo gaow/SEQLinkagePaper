@@ -62,7 +62,7 @@ int main(int argc, char ** argv)
 	else if (atoi(argv[1]) == 2) readData(ped.data, "gene.dat", "gene.ped", "gene.map");
 	else if (atoi(argv[1]) == 3) {
 		std::vector<std::string> marker_ids { "V1", "V2", "V3" };
-		std::vector<int> marker_positions { 1, 2, 3 };
+		std::vector<std::string> marker_positions { "1", "2", "3" };
 		std::vector< std::vector<std::string> > samples;
 		std::vector<std::string> s0 { "1", "1", "0", "0", "1", "21", "21", "21" };
 		samples.push_back(s0);

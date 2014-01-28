@@ -14,8 +14,8 @@ class Environment:
     def __init__(self):
         self.__width_cache = 1
         # About the program 
-        self.prog = 'slinco'
         self.proj = "SEQLinco"
+        self.prog = 'slinco'
         self.version = VERSION 
         # Runtime support
         self.resource_dir = os.path.expanduser('~/.{}'.format(self.proj))
@@ -26,7 +26,6 @@ class Environment:
         self.build = 'hg19'
         self.delimiter = " "
         self.ped_missing = ['0', '-9'] + ['none', 'null', 'na', 'nan', '.']
-        self.missing = 'NA'
         self.trait = 'binary'
         # Input & output options
         self.output = 'LINKAGE'
@@ -236,12 +235,12 @@ def getColumn(fn, num, delim = None, exclude = None):
 ###
 # Check parameter input
 ###
+
 def checkParams(args):
     '''set default arguments or make warnings'''
     args.vcf = os.path.abspath(os.path.expanduser(args.vcf))
     if args.output:
         env.output = os.path.split(args.output)[-1]
-    env.missing = args.missing
     #
     if len([x for x in set(getColumn(args.tfam, 6)) if x.lower() not in env.ped_missing]) > 2:
         env.trait = 'quantitative'
@@ -255,7 +254,6 @@ def checkParams(args):
             args.format.insert(0, args.format.pop(args.format.index(item)))
     return True
 
-
 ###
 # Data format conversion
 ###
@@ -264,8 +262,7 @@ def formatPlink(tpeds, tfams, outdir):
     mkpath(outdir)
     cmds = ['transpose.pl --format plink --tped {} --tfam {} --out {}'.\
             format(i,j, os.path.join(outdir, os.path.splitext(os.path.split(i)[-1])[0])) for i, j in zip(tpeds, tfams)]
-    env.jobs = max(min(args.jobs, cmds), 1)
-    runCommands(cmds, env.jobs)
+    runCommands(cmds, max(min(env.jobs, cmds), 1))
                 
 def formatMega2(plinkfiles):
     copyFiles('PLINK/{}*'.format(env.output), 'MEGA2')
@@ -308,8 +305,7 @@ def formatMlink(tpeds, tfams, outdir):
     mkpath(outdir)
     cmds = ['transpose.pl --format mlink --tped {} --tfam {} --out {}'.\
             format(i,j, os.path.join(outdir, os.path.splitext(os.path.split(i)[-1])[0])) for i, j in zip(tpeds, tfams)]
-    env.jobs = max(min(args.jobs, cmds), 1)
-    runCommands(cmds, env.jobs)
+    runCommands(cmds, max(min(env.jobs, cmds), 1))
 
 
 def formatMlinkfrommega2():
@@ -353,8 +349,7 @@ def runMlink():
     #    formatMlink()
     chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
     cmds = ['runMlink.pl MLINK/{}.{} {}'.format(env.output, chrs[i], env.resource_dir) for i in range(25)]
-    env.jobs = max(min(args.jobs, cmds), 1)
-    runCommands(cmds, env.jobs)
+    runCommands(cmds, max(min(env.jobs, cmds), 1))
 
 def plotMlink():
     chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
@@ -368,5 +363,4 @@ def plotMlink():
         plt.pcolormesh(lods)
         plt.savefig(dir + '/lods.pdf')
     #cmds = ['runMlink.pl MLINK/{}.{} {}'.format(env.output, chrs[i], env.resource_dir) for i in range(25)]
-    #env.jobs = max(min(args.jobs, cmds), 1)
-    #runCommands(cmds, env.jobs)
+    #runCommands(cmds, max(min(env.jobs, cmds), 1))

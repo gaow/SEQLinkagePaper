@@ -45,9 +45,14 @@
 
 %newobject *::clone;
 
+%include "stl.i"
 %include "std_vector.i"
 %include "std_string.i"
 %include "std_map.i"
+
+%template(VecString) std::vector<std::string>; 
+%template(VecVecString) std::vector<std::vector<std::string> >; 
+%template(VecVecVecString) std::vector<std::vector<std::vector<std::string> > >; 
 
 %include "Exception.hpp"
 %include "Core.hpp"

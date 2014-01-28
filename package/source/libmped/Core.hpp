@@ -21,6 +21,10 @@
 #include "Exception.hpp"
 
 namespace SEQLinco {
+typedef std::vector<std::string> VecString;
+typedef std::vector<std::vector<std::string> > VecVecString;
+typedef std::vector<std::vector<std::vector<std::string> > > VecVecVecString;
+
 class PedigreeData
 {
 public:
@@ -28,15 +32,14 @@ public:
 	~PedigreeData() {};
 	PedigreeData * clone() const { return new PedigreeData(*this); }
 	Pedigree data;
-	void LoadVariants(const std::vector<std::string> & names,
-		const std::vector<int> & positions,
+	void LoadVariants(const VecString & names,
+		const VecString & positions,
 		const std::string & chrom);
 
-	void LoadSamples(const std::vector< std::vector<std::string> > & samples);
+	void LoadSamples(const VecVecString & samples);
 
 private:
-	void __AddPerson(std::vector<std::string> & fam_info,
-		std::vector<std::string> & genotypes);
+	void __AddPerson(VecString & fam_info, VecString & genotypes);
 
 };
 
@@ -58,7 +61,7 @@ public:
 	~GeneticHaplotyper() {};
 	GeneticHaplotyper * clone() const { return new GeneticHaplotyper(*this); }
 	// [family][sample][haplotypes]
-	std::vector< std::vector< std::vector<std::string> > > data;
+	VecVecVecString data;
 	// Apply haplotyping. Missing data are imputed as possible
 	void Apply(Pedigree & ped);
 
@@ -73,9 +76,9 @@ public:
 	~HaplotypeCoder() {};
 	HaplotypeCoder * clone() const { return new HaplotypeCoder(*this); }
 	// [[familyid, sampleid, hap1, hap2] ...]
-	std::vector< std::vector<std::string> > data;
+	VecVecString data;
 	int recombCount;
-	void Apply(std::vector< std::vector< std::vector<std::string> > > & ghdata);
+	void Apply(VecVecVecString & ghdata);
 
 private:
 	int __size;

@@ -6,7 +6,6 @@
 #ifndef _CHP_HPP_
 #define _CHP_HPP_
 
-#include <vector>
 #include <string>
 #include "Core.hpp"
 namespace SEQLinco {
@@ -16,9 +15,8 @@ public:
 	CHP(const int wsize) : __windowSize(wsize) {};
 	~CHP() {};
 	CHP * clone() const { return new CHP(*this); }
-	std::vector< std::vector<std::string> >
-	Apply(const std::string & chrom, const std::vector<std::string> & marker_names,
-	      const std::vector<int> & marker_positions, const std::vector< std::vector<std::string> > & samples)
+	VecVecString Apply(const std::string & chrom, const VecString & marker_names,
+	                   const VecString & marker_positions, const VecVecString & samples)
 	{
 		// input chrom must be 1 .. 22 and X
 		// input samples follows PED convention, e.g., { "1", "1", "0", "0", "1", "21", "21", "21" }

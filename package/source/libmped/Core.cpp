@@ -17,8 +17,8 @@ inline bool hasEnding(std::string const & fullString, std::string const & ending
 }
 
 
-void SEQLinco::PedigreeData::LoadVariants(const std::vector<std::string> & names,
-                                          const std::vector<int> & positions, const std::string & chrom)
+void SEQLinco::PedigreeData::LoadVariants(const VecString & names,
+                                          const VecString & positions, const std::string & chrom)
 {
 	for (unsigned i = 0; i < names.size(); ++i) {
 		data.pd.columnHash.Push(data.GetMarkerID(names[i].c_str()));
@@ -26,17 +26,17 @@ void SEQLinco::PedigreeData::LoadVariants(const std::vector<std::string> & names
 		data.pd.columnCount++;
 		MarkerInfo * info = data.GetMarkerInfo(i);
 		info->chromosome = (chrom == "X") ? 999 : atoi(chrom.c_str());
-		info->position = (double)positions[i] * 0.01;
+		info->position = atoi(positions[i].c_str()) * 0.01;
 	}
 }
 
 
-void SEQLinco::PedigreeData::LoadSamples(const std::vector< std::vector<std::string> > & samples)
+void SEQLinco::PedigreeData::LoadSamples(const VecVecString & samples)
 {
 
 	for (unsigned i = 0; i < samples.size(); ++i) {
-		std::vector<std::string> fam_info(samples[i].begin(), samples[i].begin() + 5);
-		std::vector<std::string> genotypes(samples[i].begin() + 5, samples[i].end());
+		VecString fam_info(samples[i].begin(), samples[i].begin() + 5);
+		VecString genotypes(samples[i].begin() + 5, samples[i].end());
 		__AddPerson(fam_info, genotypes);
 	}
 	data.Sort();
@@ -44,8 +44,7 @@ void SEQLinco::PedigreeData::LoadSamples(const std::vector< std::vector<std::str
 }
 
 
-void SEQLinco::PedigreeData::__AddPerson(std::vector<std::string> & fam_info,
-                                         std::vector<std::string> & genotypes)
+void SEQLinco::PedigreeData::__AddPerson(VecString & fam_info, VecString & genotypes)
 {
 	// add person info
 	bool sex_failure = false;
@@ -147,13 +146,13 @@ void SEQLinco::MendelianErrorChecker::Apply(Pedigree & ped)
 }
 
 
-void SEQLinco::HaplotypeCoder::Apply(std::vector< std::vector< std::vector<std::string> > > & ghdata)
+void SEQLinco::HaplotypeCoder::Apply(VecVecVecString & ghdata)
 {
 	// each element of hpdata is a family's data
 	// each element of hpdata[i] is a haplotype with the first item being sample id
 	if (!ghdata.size()) return;
 	// recode
-	std::vector< std::vector< std::vector<std::string> > > hpdata(ghdata.size());
+	VecVecVecString hpdata(ghdata.size());
 	for (unsigned f = 0; f < ghdata.size(); f++) {
 		hpdata[f].resize(ghdata[f].size());
 		// genotype pattern pool for a family
@@ -179,7 +178,7 @@ void SEQLinco::HaplotypeCoder::Apply(std::vector< std::vector< std::vector<std::
 			if (haplotype != "?") pool.insert(haplotype);
 		}
 		// convert haplotype super strings to haplotype patterns
-		std::vector<std::string> patterns(pool.begin(), pool.end());
+		VecString patterns(pool.begin(), pool.end());
 		std::sort(patterns.begin(), patterns.end());
 		for (unsigned p = 0; p < hpdata[f].size(); p++) {
 			if (hpdata[f][p][2] == "?") hpdata[f][p][2] = "0";

@@ -31,7 +31,8 @@ def extractSamplenames(vcf):
 def rewriteFamfile(tfam, samples):
     os.rename(tfam, tfam + '.bak')
     with open(tfam, 'w') as f:
-        f.writelines(['\t'.join(x) for x in samples])
+        f.write('\n'.join(sorted(['\t'.join(x) for x in samples.values()])))
+        f.write('\n')
 
 def checkSamples(samp1, samp2):
     '''check if two sample lists agree
@@ -141,7 +142,7 @@ class TFAMParser:
             for line in f.readlines():
                 line = line.split()
                 # collect sample info
-                samples[line[1]] = [line[0], line[2], line[3], line[4], line[5]]
+                samples[line[1]] = [line[0], line[1], line[2], line[3], line[4], line[5]]
                 # collect family member
                 self.__add_or_app(fams, line[0], line[1])
                 # collect founders for family
@@ -154,13 +155,13 @@ class TFAMParser:
         for k in expectedFounders.keys():
             if k not in observedFounders:
                 for item in expectedFounders[k]:
-                    samples[item[0]][1] = samples[item[0]][2] = "0"
+                    samples[item[0]][2] = samples[item[0]][3] = "0"
                 observedFounders[k] = [item[0] for item in expectedFounders[k]]
                 continue
             for item in expectedFounders[k]:
                 if item[1] not in observedFounders[k] \
                   and item[2] not in observedFounders[k]:
-                    samples[item[0]][1] = samples[item[0]][2] = "0"
+                    samples[item[0]][2] = samples[item[0]][3] = "0"
                     observedFounders[k].append(item[0])
         # now remove trivial families 
         # 1. the family does not have observedFounders
@@ -172,7 +173,12 @@ class TFAMParser:
             if Counter(observedFounders[k]) == Counter(fams[k]):
                 del fams[k]
                 continue
-        return samples, fams
+        #
+        valid_samples = []
+        for value in fams.values():
+            valid_samples.extend(value)
+        samples = {k : samples[k] for k in valid_samples}
+        return fams, samples
     
 class RData(dict):
     def __init__(self, samples, families, sample_names):
@@ -184,17 +190,18 @@ class RData(dict):
         # reorder family samples based on order of VCF file
         self.families = {}
         self.famsampidx = {}
+        self.famvaridx = {}
         for k in families:
             self.families[k] = [x for x in self.sample_names if x in families[k]]
             self.famsampidx[k] = [i for i, x in enumerate(self.sample_names) if x in families[k]]
         self.reset()
 
     def reset(self):
-        for item in sample_names:
+        for item in self.sample_names:
             self[item] = []
         self.variants = []
         for k in self.families:
-            self.famvaridx = []
+            self.famvaridx[k] = []
 
     def getMidPosition(self):
         if len(self.variants) == 0:
@@ -216,9 +223,9 @@ class RData(dict):
             raise ValueError("Unknown style '{}'".format(style))
 
     def getFamSamples(self, fam):
-        output = [[]] * len(data.families[fam])
-        for idx, item in enumerate(data.families[fam]):
-            output[idx].extend(self.samples[item][:-1])
+        output = [[]] * len(self.families[fam])
+        for idx, item in enumerate(self.families[fam]):
+            output[idx] = self.samples[item][:-1]
             output[idx].extend(self[item])
         return output
 
@@ -251,15 +258,15 @@ class RegionExtractor:
         #
         # for each variant
         for var_id, line in enumerate(lines):
-            self.variants.append(line[0])
+            data.variants.append(line[0])
             # for each family assign member genotype if the site is non-trivial in the fam 
-            for key in data.families:
-                gs = [y for idx, y in enumerate(line[1]) if idx in data.famsampidx[key]]
+            for k in data.families:
+                gs = [y for idx, y in enumerate(line[1]) if idx in data.famsampidx[k]]
                 if len(set(''.join([x for x in gs if x != "00"]))) == 1:
                     # skip monomorphic gs
                     continue
                 else:
-                    data.famvaridx[key].append(var_id)
+                    data.famvaridx[k].append(var_id)
                     for person, g in zip(data.families[k], gs):
                         data[person].append(g)
         return True
@@ -282,7 +289,7 @@ class RegionExtractor:
         # Skip tri-allelic variant
         if "," in line[4]:
             with self.lock:
-                env.triallelic_counter += 1
+                env.triallelic_counter.value += 1
             return None
         gs = []
         for idx in range(len(line)):
@@ -308,13 +315,23 @@ class MarkerMaker:
             try:
                 worker = MM.CHP(self.size)
                 vnames, vpos = data.getFamVariants(item, style = "map")
-                for line in worker.Apply(data.variants[0][0], vnames, vpos, data.getFamSamples(item)):
-                    # line: [fid, sid, hap1, hap2]
-                    data[line[1]] = env.delimiter.join(line[2], line[3])
-                with self.lock:
-                    env.mendelerror_counter += worker.countMendelianErrors()
-                    env.recomb_counter += worker.countRecombs()
-            except:
+                if len(vnames) < 2:
+                    # no more than 2 variants found in family
+                    for person in data.families[item]:
+                        if len(data[person]) == 0:
+                            data[person] = env.delimiter.join(["0", "0"])
+                        else:
+                            data[person] = env.delimiter.join(data[person][0].split())
+                else:
+                    for line in worker.Apply(data.variants[0][0], vnames, vpos, data.getFamSamples(item)):
+                        # line: [fid, sid, hap1, hap2]
+                        data[line[1]] = env.delimiter.join([line[2], line[3]])
+                    with self.lock:
+                        env.mendelerror_counter.value += worker.countMendelianErrors()
+                        env.recomb_counter.value += worker.countRecombs()
+            except Exception as e:
+                raise
+                env.error('{}'.format(e))
                 return False
         return True
 
@@ -339,7 +356,7 @@ class LinkageWritter:
         # FIXME: currently only applies to one marker per region theme
         self.output += env.delimiter.join(
             [self.chrom, self.name, self.distance, str(data.getMidPosition())] + \
-                                          [data[s] for s in data.samples()]) + '\n'
+                                          [data[s] for s in data.sample_names]) + '\n'
         if self.counter < env.batch:
             self.counter += 1
         else:
@@ -365,23 +382,18 @@ class LinkageWritter:
 
 
 class EncoderWorker(Process):
-    def __init__(self, wid, queue, data, rextractor, mchecker, gencoder, linkwritter):
+    def __init__(self, wid, queue, data, rextractor, gencoder, linkwritter):
         Process.__init__(self)
         self.worker_id = wid
         self.queue = queue
-        self.modules = [rextractor, mchecker, gencoder, linkwritter]
+        self.modules = [rextractor, gencoder, linkwritter]
         self.data = data
         self.lock = Lock()
 
     def report(self):
-        env.log('{:,d} units processed with {:,d} super markers generated; '\
-                '{:,d} tri-allelic loci ignored, {:,d} Mendelian errors fixed, '\
-                '{:,d} recombination events detected.'.\
-                format(env.total_counter.value,
-                       env.success_counter.value,
-                       self.triallelic_counter,
-                       env.mendelerror_counter.value,
-                       self.recomb_counter), flush = True)
+        env.log('Processing {:,d} units with {:,d} super markers being generated ...'.\
+                format(env.total_counter.value, env.success_counter.value), flush = True)
+                
         
     def run(self):
         while True:
@@ -424,7 +436,7 @@ def main(args):
         samples_vcf = extractSamplenames(args.vcf)
         status = checkSamples(samples_vcf, getColumn(args.tfam, 2))
         tfam = TFAMParser(args.tfam)
-        if not tfam.families:
+        if len(tfam.families) == 0:
             env.error('No family found in [{}]!'.format(args.tfam), exit = True)
         else:
             # samples and families have to be in both tfam file and vcf file
@@ -434,10 +446,14 @@ def main(args):
                 if len(families[k]) == 0:
                     del families[k]
             #
-            env.log('{:,d} families with a total of {:,d} samples will be processed'.\
+            if len(samples) == 0:
+                env.error('No valid sample to process. '\
+                          'Samples have to be in families, and present in both TFAM and VCF files.', exit = True)
+            else:
+                env.log('{:,d} families with a total of {:,d} samples will be processed'.\
                     format(len(tfam.families), len(samples)))
-        status = rewriteFamfile(args.tfam, samples)
         #
+        status = rewriteFamfile(args.tfam, samples)
         with open(args.blueprint, 'r') as f:
             regions = [x.strip().split() for x in f.readlines()]
         env.log('Scanning [{}] for {:,d} pre-defined units'.format(args.vcf, len(regions)))
@@ -450,7 +466,7 @@ def main(args):
             jobs = [EncoderWorker(
                 i,
                 queue,
-                RData(samples, families, sample_names = [x for x in sample_vcf if x in samples]),
+                RData(samples, families, sample_names = [x for x in samples_vcf if x in samples]),
                 RegionExtractor(args.vcf, [idx + 9 for idx, x in enumerate(samples_vcf) if x not in samples]),
                 MarkerMaker(args.size),
                 LinkageWritter()
@@ -463,9 +479,19 @@ def main(args):
             # FIXME: need to properly close all jobs
             raise ValueError("Use 'killall {}' to properly terminate all processes!".format(env.prog))
         else:
-            env.log('\nArchiving to directory [{}]'.format(env.cache_dir))
+            env.log('{:,d} units processed with {:,d} super markers generated; '\
+                '{:,d} tri-allelic loci ignored, {:,d} Mendelian errors fixed, '\
+                '{:,d} recombination events detected.\n'.\
+                format(env.total_counter.value,
+                       env.success_counter.value,
+                       env.triallelic_counter.value,
+                       env.mendelerror_counter.value,
+                       env.recomb_counter.value), flush = True)
+            env.log('Archiving to directory [{}]'.format(env.cache_dir))
             cache.write(pre = env.output, ext = '.tped', otherfiles = [args.vcf, args.tfam, args.blueprint])
     # STEP 2: write to PLINK or mega2 format
+    sys.exit()
+    env.jobs = args.jobs
     tpeds = [os.path.join(env.cache_dir, item) for item in os.listdir(env.cache_dir) if item.startswith(env.output) and item.endswith('.tped')]
     if 'plink' in args.format:
         env.log('Saving data to directory [PLINK] ...')

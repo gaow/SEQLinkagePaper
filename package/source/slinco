@@ -2,9 +2,54 @@
 # Copyright (c) 2013, Gao Wang <gaow@bcm.edu>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 
-from SEQLinco.Utils import env
-from SEQLinco.Parameters import Args
-   
+from argparse import ArgumentParser, SUPPRESS
+from SEQLinco.Utils import env, getColumn
+from SEQLinco.Core import main
+
+class Args:
+    def __init__(self):
+        self.parser = ArgumentParser(
+        description = '''{}, encode sequence data for linkage analysis'''.format(env.proj),
+        prog = env.prog,
+        fromfile_prefix_chars = '@',
+        epilog = '''Copyright (c) 2013 ~ 2014 Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu> GNU General Public License''')
+        self.parser.add_argument('--version',
+                                 action='version',
+                                 version='%(prog)s version {0}'.format(env.version))
+        self.getEncoderArguments(self.parser)
+        self.getIOArguments(self.parser)
+        self.getRuntimeArguments(self.parser)
+        self.parser.set_defaults(func=main)
+
+    def get(self):
+        return self.parser.parse_args()
+
+    def getEncoderArguments(self, parser):
+        vargs = parser.add_argument_group('Encoder arguments')
+        vargs.add_argument('--size', default = 1, type = int,
+                           help='''Number of variants to collapse into a bin. Set to 0 to collapse
+        all variants into one bin. Default to 1 (1 variant per bin).''')
+        vargs.add_argument('--blueprint', metavar = 'FILE',
+                           help='''Blueprint file for super marker
+        (format: "chr startpos endpos name distance").''')
+
+    def getIOArguments(self, parser):
+        vargs = parser.add_argument_group('Input / output options')
+        vargs.add_argument('--vcf', metavar='FILE', required=True, help='''Input VCF file, bgzipped.''')
+        vargs.add_argument('--tfam', metavar='FILE', required=True,
+                           help='''Input pedigree and phenotype information in TFAM format.''')
+        vargs.add_argument('-o', '--output', metavar='FILE', help='''Output file name prefix.''')
+        vargs.add_argument('--format', metavar = 'FORMAT', nargs='*', default=['plink'],
+                           help='''Output format, choose from {} (multiple choices allowed).
+        Default to PLINK format.'''.format(repr(env.formats.keys())))
+        
+    def getRuntimeArguments(self, parser):
+        vargs = parser.add_argument_group('Runtime arguments')
+        vargs.add_argument('-j', '--jobs', metavar='N', type = int, default = 2,
+                           help='''Number of CPUs to use.''')
+        vargs.add_argument('--vanilla', action='store_true',
+                           help='''Encode data from scratch without loading cache.''')
+
 if __name__ == '__main__':
     # check platform
     import platform

@@ -50,6 +50,7 @@ try:
         if ret != 0:
             sys.exit('Failed to generate cpp extension.')
         os.rename('chp.py', WRAPPER_PY)
+    os.remove('swigpyrun.h')
 except OSError as e:
     sys.exit('Failed to generate wrapper file: {0}'.format(e))
 #
