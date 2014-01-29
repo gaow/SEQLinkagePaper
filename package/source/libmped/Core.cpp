@@ -29,7 +29,9 @@ void SEQLinco::PedigreeData::LoadVariants(const VecString & names,
 		MarkerInfo * info = data.GetMarkerInfo(i);
 		info->chromosome = (chrom == "X" || chrom == "x") ? 999 : atoi(chrom.c_str());
 		info->positionFemale = info->positionMale = info->position = atoi(positions[i].c_str()) * positionAdjustment;
-		// FIXME: should not need to clear but somehow this is the case ...
+		// FIXME: Seems I have to clean these objects manually,
+		// otherwise info->freq.dim will not equal 0 after initial first few runs ...
+		// how can this be the case?
 		// std::clog << info->freq.dim << std::endl;
 		info->freq.Clear(); info->alleleLabels.Clear(); info->alleleNumbers.Clear();
 	}
