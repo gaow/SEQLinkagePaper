@@ -2,7 +2,9 @@
 # Copyright (c) 2013, Gao Wang <gaow@bcm.edu>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 
-import sys, os, subprocess, shutil, glob, shlex, urlparse, re, hashlib, tarfile
+import sys, os, subprocess, shutil, glob, shlex, urlparse, re, hashlib, tarfile, tempfile
+from cStringIO import StringIO
+from contextlib import contextmanager
 from multiprocessing import Process, Queue, Lock, Value
 import numpy as np
 import matplotlib.pyplot as plt
@@ -21,6 +23,8 @@ class Environment:
         self.resource_dir = os.path.expanduser('~/.{}'.format(self.proj))
         self.resource_bin = os.path.join(self.resource_dir, 'bin')
         self.cache_dir = os.path.join(os.getcwd(), 'cache')
+        self.tmp_dir = self.__mktmpdir()
+        self.tmp_log = None
         self.path = {'PATH':self.resource_bin}
         # File contents 
         self.build = 'hg19'
@@ -40,6 +44,17 @@ class Environment:
         self.triallelic_counter = Value('i',0)
         self.mendelerror_counter = Value('i',0)
         self.recomb_counter = Value('i',0)
+
+    def __mktmpdir(self):
+        tmp_dir = None
+        pattern = re.compile(r'{}_tmp_*(.*)'.format(self.proj))
+        for fn in os.listdir(tempfile.gettempdir()):
+            if pattern.match(fn):
+                tmp_dir = os.path.join(tempfile.gettempdir(), fn)
+                break
+        if tmp_dir is None:
+            tmp_dir = tempfile.mkdtemp(prefix='{}_tmp_'.format(self.proj))
+        return tmp_dir
             
     def error(self, msg = None, show_help = False, exit = False):
         if msg is None:
@@ -55,8 +70,10 @@ class Environment:
         sys.stderr.write(start + "\033[1;40;33mERROR: {}\033[0m\n".format(msg) + end)
         if show_help:
             self.log("Type '{} -h' for help message".format(env.prog))
+            remove_tree(self.tmp_dir)
             sys.exit()
         if exit:
+            remove_tree(self.tmp_dir)
             sys.exit()
         
     def log(self, msg = None, flush=False):
@@ -77,6 +94,44 @@ class Environment:
         sys.stderr.write(start + "\033[1;40;32mMESSAGE: {}\033[0m".format(msg) + end)
 
 env = Environment()
+
+class StdoutCapturer(list):
+    def __enter__(self):
+        self._stdout = sys.stdout
+        sys.stdout = self._stringio = StringIO()
+        return self
+    def __exit__(self, *args):
+        self.extend(self._stringio.getvalue().splitlines())
+        sys.stdout = self._stdout
+
+@contextmanager
+def stdoutRedirect(to=os.devnull):
+    '''
+    import os
+
+    with stdoutRedirect(to=filename):
+        print("from Python")
+        os.system("echo non-Python applications are also supported")
+    '''
+    fd = sys.stdout.fileno()
+
+    ##### assert that Python and C stdio write using the same file descriptor
+    ####assert libc.fileno(ctypes.c_void_p.in_dll(libc, "stdout")) == fd == 1
+
+    def _redirect_stdout(to):
+        sys.stdout.close() # + implicit flush()
+        os.dup2(to.fileno(), fd) # fd writes to 'to' file
+        sys.stdout = os.fdopen(fd, 'w') # Python writes to fd
+
+    with os.fdopen(os.dup(fd), 'w') as old_stdout:
+        with open(to, 'w') as file:
+            _redirect_stdout(to=file)
+        try:
+            yield # allow code to be run with the redirected stdout
+        finally:
+            _redirect_stdout(to=old_stdout) # restore stdout.
+                                            # buffering and flags such as
+                                            # CLOEXEC may be different
 
 def runCommand(cmd, instream = None, msg = '', upon_succ=None):
     if isinstance(cmd, str):
@@ -239,6 +294,10 @@ def getColumn(fn, num, delim = None, exclude = None):
 def checkParams(args):
     '''set default arguments or make warnings'''
     args.vcf = os.path.abspath(os.path.expanduser(args.vcf))
+    args.tfam = os.path.abspath(os.path.expanduser(args.tfam))
+    for item in [args.vcf, args.tfam]:
+        if not os.path.exists(item):
+            env.error("Cannot find file [{}]!".format(item), exit = True)
     if args.output:
         env.output = os.path.split(args.output)[-1]
     #

@@ -34,7 +34,8 @@ public:
 	Pedigree data;
 	void LoadVariants(const VecString & names,
 		const VecString & positions,
-		const std::string & chrom);
+		const std::string & chrom,
+		double positionAdjustment = 0.01);
 
 	void LoadSamples(const VecVecString & samples);
 

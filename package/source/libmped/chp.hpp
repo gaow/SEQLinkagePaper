@@ -12,7 +12,7 @@ namespace SEQLinco {
 class CHP
 {
 public:
-	CHP(const int wsize) : __windowSize(wsize) {};
+	CHP(const int wsize, const double padj = 0.01) : __windowSize(wsize), __positionAdjustment(padj) {};
 	~CHP() {};
 	CHP * clone() const { return new CHP(*this); }
 	VecVecString Apply(const std::string & chrom, const VecString & marker_names,
@@ -23,7 +23,7 @@ public:
 		// first 5 cols are fid, sid, pid, mid and sex (0/1/2 coding), followed by genotypes (1/2 coding, 0 for missing)
 		PedigreeData ped;
 
-		ped.LoadVariants(marker_names, marker_positions, chrom);
+		ped.LoadVariants(marker_names, marker_positions, chrom, __positionAdjustment);
 		ped.LoadSamples(samples);
 		MendelianErrorChecker mc;
 		mc.Apply(ped.data);
@@ -44,6 +44,7 @@ private:
 	int __mendelianErrorCount;
 	int __recombCount;
 	int __windowSize;
+	double __positionAdjustment;
 };
 }
 #endif

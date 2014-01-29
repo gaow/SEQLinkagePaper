@@ -18,15 +18,20 @@ inline bool hasEnding(std::string const & fullString, std::string const & ending
 
 
 void SEQLinco::PedigreeData::LoadVariants(const VecString & names,
-                                          const VecString & positions, const std::string & chrom)
+                                          const VecString & positions,
+                                          const std::string & chrom,
+                                          double positionAdjustment)
 {
 	for (unsigned i = 0; i < names.size(); ++i) {
 		data.pd.columnHash.Push(data.GetMarkerID(names[i].c_str()));
 		data.pd.columns.Push(1);
 		data.pd.columnCount++;
 		MarkerInfo * info = data.GetMarkerInfo(i);
-		info->chromosome = (chrom == "X") ? 999 : atoi(chrom.c_str());
-		info->position = atoi(positions[i].c_str()) * 0.01;
+		info->chromosome = (chrom == "X" || chrom == "x") ? 999 : atoi(chrom.c_str());
+		info->positionFemale = info->positionMale = info->position = atoi(positions[i].c_str()) * positionAdjustment;
+		// FIXME: should not need to clear but somehow this is the case ...
+		// std::clog << info->freq.dim << std::endl;
+		info->freq.Clear(); info->alleleLabels.Clear(); info->alleleNumbers.Clear();
 	}
 }
 

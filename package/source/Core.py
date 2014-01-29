@@ -14,13 +14,15 @@ else:
 
 def indexVCF(vcf):
     if not vcf.endswith(".gz"):
+        if os.path.exists(vcf + ".gz"):
+            env.error("Cannot compress [{0}] because [{0}.gz] exists!".format(vcf), exit = True)
         env.log("Compressing file [{0}] to [{0}.gz] ...".format(vcf))
         runCommand('bgzip {0}'.format(vcf))
         vcf += ".gz"
-    if not os.path.isfile(vcf + '.tbi'):
+    if not os.path.isfile(vcf + '.tbi') or os.path.getmtime(vcf) > os.path.getmtime(vcf + '.tbi'):
         env.log("Generating index file for [{}] ...".format(vcf))
-        runCommand('tabix -p vcf {}'.format(vcf))
-    return True
+        runCommand('tabix -p vcf -f {}'.format(vcf))
+    return vcf
     
 def extractSamplenames(vcf):
     samples = runCommand('tabix -H {}'.format(vcf)).strip().split('\n')[-1].split('\t')[9:]
@@ -216,7 +218,7 @@ class RData(dict):
             names = []
             pos = []
             for item in famvar:
-                names.append("{}:{}".format(item[0], item[1]))
+                names.append("{}:{}:{}".format(fam, item[0], item[1]))
                 pos.append(item[1])
             return names, pos
         else:
@@ -298,7 +300,7 @@ class RegionExtractor:
             else:
                 # Remove separater
                 g = re.sub('\/|\|','',line[idx].split(":")[0])
-                if g == '.':
+                if g == '.' or g == '..':
                     gs.append("00")
                 else:
                     gs.append(g.replace('1','2').replace('0','1'))
@@ -309,30 +311,40 @@ class MarkerMaker:
     def __init__(self, wsize):
         self.size = wsize
         self.lock = Lock()
+        env.tmp_log = os.path.join(env.tmp_dir, env.output)
+        # adjust physical distance to map distance, 1 / 1 million * 10 (times 10 to fake them apart)
+        self.position_adj = 1 / float(100000)
+        self.missing = env.delimiter.join(["0", "0"])
 
     def apply(self, data):
         for item in data.families:
             try:
-                worker = MM.CHP(self.size)
                 vnames, vpos = data.getFamVariants(item, style = "map")
                 if len(vnames) < 2:
                     # no more than 2 variants found in family
                     for person in data.families[item]:
                         if len(data[person]) == 0:
-                            data[person] = env.delimiter.join(["0", "0"])
+                            data[person] = self.missing
                         else:
-                            data[person] = env.delimiter.join(data[person][0].split())
+                            data[person] = env.delimiter.join(list(data[person][0]))
                 else:
-                    for line in worker.Apply(data.variants[0][0], vnames, vpos, data.getFamSamples(item)):
-                        # line: [fid, sid, hap1, hap2]
-                        data[line[1]] = env.delimiter.join([line[2], line[3]])
+                    worker = MM.CHP(self.size, self.position_adj)
+                    with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
+                        for line in worker.Apply(data.variants[0][0], vnames, sorted(vpos), data.getFamSamples(item)):
+                            # line: [fid, sid, hap1, hap2]
+                            data[line[1]] = env.delimiter.join([line[2], line[3]])
                     with self.lock:
                         env.mendelerror_counter.value += worker.countMendelianErrors()
                         env.recomb_counter.value += worker.countRecombs()
+                    del worker
             except Exception as e:
                 raise
                 env.error('{}'.format(e))
                 return False
+        # 
+        # for person in data:
+        #     if type(data[person]) is not str:
+        #         data[person] = self.missing
         return True
 
 
@@ -432,7 +444,7 @@ def main(args):
         env.log('Loading data from archive ...')
         cache.load()
     else:
-        status = indexVCF(args.vcf)
+        args.vcf = indexVCF(args.vcf)
         samples_vcf = extractSamplenames(args.vcf)
         status = checkSamples(samples_vcf, getColumn(args.tfam, 2))
         tfam = TFAMParser(args.tfam)
