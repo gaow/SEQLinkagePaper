@@ -5,7 +5,7 @@
 from SEQLinco.Utils import *
 from multiprocessing import Process, Queue, Lock, Value
 from collections import Counter
-import sys
+import sys, gc
 
 if sys.version_info.major == 2:
     from SEQLinco.libmped import chp_py2 as MM
@@ -218,7 +218,7 @@ class RData(dict):
             names = []
             pos = []
             for item in famvar:
-                names.append("{}:{}:{}".format(fam, item[0], item[1]))
+                names.append("{}-{}".format(item[-1], item[1]))
                 pos.append(item[1])
             return names, pos
         else:
@@ -245,6 +245,8 @@ class RegionExtractor:
         self.lock = Lock()
         
     def apply(self, data):
+        # Clean up
+        data.reset()
         lines = [self.parseVCFline(x, exclude = self.exclude_idx) for x in \
                   runCommand('tabix {} {}:{}-{}'.\
                              format(self.vcf, self.chrom, self.startpos, self.endpos)).strip().split('\n')]
@@ -304,7 +306,7 @@ class RegionExtractor:
                     gs.append("00")
                 else:
                     gs.append(g.replace('1','2').replace('0','1'))
-        return (line[0], line[1], line[3], line[4]), gs
+        return (line[0], line[1], line[3], line[4], self.name), gs
 
     
 class MarkerMaker:
@@ -330,25 +332,31 @@ class MarkerMaker:
                 else:
                     worker = MM.CHP(self.size, self.position_adj)
                     with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
-                        for line in worker.Apply(data.variants[0][0], vnames, sorted(vpos), data.getFamSamples(item)):
+                        output = worker.Apply(data.variants[0][0],
+                                              vnames,
+                                              sorted(vpos),
+                                              data.getFamSamples(item))
+                    if len(output) == 0:
+                        with self.lock:
+                            env.chperror_counter.value += 1
+                    else:
+                        for line in output:
                             # line: [fid, sid, hap1, hap2]
                             data[line[1]] = env.delimiter.join([line[2], line[3]])
-                    with self.lock:
-                        env.mendelerror_counter.value += worker.countMendelianErrors()
-                        env.recomb_counter.value += worker.countRecombs()
-                    del worker
+                        with self.lock:
+                            env.mendelerror_counter.value += worker.countMendelianErrors()
+                            env.recomb_counter.value += worker.countRecombs()
             except Exception as e:
                 raise
-                env.error('{}'.format(e))
                 return False
-        # 
-        # for person in data:
-        #     if type(data[person]) is not str:
-        #         data[person] = self.missing
+        # Fill in skipped samples due to some errors 
+        for person in data:
+            if type(data[person]) is not str:
+                data[person] = self.missing
         return True
 
 
-class LinkageWritter:
+class LinkageWriter:
     def __init__(self):
         self.lock = Lock()
         self.chrom = self.prev_chrom = self.name = self.distance = None
@@ -394,34 +402,34 @@ class LinkageWritter:
 
 
 class EncoderWorker(Process):
-    def __init__(self, wid, queue, data, rextractor, gencoder, linkwritter):
+    def __init__(self, wid, queue, data, extractor, coder, writer):
         Process.__init__(self)
         self.worker_id = wid
         self.queue = queue
-        self.modules = [rextractor, gencoder, linkwritter]
         self.data = data
+        self.extractor = extractor
+        self.coder = coder
+        self.writer = writer
         self.lock = Lock()
 
     def report(self):
         env.log('Processing {:,d} units with {:,d} super markers being generated ...'.\
                 format(env.total_counter.value, env.success_counter.value), flush = True)
-                
         
     def run(self):
         while True:
             try:
                 region = self.queue.get()
                 if region is None:
-                    self.modules[-1].commit()
+                    self.writer.commit()
                     self.report()
                     break
                 else:
                     with self.lock:
                         env.total_counter.value += 1
-                    self.modules[0].getRegion(region)
-                    self.modules[-1].getRegion(region)
-                    self.data.reset()
-                    for m in self.modules:
+                    self.extractor.getRegion(region)
+                    self.writer.getRegion(region)
+                    for m in [self.extractor, self.coder, self.writer]:
                         if not m.apply(self.data):
                             # previous module failed
                             break
@@ -481,7 +489,7 @@ def main(args):
                 RData(samples, families, sample_names = [x for x in samples_vcf if x in samples]),
                 RegionExtractor(args.vcf, [idx + 9 for idx, x in enumerate(samples_vcf) if x not in samples]),
                 MarkerMaker(args.size),
-                LinkageWritter()
+                LinkageWriter()
                 ) for i in range(env.jobs)]
             for j in jobs:
                 j.start()
@@ -499,6 +507,8 @@ def main(args):
                        env.triallelic_counter.value,
                        env.mendelerror_counter.value,
                        env.recomb_counter.value), flush = True)
+            if env.chperror_counter.value > 0:
+                env.error("{:,d} runtime error captured!".format(env.chperror_counter.value))
             env.log('Archiving to directory [{}]'.format(env.cache_dir))
             cache.write(pre = env.output, ext = '.tped', otherfiles = [args.vcf, args.tfam, args.blueprint])
     # STEP 2: write to PLINK or mega2 format

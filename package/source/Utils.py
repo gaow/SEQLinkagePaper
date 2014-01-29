@@ -41,6 +41,7 @@ class Environment:
         self.batch = 50
         self.total_counter = Value('i',0)
         self.success_counter = Value('i',0)
+        self.chperror_counter = Value('i',0)
         self.triallelic_counter = Value('i',0)
         self.mendelerror_counter = Value('i',0)
         self.recomb_counter = Value('i',0)

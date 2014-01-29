@@ -56,10 +56,10 @@ int main(int argc, char ** argv)
 		return 0;
 	}
 
-	PedigreeData ped;
+	Pedigree ped;
 	std::string chrom = "1";
-	if (atoi(argv[1]) == 1) readData(ped.data, "haplo.dat", "haplo.ped", "haplo.map");
-	else if (atoi(argv[1]) == 2) readData(ped.data, "gene.dat", "gene.ped", "gene.map");
+	if (atoi(argv[1]) == 1) readData(ped, "haplo.dat", "haplo.ped", "haplo.map");
+	else if (atoi(argv[1]) == 2) readData(ped, "gene.dat", "gene.ped", "gene.map");
 	else if (atoi(argv[1]) == 3) {
 		std::vector<std::string> marker_ids { "V1", "V2", "V3" };
 		std::vector<std::string> marker_positions { "1", "2", "3" };
@@ -83,16 +83,17 @@ int main(int argc, char ** argv)
 		std::vector<std::string> s8 { "3", "3", "1", "2", "1", "21", "21", "21" };
 		samples.push_back(s8);
 		//
-		ped.LoadVariants(marker_ids, marker_positions, chrom);
-		ped.LoadSamples(samples);
+		DataLoader dl;
+		dl.LoadVariants(ped, marker_ids, marker_positions, chrom);
+		dl.LoadSamples(ped, samples);
 	} else ;
-	if (atoi(argv[2]) == 1) showPed(ped.data);
+	if (atoi(argv[2]) == 1) showPed(ped);
 	else if (atoi(argv[2]) == 2) {
 		MendelianErrorChecker mc;
-		mc.Apply(ped.data);
+		mc.Apply(ped);
 		std::cout << "Mendelian Errors " << mc.errorCount << std::endl;
 		GeneticHaplotyper gh(chrom);
-		gh.Apply(ped.data);
+		gh.Apply(ped);
 		if (argc == 4) {
 			for (unsigned f = 0; f < gh.data.size(); f++) {
 				for (unsigned p = 0; p < gh.data[f].size(); p++) {

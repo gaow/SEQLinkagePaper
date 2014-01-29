@@ -25,22 +25,25 @@ typedef std::vector<std::string> VecString;
 typedef std::vector<std::vector<std::string> > VecVecString;
 typedef std::vector<std::vector<std::vector<std::string> > > VecVecVecString;
 
-class PedigreeData
+class DataLoader
 {
 public:
-	PedigreeData() {};
-	~PedigreeData() {};
-	PedigreeData * clone() const { return new PedigreeData(*this); }
-	Pedigree data;
-	void LoadVariants(const VecString & names,
+	DataLoader() {};
+	~DataLoader() {};
+	DataLoader * clone() const { return new DataLoader(*this); }
+	void LoadVariants(Pedigree & ped,
+		const VecString & names,
 		const VecString & positions,
 		const std::string & chrom,
 		double positionAdjustment = 0.01);
 
-	void LoadSamples(const VecVecString & samples);
+	void LoadSamples(Pedigree & ped,
+		const VecVecString & samples);
 
 private:
-	void __AddPerson(VecString & fam_info, VecString & genotypes);
+	void __AddPerson(Pedigree & ped,
+		VecString & fam_info,
+		VecString & genotypes);
 
 };
 

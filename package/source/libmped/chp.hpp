@@ -8,6 +8,7 @@
 
 #include <string>
 #include "Core.hpp"
+#include "Exception.hpp"
 namespace SEQLinco {
 class CHP
 {
@@ -15,25 +16,41 @@ public:
 	CHP(const int wsize, const double padj = 0.01) : __windowSize(wsize), __positionAdjustment(padj) {};
 	~CHP() {};
 	CHP * clone() const { return new CHP(*this); }
+	// input chrom must be 1 .. 22 and X
+	// input samples follows PED convention, e.g., { "1", "1", "0", "0", "1", "21", "21", "21" }
+	// first 5 cols are fid, sid, pid, mid and sex (0/1/2 coding), followed by genotypes
+	// (1/2 coding, 0 for missing)
 	VecVecString Apply(const std::string & chrom, const VecString & marker_names,
 	                   const VecString & marker_positions, const VecVecString & samples)
 	{
-		// input chrom must be 1 .. 22 and X
-		// input samples follows PED convention, e.g., { "1", "1", "0", "0", "1", "21", "21", "21" }
-		// first 5 cols are fid, sid, pid, mid and sex (0/1/2 coding), followed by genotypes (1/2 coding, 0 for missing)
-		PedigreeData ped;
+		Pedigree ped;
 
-		ped.LoadVariants(marker_names, marker_positions, chrom, __positionAdjustment);
-		ped.LoadSamples(samples);
-		MendelianErrorChecker mc;
-		mc.Apply(ped.data);
-		__mendelianErrorCount = mc.errorCount;
-		GeneticHaplotyper gh(chrom);
-		gh.Apply(ped.data);
-		HaplotypeCoder hc(__windowSize);
-		hc.Apply(gh.data);
-		__recombCount = hc.recombCount;
-		return hc.data;
+		// FIXME: It does not make sense to me but I have to reset ped data object manually,
+		// otherwise in a program that calls CHP::Apply multiple times in a loop,
+		// ped.GetMarkerInfo(i)->freq.dim will not equal 0 after a few runs
+		// complaining the same marker name has been previously used.
+		// cannot yet figure out why as this is suppose to be a brand new ped object here!
+		ped.pd.columns.Clear(); ped.pd.columnHash.Clear(); ped.pd.columnCount = 0;
+		ped.markerNames.Clear(); ped.markerCount = 0; ped.markerLookup.Clear();
+		ped.markerInfoByName.Clear();
+
+		try {
+			DataLoader dl;
+			dl.LoadVariants(ped, marker_names, marker_positions, chrom, __positionAdjustment);
+			dl.LoadSamples(ped, samples);
+			MendelianErrorChecker mc;
+			mc.Apply(ped);
+			__mendelianErrorCount = mc.errorCount;
+			GeneticHaplotyper gh(chrom);
+			gh.Apply(ped);
+			HaplotypeCoder hc(__windowSize);
+			hc.Apply(gh.data);
+			__recombCount = hc.recombCount;
+			return hc.data;
+		} catch (...) {
+			const VecVecString nulldata(0);
+			return nulldata;
+		}
 	}
 
 

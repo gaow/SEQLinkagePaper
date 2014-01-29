@@ -17,68 +17,63 @@ inline bool hasEnding(std::string const & fullString, std::string const & ending
 }
 
 
-void SEQLinco::PedigreeData::LoadVariants(const VecString & names,
-                                          const VecString & positions,
-                                          const std::string & chrom,
-                                          double positionAdjustment)
+void SEQLinco::DataLoader::LoadVariants(Pedigree & ped,
+                                        const VecString & names,
+                                        const VecString & positions,
+                                        const std::string & chrom,
+                                        double positionAdjustment)
 {
 	for (unsigned i = 0; i < names.size(); ++i) {
-		data.pd.columnHash.Push(data.GetMarkerID(names[i].c_str()));
-		data.pd.columns.Push(1);
-		data.pd.columnCount++;
-		MarkerInfo * info = data.GetMarkerInfo(i);
+		ped.pd.columnHash.Push(ped.GetMarkerID(names[i].c_str()));
+		ped.pd.columns.Push(1);
+		ped.pd.columnCount++;
+		MarkerInfo * info = ped.GetMarkerInfo(i);
 		info->chromosome = (chrom == "X" || chrom == "x") ? 999 : atoi(chrom.c_str());
-		info->positionFemale = info->positionMale = info->position = atoi(positions[i].c_str()) * positionAdjustment;
-		// FIXME: Seems I have to clean these objects manually,
-		// otherwise info->freq.dim will not equal 0 after initial first few runs ...
-		// how can this be the case?
+		info->positionFemale = info->positionMale = info->position = \
+		                                                atoi(positions[i].c_str()) * positionAdjustment;
 		// std::clog << info->freq.dim << std::endl;
-		info->freq.Clear(); info->alleleLabels.Clear(); info->alleleNumbers.Clear();
 	}
 }
 
 
-void SEQLinco::PedigreeData::LoadSamples(const VecVecString & samples)
+void SEQLinco::DataLoader::LoadSamples(Pedigree & ped, const VecVecString & samples)
 {
 
 	for (unsigned i = 0; i < samples.size(); ++i) {
 		VecString fam_info(samples[i].begin(), samples[i].begin() + 5);
 		VecString genotypes(samples[i].begin() + 5, samples[i].end());
-		__AddPerson(fam_info, genotypes);
+		__AddPerson(ped, fam_info, genotypes);
 	}
-	data.Sort();
-	SortFamilies(data);
+	ped.Sort();
+	SortFamilies(ped);
 }
 
 
-void SEQLinco::PedigreeData::__AddPerson(VecString & fam_info, VecString & genotypes)
+void SEQLinco::DataLoader::__AddPerson(Pedigree & ped, VecString & fam_info, VecString & genotypes)
 {
 	// add person info
 	bool sex_failure = false;
 
-	data.AddPerson(fam_info[0].c_str(), fam_info[1].c_str(),
+	ped.AddPerson(fam_info[0].c_str(), fam_info[1].c_str(),
 		fam_info[2].c_str(), fam_info[3].c_str(),
-		data.TranslateSexCode(fam_info[4].c_str(), sex_failure));
+		ped.TranslateSexCode(fam_info[4].c_str(), sex_failure));
 	// add person genotypes
 	for (unsigned i = 0; i < genotypes.size(); ++i) {
 		String c1 = genotypes[i].c_str()[0];
 		String c2 = genotypes[i].c_str()[1];
 		Alleles new_genotype;
-		new_genotype[0] = data.LoadAllele(data.GetMarkerInfo(i), c1);
-		new_genotype[1] = data.LoadAllele(data.GetMarkerInfo(i), c2);
-		if (new_genotype.isKnown()) data[data.count - 1].markers[i] = new_genotype;
+		new_genotype[0] = ped.LoadAllele(ped.GetMarkerInfo(i), c1);
+		new_genotype[1] = ped.LoadAllele(ped.GetMarkerInfo(i), c2);
+		if (new_genotype.isKnown()) ped[ped.count - 1].markers[i] = new_genotype;
 	}
 }
 
 
 void SEQLinco::GeneticHaplotyper::Apply(Pedigree & ped)
 {
-	// activate these analysis options
-	FamilyAnalysis::bestHaplotype = true;
-	FamilyAnalysis::zeroRecombination = false;
-	MerlinHaplotype::outputHorizontal = true;
 	String chrom = __chrom.c_str();
-	if (chrom == "X") PedigreeGlobals::chromosomeX = true;
+
+	if (chrom == "X") ped.chromosomeX = true;
 	//
 	ped.EstimateFrequencies(0, true);
 	// recode alleles so more frequent alleles have lower allele numbers internally
@@ -87,6 +82,9 @@ void SEQLinco::GeneticHaplotyper::Apply(Pedigree & ped)
 	// !! Do not trim here, because if a family is uninformative we can report as is
 	// ped.Trim(true);
 	FamilyAnalysis engine(ped);
+	// activate haplotyping options
+	engine.bestHaplotype = true;
+	engine.zeroRecombination = false;
 	engine.SetupGlobals();
 	engine.SetupMap(chrom);
 	for (int i = 0; i < ped.familyCount; i++) {
