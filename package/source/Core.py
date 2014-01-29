@@ -4,8 +4,8 @@
 
 from SEQLinco.Utils import *
 from multiprocessing import Process, Queue, Lock, Value
-from collections import Counter
-import sys, gc
+from collections import Counter, OrderedDict
+import sys
 
 if sys.version_info.major == 2:
     from SEQLinco.libmped import chp_py2 as MM
@@ -183,25 +183,28 @@ class TFAMParser:
         return fams, samples
     
 class RData(dict):
-    def __init__(self, samples, families, sample_names):
+    def __init__(self, samples, families, sample_in_vcf):
         # a dict of {sid:[fid, pid, mid, sex, trait], ...}
-        self.samples = samples
-        # a list of sample names matching the order of apparence in VCF file
-        self.sample_names = sample_names
+        self.samples = OrderedDict()
+        for k in sample_in_vcf:
+            self.samples[k] = samples[k]
         # a dict of {fid:[member names], ...}
-        # reorder family samples based on order of VCF file
         self.families = {}
+        # a dict of {fid:[idx ...], ...}
         self.famsampidx = {}
+        # a dict of {fid:[idx ...], ...}
         self.famvaridx = {}
+        # reorder family samples based on order of VCF file
         for k in families:
-            self.families[k] = [x for x in self.sample_names if x in families[k]]
-            self.famsampidx[k] = [i for i, x in enumerate(self.sample_names) if x in families[k]]
+            self.families[k] = [x for x in self.samples if x in families[k]]
+            self.famsampidx[k] = [i for i, x in enumerate(self.samples) if x in families[k]]
         self.reset()
 
     def reset(self):
-        for item in self.sample_names:
+        for item in self.samples:
             self[item] = []
         self.variants = []
+        self.chrom = None
         for k in self.families:
             self.famvaridx[k] = []
 
@@ -247,6 +250,7 @@ class RegionExtractor:
     def apply(self, data):
         # Clean up
         data.reset()
+        data.chrom = self.chrom
         lines = [self.parseVCFline(x, exclude = self.exclude_idx) for x in \
                   runCommand('tabix {} {}:{}-{}'.\
                              format(self.vcf, self.chrom, self.startpos, self.endpos)).strip().split('\n')]
@@ -254,9 +258,9 @@ class RegionExtractor:
         if len(lines) == 0:
             return False
         # check if the first line's sample name matches with expected sample name
-        if not len(lines[0][1]) == len(data.sample_names):
+        if not len(lines[0][1]) == len(data.samples):
             raise ValueError('Genotype and sample mismatch for region {}: {:,d} vs {:,d}'.\
-                             format(self.name, len(lines[0][1]), len(data.sample_names)))
+                             format(self.name, len(lines[0][1]), len(data.samples)))
         #
         # FIXME: codes below do not read efficient
         #
@@ -321,8 +325,8 @@ class MarkerMaker:
     def apply(self, data):
         for item in data.families:
             try:
-                vnames, vpos = data.getFamVariants(item, style = "map")
-                if len(vnames) < 2:
+                varnames, varpos = data.getFamVariants(item, style = "map")
+                if len(varnames) < 2:
                     # no more than 2 variants found in family
                     for person in data.families[item]:
                         if len(data[person]) == 0:
@@ -332,11 +336,12 @@ class MarkerMaker:
                 else:
                     worker = MM.CHP(self.size, self.position_adj)
                     with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
-                        output = worker.Apply(data.variants[0][0],
-                                              vnames,
-                                              sorted(vpos),
+                        output = worker.Apply(data.chrom,
+                                              varnames,
+                                              sorted(varpos, key = int),
                                               data.getFamSamples(item))
                     if len(output) == 0:
+                        # core algorithm failed
                         with self.lock:
                             env.chperror_counter.value += 1
                     else:
@@ -376,7 +381,7 @@ class LinkageWriter:
         # FIXME: currently only applies to one marker per region theme
         self.output += env.delimiter.join(
             [self.chrom, self.name, self.distance, str(data.getMidPosition())] + \
-                                          [data[s] for s in data.sample_names]) + '\n'
+                                          [data[s] for s in data.samples]) + '\n'
         if self.counter < env.batch:
             self.counter += 1
         else:
@@ -486,7 +491,7 @@ def main(args):
             jobs = [EncoderWorker(
                 i,
                 queue,
-                RData(samples, families, sample_names = [x for x in samples_vcf if x in samples]),
+                RData(samples, families, [x for x in samples_vcf if x in samples]),
                 RegionExtractor(args.vcf, [idx + 9 for idx, x in enumerate(samples_vcf) if x not in samples]),
                 MarkerMaker(args.size),
                 LinkageWriter()

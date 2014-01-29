@@ -9,8 +9,10 @@
 #[{{icons:download.png?64}}|@http://tigerwang.org/downloads/SEQLinco.tar.bz2@]
 #! ChangeLog
 #{list
+# ""2014.01.28"" version 0.0.3, Move implementation of core methods from Python to C++
+## "i.e.", Mendelian error check, genetic haplotyping and combined haplotype pattern coding
 # ""2013.12.19"" version 0.0.2, Replace vtools backbone with tabix
-# ""2013.11.25"" version 0.0.1, First public release
+# ""2013.11.25"" version 0.0.1, First release on this website
 # ""2013.10.17"" First version completed for in-house data analysis
 #}
 ###
@@ -43,7 +45,6 @@ Encoder arguments:
                         variant per bin).
   --blueprint FILE      Blueprint file for super marker (format: "chr startpos
                         endpos name distance").
-  --missing STRING      Coding for missing allele. Default to "NA".
 
 Input / output options:
   --vcf FILE.gz         Input VCF file, bgzipped.
@@ -92,12 +93,6 @@ slinco --vcf 1000g1.vcf.gz --tfam 1000g1.tfam -j8 --blueprint units.bpt
 # TFAM file has complete affection status 
 # TFAM's ID can be found in VCF
 #}
-
-cd ../source
-make source
-cd -
 tigernotes dokuwiki SEQLinco.notes -o encode-linkage --lite --showall
-tigernotes dokuwiki src.notes -o encode-linkage-source --showall
 scp encode-linkage.txt tigerwang@tigerwang.org:./html/data/pages/software
-scp encode-linkage-source.txt tigerwang@tigerwang.org:./html/data/pages/software 
 #}-----

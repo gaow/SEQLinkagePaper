@@ -1,5 +1,5 @@
 Gao
-- support VCF plain file (have to bundle bgzip)
-- ? recombination
+- support VCF plain file (have to bundle bgzip) (x)
+- recombination (x)
 Di or Hang
 - provide a test data set for reviewers
