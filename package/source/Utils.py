@@ -24,7 +24,6 @@ class Environment:
         self.resource_bin = os.path.join(self.resource_dir, 'bin')
         self.cache_dir = os.path.join(os.getcwd(), 'cache')
         self.tmp_dir = self.__mktmpdir()
-        self.tmp_log = None
         self.path = {'PATH':self.resource_bin}
         self.debug = False
         # File contents 
@@ -35,29 +34,28 @@ class Environment:
         # Input & output options
         self.output = 'LINKAGE'
         self.outputfam = os.path.join(self.cache_dir, '{}.tfam'.format(self.output))
+        self.tmp_log = os.path.join(self.tmp_dir, self.output)
         self.formats = {
             'plink':['.ped','.map'],
             'mega2':['.pre', '.map', '.name']
             }
         # Multiprocessing parameters
         self.batch = 50
+        self.lock = Lock()
         self.total_counter = Value('i',0)
         self.success_counter = Value('i',0)
         self.chperror_counter = Value('i',0)
         self.triallelic_counter = Value('i',0)
+        self.nodata_counter = Value('i',0)
         self.mendelerror_counter = Value('i',0)
         self.recomb_counter = Value('i',0)
 
     def __mktmpdir(self):
-        tmp_dir = None
         pattern = re.compile(r'{}_tmp_*(.*)'.format(self.proj))
         for fn in os.listdir(tempfile.gettempdir()):
             if pattern.match(fn):
-                tmp_dir = os.path.join(tempfile.gettempdir(), fn)
-                break
-        if tmp_dir is None:
-            tmp_dir = tempfile.mkdtemp(prefix='{}_tmp_'.format(self.proj))
-        return tmp_dir
+                remove_tree(os.path.join(tempfile.gettempdir(), fn))
+        return tempfile.mkdtemp(prefix='{}_tmp_'.format(self.proj))
             
     def error(self, msg = None, show_help = False, exit = False):
         if msg is None:
@@ -289,6 +287,19 @@ def getColumn(fn, num, delim = None, exclude = None):
                 output.append(parts[num])
     return output
 
+def wordCount(filename):
+    """Returns a word/count dict for this filename."""
+    word_count = {}
+    with open(filename, 'r') as input_file:
+        for line in input_file:
+           words = line.split()
+           for word in words:
+               word = word.lower()
+               if not word in word_count:
+                   word_count[word] = 1
+               else:
+                   word_count[word] += 1
+    return word_count
 
 ###
 # Check parameter input
@@ -305,6 +316,7 @@ def checkParams(args):
     if args.output:
         env.output = os.path.split(args.output)[-1]
         env.outputfam = os.path.join(env.cache_dir, '{}.tfam'.format(env.output))
+        env.tmp_log = os.path.join(env.tmp_dir, env.output)
     #
     if len([x for x in set(getColumn(args.tfam, 6)) if x.lower() not in env.ped_missing]) > 2:
         env.trait = 'quantitative'

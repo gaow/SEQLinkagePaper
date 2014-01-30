@@ -4,12 +4,20 @@
 # Copyright (c) 2014, Gao Wang <ewanggao@gmail.com>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 
+import sys, os, subprocess
+import imp
+for item in ['faulthandler', 'numpy', 'matplotlib', 'prettyplotlib']:
+    try:
+        imp.find_module(item)
+    except ImportError:
+        sys.exit('Cannot build package: missing module "{}"!'.format(item))
+
 from distutils.core import setup, Extension
 try:
    from distutils.command.build_py import build_py_2to3 as build_py
 except ImportError:
    from distutils.command.build_py import build_py
-import sys, os, subprocess
+
 from glob import glob
 from source import VERSION
 
@@ -42,13 +50,13 @@ CPP = fixPath(['Core.cpp'])
 try:
     ret = subprocess.call(['swig', '-python', '-external-runtime', 'swigpyrun.h'], shell=False)
     if ret != 0:
-        sys.exit('Failed to generate swig runtime header file. Please install swig.')
+        sys.exit('Failed to generate swig runtime header file. Is "swig" installed?')
     #
     if (not os.path.isfile(WRAPPER_PY) or not os.path.isfile(WRAPPER_CPP) or \
         os.path.getmtime(WRAPPER_CPP) < max([os.path.getmtime(x) for x in HEADER + CPP])):
         ret = subprocess.call(['swig'] + SWIG_OPTS + ['-o', WRAPPER_CPP, WRAPPER_I], shell=False)
         if ret != 0:
-            sys.exit('Failed to generate cpp extension.')
+            sys.exit('Failed to generate C++ extension.')
         os.rename('chp.py', WRAPPER_PY)
     os.remove('swigpyrun.h')
 except OSError as e:

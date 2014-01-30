@@ -3,9 +3,9 @@
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 
 from SEQLinco.Utils import *
-from multiprocessing import Process, Queue, Lock, Value
+from multiprocessing import Process, Queue
 from collections import Counter, OrderedDict
-import sys
+import sys, faulthandler
 
 if sys.version_info.major == 2:
     from SEQLinco.libmped import chp_py2 as MM
@@ -42,8 +42,8 @@ def checkSamples(samp1, samp2):
     a_not_b = list(set(samp1).difference(set(samp2)))
     b_not_a = list(set(samp2).difference(set(samp1)))
     if b_not_a:
-        raise RuntimeError('{:,d} samples found in TFAM file but not in VCF file:\n{}'.\
-                           format(len(b_not_a), '\n'.join(b_not_a))) 
+        env.error('{:,d} samples found in TFAM file but not in VCF file:\n{}'.\
+                           format(len(b_not_a), '\n'.join(b_not_a)), exit = True) 
     if a_not_b:
         env.log('{:,d} samples in VCF file will be ignored due to absence in TFAM file'.format(len(a_not_b)))
     return True
@@ -136,24 +136,35 @@ class TFAMParser:
                     obj[key].extend(value)
 
     def parse(self, tfam):
+        '''Rules:
+        1. samples have to have unique names
+        2. both parents for a sample should be available
+        3. founders should have at least one offspring'''
         fams = {}
         observedFounders = {}
         expectedFounders = {}
         samples = {}
         with open(tfam, 'r') as f:
-            for line in f.readlines():
+            for idx, line in enumerate(f.readlines()):
                 line = line.split()
+                if len(line) != 6:
+                    env.error("skipped line {} (has {} != 6 columns!)".format(idx, len(line)))
+                    continue
+                if line[1] in samples:
+                    env.error("skipped line {} (duplicate sample name '{}' found!)".format(idx, line[1]))
+                    continue
                 # collect sample info
                 samples[line[1]] = [line[0], line[1], line[2], line[3], line[4], line[5]]
                 # collect family member
                 self.__add_or_app(fams, line[0], line[1])
                 # collect founders for family
-                if line[2] in env.ped_missing or line[3] in env.ped_missing:
+                if line[2] in env.ped_missing and line[3] in env.ped_missing:
                     self.__add_or_app(observedFounders, line[0], line[1])
                 else:
                     self.__add_or_app(expectedFounders, line[0], (line[1], line[2], line[3]))
         # if a sample's expected founder is not observed in tfam
         # then the sample itself is a founder 
+        # after this, all families should have founders
         for k in expectedFounders.keys():
             if k not in observedFounders:
                 for item in expectedFounders[k]:
@@ -161,17 +172,14 @@ class TFAMParser:
                 observedFounders[k] = [item[0] for item in expectedFounders[k]]
                 continue
             for item in expectedFounders[k]:
-                if item[1] not in observedFounders[k] \
-                  and item[2] not in observedFounders[k]:
+                if (item[1] not in observedFounders[k] and item[2] in observedFounders[k]) \
+                    or (item[2] not in observedFounders[k] and item[1] in observedFounders[k]) \
+                    or (item[1] not in observedFounders[k] and item[2] not in observedFounders[k]):
+                    # missing one or two founders
                     samples[item[0]][2] = samples[item[0]][3] = "0"
                     observedFounders[k].append(item[0])
         # now remove trivial families 
-        # 1. the family does not have observedFounders
-        # 2. families having founders only, no offspring, i.e., observedFounder is all samples in the fam
         for k in fams.keys():
-            if k not in observedFounders:
-                del fams[k]
-                continue
             if Counter(observedFounders[k]) == Counter(fams[k]):
                 del fams[k]
                 continue
@@ -245,7 +253,6 @@ class RegionExtractor:
         self.chrom = self.startpos = self.endpos = self.name = self.distance = None
         self.xchecker = PseudoAutoRegion('X', build)
         self.ychecker = PseudoAutoRegion('Y', build)
-        self.lock = Lock()
         
     def apply(self, data):
         # Clean up
@@ -256,7 +263,7 @@ class RegionExtractor:
                              format(self.vcf, self.chrom, self.startpos, self.endpos)).strip().split('\n')]
         lines = filter(None, lines)
         if len(lines) == 0:
-            return False
+            return 1
         # check if the first line's sample name matches with expected sample name
         if not len(lines[0][1]) == len(data.samples):
             raise ValueError('Genotype and sample mismatch for region {}: {:,d} vs {:,d}'.\
@@ -277,7 +284,7 @@ class RegionExtractor:
                     data.famvaridx[k].append(var_id)
                     for person, g in zip(data.families[k], gs):
                         data[person].append(g)
-        return True
+        return 0
 
             
     def getRegion(self, region):
@@ -296,7 +303,7 @@ class RegionExtractor:
         line = line.split('\t')
         # Skip tri-allelic variant
         if "," in line[4]:
-            with self.lock:
+            with env.lock:
                 env.triallelic_counter.value += 1
             return None
         gs = []
@@ -316,8 +323,6 @@ class RegionExtractor:
 class MarkerMaker:
     def __init__(self, wsize):
         self.size = wsize
-        self.lock = Lock()
-        env.tmp_log = os.path.join(env.tmp_dir, env.output)
         # adjust physical distance to map distance, 1 / 1 million * 10 (times 10 to fake them apart)
         self.position_adj = 1 / float(100000)
         self.missing = env.delimiter.join(["0", "0"])
@@ -344,35 +349,33 @@ class MarkerMaker:
                     if len(output) == 0:
                         has_failure = True
                         # core algorithm failed
-                        with self.lock:
+                        with env.lock:
                             env.chperror_counter.value += 1
                     else:
                         for line in output:
                             # line: [fid, sid, hap1, hap2]
                             data[line[1]] = env.delimiter.join([line[2], line[3]])
-                        with self.lock:
+                        with env.lock:
                             env.mendelerror_counter.value += worker.countMendelianErrors()
                             env.recomb_counter.value += worker.countRecombs()
             except Exception as e:
-                raise
-                return False
+                return -1
         # Fill in skipped samples due to some errors 
         if has_failure:
             for person in data:
                 if type(data[person]) is not str:
                     data[person] = self.missing
-        return True
+        return 0
 
 
 class LinkageWriter:
     def __init__(self):
-        self.lock = Lock()
         self.chrom = self.prev_chrom = self.name = self.distance = None
         self.__reset()
 
     def apply(self, data):
         # input data receieved, call it a "success"
-        with self.lock:
+        with env.lock:
             env.success_counter.value += 1
         if self.chrom != self.prev_chrom:
             if self.prev_chrom is None:
@@ -389,11 +392,12 @@ class LinkageWriter:
             self.counter += 1
         else:
             self.commit()
+        return 0
 
     def commit(self):
         if not self.output:
             return
-        with self.lock:
+        with env.lock:
             with open(os.path.join(env.cache_dir, '{}.chr{}.tped'.format(env.output, self.prev_chrom)),
                       'a') as f:
                 f.write(self.output)
@@ -418,7 +422,6 @@ class EncoderWorker(Process):
         self.extractor = extractor
         self.coder = coder
         self.writer = writer
-        self.lock = Lock()
 
     def report(self):
         env.log('Processing {:,d} units with {:,d} super markers being generated ...'.\
@@ -433,13 +436,20 @@ class EncoderWorker(Process):
                     self.report()
                     break
                 else:
-                    with self.lock:
+                    with env.lock:
                         env.total_counter.value += 1
                     self.extractor.getRegion(region)
                     self.writer.getRegion(region)
                     for m in [self.extractor, self.coder, self.writer]:
-                        if not m.apply(self.data):
+                        status = m.apply(self.data)
+                        if status == -1:
                             # previous module failed
+                            with env.lock:
+                                env.chperror_counter.value += 1
+                        if status == 1:
+                            with env.lock:
+                                env.nodata_counter.value += 1
+                        if status != 0:
                             break
                     if env.total_counter.value % (env.batch * env.jobs) == 0:
                         self.report()
@@ -489,6 +499,7 @@ def main(args):
         regions.extend([None] * env.jobs)
         queue = Queue()
         try:
+            faulthandler.enable(file=open(env.tmp_log + '.SEGV', 'w'))
             for i in regions:
                 queue.put(i)
             jobs = [EncoderWorker(
@@ -503,25 +514,38 @@ def main(args):
                 j.start()
             for j in jobs:
                 j.join()
+            faulthandler.disable()
         except KeyboardInterrupt:
             # FIXME: need to properly close all jobs
             raise ValueError("Use 'killall {}' to properly terminate all processes!".format(env.prog))
         else:
             env.log('{:,d} units processed with {:,d} super markers generated; '\
-                '{:,d} tri-allelic loci ignored, {:,d} Mendelian errors fixed, '\
-                '{:,d} recombination events detected.\n'.\
+                '{:,d} Mendelian inconsistencies and {:,d} recombination events handled.\n'.\
                 format(env.total_counter.value,
                        env.success_counter.value,
-                       env.triallelic_counter.value,
                        env.mendelerror_counter.value,
                        env.recomb_counter.value), flush = True)
-            if env.chperror_counter.value > 0:
-                env.error("{:,d} runtime error captured!".format(env.chperror_counter.value))
+            if env.triallelic_counter.value:
+                env.log('{:,d} tri-allelic loci were ignored'.format(env.triallelic_counter.value))
+            if env.nodata_counter.value:
+                env.log('{:,d} pre-defined units cannot be found in [{}]'.\
+                        format(env.nodata_counter.value, args.vcf))
+            try:
+                # Error msg from C++ extension
+                os.system("cat {}/*.* > {}".format(env.tmp_dir, env.tmp_log))
+                env.chperror_counter.value += wordCount(env.tmp_log)['fatal']
+            except KeyError:
+                pass
+            if env.chperror_counter.value:
+                env.error("{:,d}+ super markers failed to be generated due to runtime errors!".\
+                          format(env.chperror_counter.value))
             env.log('Archiving to directory [{}]'.format(env.cache_dir))
-            cache.write(pre = env.output, ext = '.tped', files = [env.outputfam], otherfiles = [args.vcf, args.tfam, args.blueprint])
-    # STEP 2: write to PLINK or mega2 format
-    sys.exit()
+            cache.write(pre = env.output, ext = '.tped', files = [env.outputfam],
+                        otherfiles = [args.vcf, args.tfam, args.blueprint])
     env.jobs = args.jobs
+    # STEP 2: write to PLINK or mega2 format
+    env.error("Di, I lack resource files to run codes below ...")
+    sys.exit()
     tpeds = [os.path.join(env.cache_dir, item) for item in os.listdir(env.cache_dir) if item.startswith(env.output) and item.endswith('.tped')]
     if 'plink' in args.format:
         env.log('Saving data to directory [PLINK] ...')
