@@ -69,6 +69,8 @@ public:
 	// Apply haplotyping. Missing data are imputed as possible
 	void Apply(Pedigree & ped);
 
+	void Print();
+
 private:
 	std::string __chrom;
 };
@@ -82,13 +84,15 @@ public:
 	// [[familyid, sampleid, hap1, hap2] ...]
 	VecVecString data;
 	int recombCount;
-	void Apply(VecVecVecString & ghdata);
+	void Apply(VecVecVecString & haploVecs);
+
+	void Print();
 
 private:
 	int __size;
-	unsigned __AdjustSize(int n);
+	unsigned __AdjustSize(unsigned n);
 
-	std::string __Collapse(std::string & haplotype);
+	std::string __Collapse(VecString & haplotype, unsigned start = 0, unsigned end = 0);
 
 };
 }

@@ -30,10 +30,9 @@ def extractSamplenames(vcf):
         env.error("Fail to extract samples from [{}]".format(vcf), exit = True)
     return samples
 
-def rewriteFamfile(tfam, samples):
-    os.rename(tfam, tfam + '.bak')
+def rewriteFamfile(tfam, samples, keys):
     with open(tfam, 'w') as f:
-        f.write('\n'.join(sorted(['\t'.join(x) for x in samples.values()])))
+        f.write('\n'.join(['\t'.join(samples[k]) for k in keys]))
         f.write('\n')
 
 def checkSamples(samp1, samp2):
@@ -73,12 +72,13 @@ class Cache:
         with tarfile.open(self.cache_name) as f:
             f.extractall(self.cache_dir)        
 
-    def write(self, ext = None, pre = None, otherfiles = []):
+    def write(self, ext = None, pre = None, files = [], otherfiles = []):
         '''Add files to cache'''
         if not self.check():
             with tarfile.open(self.cache_name, 'w:bz2') as f:
                 for item in os.listdir(self.cache_dir):
-                    if (item.endswith(ext) or ext is None) and (item.startswith(pre) or pre is None):
+                    if ((item.endswith(ext) or ext is None) and (item.startswith(pre) or pre is None)) \
+                      or item in files:
                         f.add(os.path.join(self.cache_dir, item), arcname=item)
             otherfiles.append(self.cache_name)
             signatures = ['{}\t{}'.format(x, calculateFileMD5(x)) for x in otherfiles]
@@ -323,6 +323,7 @@ class MarkerMaker:
         self.missing = env.delimiter.join(["0", "0"])
 
     def apply(self, data):
+        has_failure = False
         for item in data.families:
             try:
                 varnames, varpos = data.getFamVariants(item, style = "map")
@@ -334,13 +335,14 @@ class MarkerMaker:
                         else:
                             data[person] = env.delimiter.join(list(data[person][0]))
                 else:
-                    worker = MM.CHP(self.size, self.position_adj)
+                    worker = MM.CHP(self.size, self.position_adj, env.debug)
                     with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
                         output = worker.Apply(data.chrom,
                                               varnames,
                                               sorted(varpos, key = int),
                                               data.getFamSamples(item))
                     if len(output) == 0:
+                        has_failure = True
                         # core algorithm failed
                         with self.lock:
                             env.chperror_counter.value += 1
@@ -355,9 +357,10 @@ class MarkerMaker:
                 raise
                 return False
         # Fill in skipped samples due to some errors 
-        for person in data:
-            if type(data[person]) is not str:
-                data[person] = self.missing
+        if has_failure:
+            for person in data:
+                if type(data[person]) is not str:
+                    data[person] = self.missing
         return True
 
 
@@ -446,11 +449,11 @@ class EncoderWorker(Process):
 
 def main(args):
     '''the main encoder function'''
-    status = checkParams(args)
+    checkParams(args)
     # FIXME: add Di's resources & MAC version resource
-    status = downloadResources([('http://tigerwang.org/uploads/genemap.txt', env.resource_dir),
-                               ('http://tigerwang.org/uploads/tabix', env.resource_bin),
-                               ('http://tigerwang.org/uploads/bgzip', env.resource_bin)])
+    downloadResources([('http://tigerwang.org/uploads/genemap.txt', env.resource_dir),
+                       ('http://tigerwang.org/uploads/tabix', env.resource_bin),
+                       ('http://tigerwang.org/uploads/bgzip', env.resource_bin)])
     cache = Cache(env.cache_dir, env.output)
     # STEP 1: write encoded data to TPED format
     if not args.vanilla and cache.check():
@@ -459,7 +462,7 @@ def main(args):
     else:
         args.vcf = indexVCF(args.vcf)
         samples_vcf = extractSamplenames(args.vcf)
-        status = checkSamples(samples_vcf, getColumn(args.tfam, 2))
+        checkSamples(samples_vcf, getColumn(args.tfam, 2))
         tfam = TFAMParser(args.tfam)
         if len(tfam.families) == 0:
             env.error('No family found in [{}]!'.format(args.tfam), exit = True)
@@ -478,7 +481,7 @@ def main(args):
                 env.log('{:,d} families with a total of {:,d} samples will be processed'.\
                     format(len(tfam.families), len(samples)))
         #
-        status = rewriteFamfile(args.tfam, samples)
+        rewriteFamfile(env.outputfam, samples, [x for x in samples_vcf if x in samples])
         with open(args.blueprint, 'r') as f:
             regions = [x.strip().split() for x in f.readlines()]
         env.log('Scanning [{}] for {:,d} pre-defined units'.format(args.vcf, len(regions)))
@@ -515,20 +518,20 @@ def main(args):
             if env.chperror_counter.value > 0:
                 env.error("{:,d} runtime error captured!".format(env.chperror_counter.value))
             env.log('Archiving to directory [{}]'.format(env.cache_dir))
-            cache.write(pre = env.output, ext = '.tped', otherfiles = [args.vcf, args.tfam, args.blueprint])
+            cache.write(pre = env.output, ext = '.tped', files = [env.outputfam], otherfiles = [args.vcf, args.tfam, args.blueprint])
     # STEP 2: write to PLINK or mega2 format
     sys.exit()
     env.jobs = args.jobs
     tpeds = [os.path.join(env.cache_dir, item) for item in os.listdir(env.cache_dir) if item.startswith(env.output) and item.endswith('.tped')]
     if 'plink' in args.format:
         env.log('Saving data to directory [PLINK] ...')
-        formatPlink(tpeds, [args.tfam] * len(tpeds), 'PLINK')
+        formatPlink(tpeds, [env.outputfam] * len(tpeds), 'PLINK')
     if 'mega2' in args.format:
         env.log('Saving data to directory [MEGA2] ...')
         formatMega2('MEGA2/{}*'.format(env.output))
     if 'mlink' in args.format:
         env.log('Saving data to directory [MLINK] ...')
-        formatMlink(tpeds, [args.tfam] * len(tpeds), 'MLINK')
+        formatMlink(tpeds, [env.outputfam] * len(tpeds), 'MLINK')
     runMlink()
     plotMlink()
     #please implement this section

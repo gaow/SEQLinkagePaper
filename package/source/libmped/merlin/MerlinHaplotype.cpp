@@ -273,7 +273,10 @@ void MerlinHaplotype::OutputHaplotypesHacked(StringArray * haplo, StringArray & 
 	// Output two haplotypes for each individual
 	for (int i = 0; i < family->mantra.two_n; i++) {
 		Person & person = family->ped[family->family->path[i >> 1]];
-		if ((person.sex == SEX_MALE && PedigreeGlobals::chromosomeX) && (i & 1)) continue;
+        	// Use below to make male X actually missing one haplotype.
+        	// commented out to make compatible with linkage analysis conventions
+        	// i.e., male X is homo
+		// if ((person.sex == SEX_MALE && PedigreeGlobals::chromosomeX) && (i & 1)) continue;
 		//
 		std::vector<std::string> buffer(0);
 		std::string swapper;

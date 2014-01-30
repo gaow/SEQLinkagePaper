@@ -13,7 +13,8 @@ namespace SEQLinco {
 class CHP
 {
 public:
-	CHP(const int wsize, const double padj = 0.01) : __windowSize(wsize), __positionAdjustment(padj) {};
+	CHP(const int wsize, const double padj = 0.01, const int verbose = 0) :
+		__windowSize(wsize), __positionAdjustment(padj), __verbose(verbose) {};
 	~CHP() {};
 	CHP * clone() const { return new CHP(*this); }
 	// input chrom must be 1 .. 22 and X
@@ -43,9 +44,11 @@ public:
 			__mendelianErrorCount = mc.errorCount;
 			GeneticHaplotyper gh(chrom);
 			gh.Apply(ped);
+			if (__verbose) gh.Print();
 			HaplotypeCoder hc(__windowSize);
 			hc.Apply(gh.data);
 			__recombCount = hc.recombCount;
+			if (__verbose) hc.Print();
 			return hc.data;
 		} catch (...) {
 			const VecVecString nulldata(0);
@@ -62,6 +65,7 @@ private:
 	int __recombCount;
 	int __windowSize;
 	double __positionAdjustment;
+	int __verbose;
 };
 }
 #endif

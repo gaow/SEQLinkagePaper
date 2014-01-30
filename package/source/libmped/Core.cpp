@@ -7,6 +7,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <set>
+
 inline bool hasEnding(std::string const & fullString, std::string const & ending)
 {
 	if (fullString.length() >= ending.length()) {
@@ -97,6 +98,21 @@ void SEQLinco::GeneticHaplotyper::Apply(Pedigree & ped)
 }
 
 
+void SEQLinco::GeneticHaplotyper::Print()
+{
+	for (unsigned f = 0; f < data.size(); f++) {
+		for (unsigned p = 0; p < data[f].size(); p++) {
+			for (unsigned i = 0; i < data[f][p].size(); i++) {
+				std::clog << data[f][p][i] << "\t";
+			}
+			std::clog << std::endl;
+		}
+		std::clog << std::endl;
+	}
+	std::clog << std::endl;
+}
+
+
 void SEQLinco::MendelianErrorChecker::Apply(Pedigree & ped)
 {
 	// check mendelian error for everyone's every marker in input ped object
@@ -151,86 +167,100 @@ void SEQLinco::MendelianErrorChecker::Apply(Pedigree & ped)
 }
 
 
-void SEQLinco::HaplotypeCoder::Apply(VecVecVecString & ghdata)
+void SEQLinco::HaplotypeCoder::Apply(VecVecVecString & haploVecs)
 {
-	// each element of hpdata is a family's data
-	// each element of hpdata[i] is a haplotype with the first item being sample id
-	if (!ghdata.size()) return;
-	// recode
-	VecVecVecString hpdata(ghdata.size());
-	for (unsigned f = 0; f < ghdata.size(); f++) {
-		hpdata[f].resize(ghdata[f].size());
-		// genotype pattern pool for a family
-		std::set<std::string> pool;
-		for (unsigned p = 0; p < ghdata[f].size(); p++) {
-			hpdata[f][p].resize(3);
-			// fam and individual ID
-			hpdata[f][p][0] = ghdata[f][p][0];
-			hpdata[f][p][1] = ghdata[f][p][1];
-			// haplotype super string
-			std::string haplotype;
-			for (unsigned i = 2; i < ghdata[f][p].size(); i++) {
-				// break due to recombination event detected
-				if (!hasEnding(ghdata[f][p][i], ":") && !hasEnding(ghdata[f][p][i], "|")) {
+	// each element of haploVecsis a family's data
+	// each element of haploVecs[i] is a haplotype with the first 2 items being fid and sid
+	if (!haploVecs.size()) return;
+	for (unsigned f = 0; f < haploVecs.size(); f++) {
+		//
+		// record recombination and adjust data format
+		//
+		// the nearest recombination event index
+		unsigned minRecombPos = 999999999;
+		for (unsigned p = 0; p < haploVecs[f].size(); p++) {
+			for (unsigned i = 2; i < haploVecs[f][p].size(); i++) {
+				// recombination event detected
+				if (!hasEnding(haploVecs[f][p][i], ":") && !hasEnding(haploVecs[f][p][i], "|")) {
 					recombCount += 1;
-					break;
+					minRecombPos = (i < minRecombPos) ? i : minRecombPos;
 				}
 				// use one of the likely haplotype configuration
-				haplotype.push_back((ghdata[f][p][i][0] == 'A') ? ghdata[f][p][i][1] : ghdata[f][p][i][0]);
+				haploVecs[f][p][i] = (haploVecs[f][p][i].substr(0, 1) == "A") ? haploVecs[f][p][i].substr(1, 1) : haploVecs[f][p][i].substr(0, 1);
 			}
-			haplotype = __Collapse(haplotype);
-			hpdata[f][p][2] = haplotype;
+		}
+		//
+		// collapse haplotype vectors to data object as a string
+		//
+		std::set<std::string> pool;
+		unsigned dataStart = data.size();
+		for (unsigned p = 0; p < haploVecs[f].size(); p++) {
+			if (!data.size() || (data.back()[0] != haploVecs[f][p][0] || data.back()[1] != haploVecs[f][p][1])) {
+				VecString newperson(haploVecs[f][p].begin(), haploVecs[f][p].begin() + 2);
+				data.push_back(newperson);
+			}
+			std::string haplotype = __Collapse(haploVecs[f][p], 2,
+				(minRecombPos < haploVecs[f][p].size()) ? minRecombPos : (unsigned)haploVecs[f][p].size());
+			data[data.size() - 1].push_back(haplotype);
 			if (haplotype != "?") pool.insert(haplotype);
 		}
+		//
 		// convert haplotype super strings to haplotype patterns
+		//
 		VecString patterns(pool.begin(), pool.end());
 		std::sort(patterns.begin(), patterns.end());
-		for (unsigned p = 0; p < hpdata[f].size(); p++) {
-			if (hpdata[f][p][2] == "?") hpdata[f][p][2] = "0";
-			else hpdata[f][p][2] = std::to_string(std::find(patterns.begin(), patterns.end(), hpdata[f][p][2]) - patterns.begin() + 1);
-		}
-	}
-	// format output
-	for (unsigned f = 0; f < hpdata.size(); f++) {
-		for (unsigned p = 0; p < hpdata[f].size(); p++) {
-			if (!data.size() || (data.back()[0] != hpdata[f][p][0] || data.back()[1] != hpdata[f][p][1])) {
-				data.push_back(hpdata[f][p]);
-			} else {
-				data[data.size() - 1].push_back(hpdata[f][p][2]);
+		for (unsigned p = dataStart; p < data.size(); p++) {
+			for (unsigned i = 2; i < 4; i++) {
+				if (data[p][i] == "?") data[p][i] = "0";
+				else data[p][i] = std::to_string(std::find(patterns.begin(), patterns.end(), data[p][i]) - patterns.begin() + 1);
 			}
 		}
 	}
 }
 
 
-unsigned SEQLinco::HaplotypeCoder::__AdjustSize(int n)
+void SEQLinco::HaplotypeCoder::Print()
 {
-	if (__size <= 0) return n;
-	div_t divresult;
-	divresult = div(n, __size);
-	// reduce size by x such that rem + res * x = self.size - x
-	return __size - (int)((__size - divresult.rem) / (double)(divresult.quot + 1));
+	for (unsigned p = 0; p < data.size(); p++) {
+		for (unsigned i = 0; i < data[p].size(); i++) {
+			std::clog << data[p][i] << "\t";
+		}
+
+		std::clog << std::endl;
+	}
+	std::clog << std::endl;
+
 }
 
 
-std::string SEQLinco::HaplotypeCoder::__Collapse(std::string & haplotype)
+unsigned SEQLinco::HaplotypeCoder::__AdjustSize(unsigned n)
 {
-	if (__size == 1) {
-		if (haplotype.find("?") != std::string::npos) return "?";
-		else return haplotype;
-	}
-	unsigned wsize = __AdjustSize((int)haplotype.size());
-	std::string collapsed_haplotype;
+	if (__size <= 0) return n;
+	if (__size == 1) return __size;
+	div_t divresult;
+	divresult = div(n, __size);
+	// reduce size by x such that rem + res * x = size - x
+	return (unsigned)(__size - ((__size - divresult.rem) / (divresult.quot + 1)));
+}
+
+
+std::string SEQLinco::HaplotypeCoder::__Collapse(VecString & haplotype, unsigned start, unsigned end)
+{
+	if (end == 0) end = haplotype.size();
+	if (start == end) return "?";
+	std::string collapsed_haplotype = "";
+	unsigned wsize = __AdjustSize(haplotype.size());
 	unsigned counter = 0;
-	char code = '1';
-	for (unsigned i = 0; i < haplotype.size(); i++) {
+	std::string code = "1";
+
+	for (unsigned i = start; i < end; ++i) {
 		counter += 1;
-		if (haplotype[i] == '2') code = '2';
-		else code = (code == '?' || code == '2') ? code : haplotype[i];
+		if (haplotype[i] == "2") code = "2";
+		else code = (code == "?" || code == "2") ? code : haplotype[i];
 		if (counter == wsize) {
-			collapsed_haplotype.push_back(code);
+			collapsed_haplotype += code;
 			counter = 0;
-			code = '1';
+			code = "1";
 		}
 	}
 	// make it missing data if "?" is in the haplotype

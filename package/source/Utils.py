@@ -26,6 +26,7 @@ class Environment:
         self.tmp_dir = self.__mktmpdir()
         self.tmp_log = None
         self.path = {'PATH':self.resource_bin}
+        self.debug = False
         # File contents 
         self.build = 'hg19'
         self.delimiter = " "
@@ -33,6 +34,7 @@ class Environment:
         self.trait = 'binary'
         # Input & output options
         self.output = 'LINKAGE'
+        self.outputfam = os.path.join(self.cache_dir, '{}.tfam'.format(self.output))
         self.formats = {
             'plink':['.ped','.map'],
             'mega2':['.pre', '.map', '.name']
@@ -294,6 +296,7 @@ def getColumn(fn, num, delim = None, exclude = None):
 
 def checkParams(args):
     '''set default arguments or make warnings'''
+    env.debug = args.debug
     args.vcf = os.path.abspath(os.path.expanduser(args.vcf))
     args.tfam = os.path.abspath(os.path.expanduser(args.tfam))
     for item in [args.vcf, args.tfam]:
@@ -301,6 +304,7 @@ def checkParams(args):
             env.error("Cannot find file [{}]!".format(item), exit = True)
     if args.output:
         env.output = os.path.split(args.output)[-1]
+        env.outputfam = os.path.join(env.cache_dir, '{}.tfam'.format(env.output))
     #
     if len([x for x in set(getColumn(args.tfam, 6)) if x.lower() not in env.ped_missing]) > 2:
         env.trait = 'quantitative'

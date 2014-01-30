@@ -49,6 +49,8 @@ class Args:
                            help='''Number of CPUs to use.''')
         vargs.add_argument('--vanilla', action='store_true',
                            help='''Encode data from scratch without loading cache.''')
+        vargs.add_argument('--debug', action='store_true', help=SUPPRESS)
+
 
 if __name__ == '__main__':
     # check platform
