@@ -7,6 +7,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <set>
+#include <algorithm>
 
 inline bool hasEnding(std::string const & fullString, std::string const & ending)
 {
@@ -24,14 +25,18 @@ void SEQLinco::DataLoader::LoadVariants(Pedigree & ped,
                                         const std::string & chrom,
                                         double positionAdjustment)
 {
+	VecInt vs(names.size());
+
 	for (unsigned i = 0; i < names.size(); ++i) {
 		ped.pd.columnHash.Push(ped.GetMarkerID(names[i].c_str()));
 		ped.pd.columns.Push(1);
 		ped.pd.columnCount++;
 		MarkerInfo * info = ped.GetMarkerInfo(i);
 		info->chromosome = (chrom == "X" || chrom == "x") ? 999 : atoi(chrom.c_str());
-		info->positionFemale = info->positionMale = info->position = \
-		                                                atoi(positions[i].c_str()) * positionAdjustment;
+		int position = atoi(positions[i].c_str());
+		if (std::find(vs.begin(), vs.end(), position) != vs.end()) position++;
+		vs[i] = position;
+		info->positionFemale = info->positionMale = info->position = position * positionAdjustment;
 		// std::clog << info->freq.dim << std::endl;
 	}
 }

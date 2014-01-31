@@ -327,8 +327,8 @@ class RegionExtractor:
 class MarkerMaker:
     def __init__(self, wsize):
         self.size = wsize
-        # adjust physical distance to map distance, 1 / 1 million * 10 (times 10 to fake them apart)
-        self.position_adj = 1 / float(100000)
+        # adjust physical distance to map distance, 1 / 100 million
+        self.position_adj = 1 / float(100000000)
         self.missing = env.delimiter.join(["0", "0"])
 
     def apply(self, data):
@@ -362,6 +362,8 @@ class MarkerMaker:
                         with env.lock:
                             env.mendelerror_counter.value += worker.countMendelianErrors()
                             env.recomb_counter.value += worker.countRecombs()
+                    # FIXME: it is SWIG's (2.0.11) fault not to properly distroy the object "worker"
+                    # So there is a memory leak here which I tried to partially handle on C++
             except Exception as e:
                 return -1
         # Fill in skipped samples due to some errors 
@@ -389,9 +391,13 @@ class LinkageWriter:
                 # commit whatever is in buffer before accepting new data
                 self.commit()
         # FIXME: currently only applies to one marker per region theme
-        self.output += env.delimiter.join(
-            [self.chrom, self.name, self.distance, str(data.getMidPosition())] + \
-                                          [data[s] for s in data.samples]) + '\n'
+        gs = [data[s] for s in data.samples]
+        if len(set(gs)) == 1:
+            # everyone is missing (or monomorphic)
+            return 1
+        gs.append("\n")
+        self.output += \
+          env.delimiter.join([self.chrom, self.name, self.distance, str(data.getMidPosition())] + gs) 
         if self.counter < env.batch:
             self.counter += 1
         else:
@@ -476,6 +482,7 @@ def main(args):
     else:
         args.vcf = indexVCF(args.vcf)
         samples_vcf = extractSamplenames(args.vcf)
+        env.log('{:,d} samples found in [{}]'.format(len(samples_vcf), args.vcf))
         checkSamples(samples_vcf, getColumn(args.tfam, 2))
         tfam = TFAMParser(args.tfam)
         if len(tfam.families) == 0:
@@ -498,7 +505,7 @@ def main(args):
         rewriteFamfile(env.outputfam, samples, [x for x in samples_vcf if x in samples])
         with open(args.blueprint, 'r') as f:
             regions = [x.strip().split() for x in f.readlines()]
-        env.log('Scanning [{}] for {:,d} pre-defined units'.format(args.vcf, len(regions)))
+        env.log('Scanning for {:,d} pre-defined units in VCF file'.format(len(regions)))
         env.jobs = max(min(args.jobs, len(regions)), 1)
         regions.extend([None] * env.jobs)
         queue = Queue()
@@ -532,17 +539,22 @@ def main(args):
             if env.triallelic_counter.value:
                 env.log('{:,d} tri-allelic loci were ignored'.format(env.triallelic_counter.value))
             if env.nodata_counter.value:
-                env.log('{:,d} out of {:,d} pre-defined units cannot be found in [{}]'.\
+                env.log('{:,d} out of {:,d} pre-defined units cannot be found in VCF file or '\
+                        'are trivial super markers'.\
                         format(env.nodata_counter.value, env.total_counter.value, args.vcf))
+            fatal_errors = 0
             try:
                 # Error msg from C++ extension
                 os.system("cat {}/*.* > {}".format(env.tmp_dir, env.tmp_log))
-                env.chperror_counter.value += wordCount(env.tmp_log)['fatal']
+                fatal_errors = wordCount(env.tmp_log)['fatal']
             except KeyError:
                 pass
             if env.chperror_counter.value:
-                env.error("{:,d} or more super markers failed to be generated due to runtime errors!".\
+                env.error("{:,d} super markers failed to be generated due to genotype coding problems!".\
                           format(env.chperror_counter.value))
+            if fatal_errors:
+                env.error("{:,d} or more super markers failed to be generated due to runtime errors!".\
+                          format(fatal_errors))
             env.log('Archiving to directory [{}]'.format(env.cache_dir))
             cache.write(pre = env.output, ext = '.tped', files = [env.outputfam],
                         otherfiles = [args.vcf, args.tfam, args.blueprint])

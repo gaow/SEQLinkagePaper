@@ -49,6 +49,40 @@ void readData(Pedigree & ped,
 }
 
 
+void resetPed(Pedigree & ped)
+{
+	// I explore structure of PED by clearing it up ...
+	// from PedigreeGlobal.h
+	for (int i = 0; i < ped.markerInfoCount; i++) {
+		ped.markerInfo[i]->freq.Clear();
+		ped.markerInfo[i]->name.Clear();
+		ped.markerInfo[i]->alleleLabels.Clear();
+		ped.markerInfo[i]->alleleNumbers.Clear();
+	}
+	ped.markerNames.Clear();
+	ped.markerLookup.Clear();
+	ped.markerInfoByName.Clear();
+	// from Pedigree.h
+	for (int i = 0; i < ped.count; i++) {
+		ped.persons[i]->famid.Clear();
+		ped.persons[i]->pid.Clear();
+		ped.persons[i]->motid.Clear();
+		ped.persons[i]->fatid.Clear();
+		ped.persons[i]->sex = ped.persons[i]->sibCount = ped.persons[i]->ngeno = ped.persons[i]->zygosity = 0;
+	}
+	for (int i = 0; i < ped.familyCount; i++) {
+		ped.families[i]->famid.Clear();
+		ped.families[i]->serial = ped.families[i]->first = ped.families[i]->last = ped.families[i]->count = ped.families[i]->founders = ped.families[i]->nonFounders = ped.families[i]->generations = 0;
+	}
+	ped.pd.columns.Clear();
+	ped.pd.columnHash.Clear();
+	ped.pd.columnCount = 0;
+	ped.markerCount = ped.markerInfoCount = ped.markerInfoSize = 0;
+	ped.count = ped.familyCount = ped.haveTwins = 0;
+	ped.size = 10000;
+}
+
+
 int main(int argc, char ** argv)
 {
 	if (argc != 3 && argc != 4) {
@@ -94,28 +128,10 @@ int main(int argc, char ** argv)
 		std::cout << "Mendelian Errors " << mc.errorCount << std::endl;
 		GeneticHaplotyper gh(chrom);
 		gh.Apply(ped);
-		if (argc == 4) {
-			for (unsigned f = 0; f < gh.data.size(); f++) {
-				for (unsigned p = 0; p < gh.data[f].size(); p++) {
-					for (unsigned i = 0; i < gh.data[f][p].size(); i++) {
-						std::cout << gh.data[f][p][i] << "\t";
-					}
-					std::cout << std::endl;
-				}
-				std::cout << std::endl;
-			}
-		}
+		if (argc == 4) gh.Print();
 		HaplotypeCoder hc(1);
 		hc.Apply(gh.data);
-		if (argc == 4) {
-			for (unsigned p = 0; p < hc.data.size(); p++) {
-				for (unsigned i = 0; i < hc.data[p].size(); i++) {
-					std::cout << hc.data[p][i] << "\t";
-				}
-
-				std::cout << std::endl;
-			}
-		}
+		if (argc == 4) hc.Print();
 	}   else ;
 }
 

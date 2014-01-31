@@ -16,11 +16,11 @@
 #include <vector>
 #include <string>
 #include <iterator>
-#include <iostream>
 
 #include "Exception.hpp"
 
 namespace SEQLinco {
+typedef std::vector<int> VecInt;
 typedef std::vector<std::string> VecString;
 typedef std::vector<std::vector<std::string> > VecVecString;
 typedef std::vector<std::vector<std::vector<std::string> > > VecVecVecString;

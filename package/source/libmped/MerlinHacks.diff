@@ -146,3 +146,16 @@ Index: merlin/MerlinHaplotype.h
 +
        // Founder haplotypes output broker
        void OutputFounders(StringArray * haplo, const char * label, int weight = 1);
+Index: source/libmped/merlin/MerlinFamily.cpp
+===================================================================
+--- source/libmped/merlin/MerlinFamily.cpp	(revision 29)
++++ source/libmped/merlin/MerlinFamily.cpp	(working copy)
+@@ -236,7 +236,7 @@
+                }
+             else
+                {
+-               PrintMessage("  SKIPPED: Requires impossible recombination pattern");
++               PrintMessage("  ABORTED: Requires impossible recombination pattern");
+                AbortAnalysis();
+                }
+             if (!twopoint)

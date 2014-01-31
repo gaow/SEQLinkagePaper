@@ -236,7 +236,7 @@ void FamilyAnalysis::Analyse()
                }
             else
                {
-               PrintMessage("  SKIPPED: Requires impossible recombination pattern");
+               PrintMessage("  ABORTED: Requires impossible recombination pattern");
                AbortAnalysis();
                }
             if (!twopoint)

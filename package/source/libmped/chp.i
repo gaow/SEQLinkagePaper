@@ -49,6 +49,7 @@
 %include "std_string.i"
 %include "std_map.i"
 
+%template(VecInt) std::vector<int>; 
 %template(VecString) std::vector<std::string>; 
 %template(VecVecString) std::vector<std::vector<std::string> >; 
 %template(VecVecVecString) std::vector<std::vector<std::vector<std::string> > >; 

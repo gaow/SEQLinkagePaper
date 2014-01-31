@@ -126,7 +126,7 @@ def stdoutRedirect(to=os.devnull):
         sys.stdout = os.fdopen(fd, 'w') # Python writes to fd
 
     with os.fdopen(os.dup(fd), 'w') as old_stdout:
-        with open(to, 'w') as file:
+        with open(to, 'a') as file:
             _redirect_stdout(to=file)
         try:
             yield # allow code to be run with the redirected stdout
