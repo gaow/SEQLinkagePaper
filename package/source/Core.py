@@ -228,8 +228,9 @@ class RData(dict):
         elif style == "map":
             names = []
             pos = []
-            for item in famvar:
-                names.append("{}-{}".format(item[-1], item[1]))
+            for idx, item in enumerate(famvar):
+                # names.append("{}-{}-{}".format(item[-1], item[1], idx))
+                names.append("V{}".format(idx))
                 pos.append(item[1])
             return names, pos
         else:
@@ -240,7 +241,8 @@ class RData(dict):
         for idx, item in enumerate(self.families[fam]):
             output[idx] = self.samples[item][:-1]
             output[idx].extend(self[item])
-        return output
+        # Input for CHP requires founders precede offsprings!
+        return sorted(output, key = lambda x: x[2])
 
 
 class RegionExtractor:
@@ -268,6 +270,8 @@ class RegionExtractor:
         if not len(lines[0][1]) == len(data.samples):
             raise ValueError('Genotype and sample mismatch for region {}: {:,d} vs {:,d}'.\
                              format(self.name, len(lines[0][1]), len(data.samples)))
+        with env.lock:
+           env.variants_counter.value += len(lines) 
         #
         # FIXME: codes below do not read efficient
         #
@@ -519,17 +523,17 @@ def main(args):
             # FIXME: need to properly close all jobs
             raise ValueError("Use 'killall {}' to properly terminate all processes!".format(env.prog))
         else:
-            env.log('{:,d} units processed with {:,d} super markers generated; '\
-                '{:,d} Mendelian inconsistencies and {:,d} recombination events handled.\n'.\
-                format(env.total_counter.value,
+            env.log('{:,d} variants processed with {:,d} super markers generated; '\
+                '{:,d} Mendelian inconsistencies and {:,d} recombination events handled\n'.\
+                format(env.variants_counter.value,
                        env.success_counter.value,
                        env.mendelerror_counter.value,
                        env.recomb_counter.value), flush = True)
             if env.triallelic_counter.value:
                 env.log('{:,d} tri-allelic loci were ignored'.format(env.triallelic_counter.value))
             if env.nodata_counter.value:
-                env.log('{:,d} pre-defined units cannot be found in [{}]'.\
-                        format(env.nodata_counter.value, args.vcf))
+                env.log('{:,d} out of {:,d} pre-defined units cannot be found in [{}]'.\
+                        format(env.nodata_counter.value, env.total_counter.value, args.vcf))
             try:
                 # Error msg from C++ extension
                 os.system("cat {}/*.* > {}".format(env.tmp_dir, env.tmp_log))

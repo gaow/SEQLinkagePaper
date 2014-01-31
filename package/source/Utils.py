@@ -45,6 +45,7 @@ class Environment:
         self.total_counter = Value('i',0)
         self.success_counter = Value('i',0)
         self.chperror_counter = Value('i',0)
+        self.variants_counter = Value('i',0)
         self.triallelic_counter = Value('i',0)
         self.nodata_counter = Value('i',0)
         self.mendelerror_counter = Value('i',0)
