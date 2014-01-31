@@ -9,7 +9,53 @@
 #include <string>
 #include "Core.hpp"
 #include "Exception.hpp"
+void reset_ped(Pedigree & ped)
+{
+
+	// FIXME: It does not make sense to me but I have to reset ped data object manually,
+	// otherwise in a Python program that calls CHP::Apply multiple times in a loop,
+	// ped.GetMarkerInfo(i)->freq.dim will not equal 0 after a few runs
+	// complaining the same marker name has been previously used.
+	// cannot yet figure out why as this is suppose to be a brand new ped object here!
+	// UPDATE:
+	// It might due to using it from Python. The swig generated wrapper did not delete it after use
+	// anyways let me just manually clean up everything instead of wrestling with swig
+	// UPDATE 2:
+	// seems cleaning markerInfo would be sufficient
+
+	// from PedigreeGlobal.h
+	for (int i = 0; i < ped.markerInfoCount; i++) {
+		ped.markerInfo[i]->freq.Clear();
+		ped.markerInfo[i]->name.Clear();
+		ped.markerInfo[i]->alleleLabels.Clear();
+		ped.markerInfo[i]->alleleNumbers.Clear();
+	}
+	ped.markerNames.Clear();
+	ped.markerLookup.Clear();
+	ped.markerInfoByName.Clear();
+	// from Pedigree.h
+	for (int i = 0; i < ped.count; i++) {
+		ped.persons[i]->famid.Clear();
+		ped.persons[i]->pid.Clear();
+		ped.persons[i]->motid.Clear();
+		ped.persons[i]->fatid.Clear();
+		ped.persons[i]->sex = ped.persons[i]->sibCount = ped.persons[i]->ngeno = ped.persons[i]->zygosity = 0;
+	}
+	for (int i = 0; i < ped.familyCount; i++) {
+		ped.families[i]->famid.Clear();
+		ped.families[i]->serial = ped.families[i]->first = ped.families[i]->last = ped.families[i]->count = ped.families[i]->founders = ped.families[i]->nonFounders = ped.families[i]->generations = 0;
+	}
+	ped.pd.columns.Clear();
+	ped.pd.columnHash.Clear();
+	ped.pd.columnCount = 0;
+	ped.markerCount = ped.markerInfoCount = ped.markerInfoSize = 0;
+	ped.count = ped.familyCount = ped.haveTwins = 0;
+	ped.size = 10000;
+}
+
+
 namespace SEQLinco {
+
 class CHP
 {
 public:
@@ -26,14 +72,7 @@ public:
 	{
 		Pedigree ped;
 
-		// FIXME: It does not make sense to me but I have to reset ped data object manually,
-		// otherwise in a program that calls CHP::Apply multiple times in a loop,
-		// ped.GetMarkerInfo(i)->freq.dim will not equal 0 after a few runs
-		// complaining the same marker name has been previously used.
-		// cannot yet figure out why as this is suppose to be a brand new ped object here!
-		ped.pd.columns.Clear(); ped.pd.columnHash.Clear(); ped.pd.columnCount = 0;
-		ped.markerNames.Clear(); ped.markerCount = 0; ped.markerLookup.Clear();
-		ped.markerInfoByName.Clear();
+		reset_ped(ped);
 
 		try {
 			DataLoader dl;

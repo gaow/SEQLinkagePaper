@@ -42,7 +42,6 @@
     }
 }
 
-
 %newobject *::clone;
 
 %include "stl.i"

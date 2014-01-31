@@ -537,7 +537,7 @@ def main(args):
             except KeyError:
                 pass
             if env.chperror_counter.value:
-                env.error("{:,d}+ super markers failed to be generated due to runtime errors!".\
+                env.error("{:,d} or more super markers failed to be generated due to runtime errors!".\
                           format(env.chperror_counter.value))
             env.log('Archiving to directory [{}]'.format(env.cache_dir))
             cache.write(pre = env.output, ext = '.tped', files = [env.outputfam],
