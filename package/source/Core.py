@@ -5,6 +5,7 @@
 from SEQLinco.Utils import *
 from multiprocessing import Process, Queue
 from collections import Counter, OrderedDict
+from itertools import chain
 import sys, faulthandler
 
 if sys.version_info.major == 2:
@@ -84,6 +85,12 @@ class Cache:
             signatures = ['{}\t{}'.format(x, calculateFileMD5(x)) for x in otherfiles]
             with open(self.cache_info, 'w') as f:
                 f.write('\n'.join(signatures))
+
+    def clear(self, pre, ext):
+        for fl in glob.glob(os.path.join(self.cache_dir, pre) +  "*" + ext) + [self.cache_info, self.cache_name]:
+            if os.path.isfile(fl):
+                os.remove(fl)
+        
 
 class PseudoAutoRegion:
     def __init__(self, chrom, build):
@@ -215,6 +222,7 @@ class RData(dict):
         self.chrom = None
         for k in self.families:
             self.famvaridx[k] = []
+        self.superMarkerCount = 0
 
     def getMidPosition(self):
         if len(self.variants) == 0:
@@ -329,10 +337,11 @@ class MarkerMaker:
         self.size = wsize
         # adjust physical distance to map distance, 1 / 100 million
         self.position_adj = 1 / float(100000000)
-        self.missing = env.delimiter.join(["0", "0"])
+        self.missings = ("0", "0")
+        self.missing = "0"
 
     def apply(self, data):
-        has_failure = False
+        # data.superMarkerCount is the max num. of recombinant fragments among all fams
         for item in data.families:
             try:
                 varnames, varpos = data.getFamVariants(item, style = "map")
@@ -340,9 +349,11 @@ class MarkerMaker:
                     # no more than 2 variants found in family
                     for person in data.families[item]:
                         if len(data[person]) == 0:
-                            data[person] = self.missing
+                            data[person] = self.missings
                         else:
-                            data[person] = env.delimiter.join(list(data[person][0]))
+                            data[person] = tuple(data[person][0])
+                    if data.superMarkerCount < 1:
+                        data.superMarkerCount = 1
                 else:
                     worker = MM.CHP(self.size, self.position_adj, env.debug)
                     with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
@@ -351,14 +362,15 @@ class MarkerMaker:
                                               sorted(varpos, key = int),
                                               data.getFamSamples(item))
                     if len(output) == 0:
-                        has_failure = True
                         # core algorithm failed
                         with env.lock:
                             env.chperror_counter.value += 1
                     else:
                         for line in output:
                             # line: [fid, sid, hap1, hap2]
-                            data[line[1]] = env.delimiter.join([line[2], line[3]])
+                            data[line[1]] = (line[2], line[3])
+                            if len(line[2]) > data.superMarkerCount:
+                                data.superMarkerCount = len(line[2])
                         with env.lock:
                             env.mendelerror_counter.value += worker.countMendelianErrors()
                             env.recomb_counter.value += worker.countRecombs()
@@ -366,18 +378,21 @@ class MarkerMaker:
                     # So there is a memory leak here which I tried to partially handle on C++
             except Exception as e:
                 return -1
-        # Fill in skipped samples due to some errors 
-        if has_failure:
-            for person in data:
-                if type(data[person]) is not str:
-                    data[person] = self.missing
+        # Reformat sample genotypes 
+        for person in data:
+            if type(data[person]) is not tuple:
+                data[person] = self.missings
+            if data.superMarkerCount >= 2:
+                diff = data.superMarkerCount - len(data[person][0])
+                data[person] = [(x, y) for x, y in \
+                                zip(data[person][0] + self.missing * diff, data[person][1] + self.missing * diff)]
         return 0
 
 
 class LinkageWriter:
     def __init__(self):
         self.chrom = self.prev_chrom = self.name = self.distance = None
-        self.__reset()
+        self.reset()
 
     def apply(self, data):
         # input data receieved, call it a "success"
@@ -390,16 +405,30 @@ class LinkageWriter:
                 # new chrom entered,
                 # commit whatever is in buffer before accepting new data
                 self.commit()
-        # FIXME: currently only applies to one marker per region theme
-        gs = [data[s] for s in data.samples]
-        if len(set(gs)) == 1:
-            # everyone is missing (or monomorphic)
-            return 1
-        gs.append("\n")
-        self.output += \
-          env.delimiter.join([self.chrom, self.name, self.distance, str(data.getMidPosition())] + gs) 
+        # write output
+        position = str(data.getMidPosition())
+        if data.superMarkerCount <= 1:
+            gs = [data[s] for s in data.samples]
+            if len(set(gs)) == 1:
+                # everyone is missing (or monomorphic)
+                return 2
+            self.output += env.delimiter.join([self.chrom, self.name, self.distance, position]) + \
+              env.delimiter.join(chain(*gs)) + "\n" 
+        else:
+            # have to expand each region into mutiple sub-regions to account for different recomb points
+            gs = zip(*[data[s] for s in data.samples])
+            idx = 0
+            for g in gs:
+                if len(set(g)) == 1:
+                    continue
+                idx += 1
+                self.output += \
+                  env.delimiter.join([self.chrom, '{}[{}]'.format(self.name, idx), self.distance, position]) + \
+                  env.delimiter.join(chain(*g)) + "\n"
+            if idx == 0:
+                return 2
         if self.counter < env.batch:
-            self.counter += 1
+            self.counter += data.superMarkerCount
         else:
             self.commit()
         return 0
@@ -411,9 +440,9 @@ class LinkageWriter:
             with open(os.path.join(env.cache_dir, '{}.chr{}.tped'.format(env.output, self.prev_chrom)),
                       'a') as f:
                 f.write(self.output)
-        self.__reset()
+        self.reset()
 
-    def __reset(self):
+    def reset(self):
         self.output = ''
         self.counter = 0
         self.prev_chrom = self.chrom
@@ -452,13 +481,14 @@ class EncoderWorker(Process):
                     self.writer.getRegion(region)
                     for m in [self.extractor, self.coder, self.writer]:
                         status = m.apply(self.data)
-                        if status == -1:
-                            # previous module failed
-                            with env.lock:
+                        with env.lock:
+                            if status == -1:
+                                # previous module failed
                                 env.chperror_counter.value += 1
-                        if status == 1:
-                            with env.lock:
-                                env.nodata_counter.value += 1
+                            if status == 1:
+                                env.null_counter.value += 1
+                            if status == 2:
+                                env.trivial_counter.value += 1
                         if status != 0:
                             break
                     if env.total_counter.value % (env.batch * env.jobs) == 0:
@@ -480,6 +510,7 @@ def main(args):
         env.log('Loading data from archive ...')
         cache.load()
     else:
+        cache.clear(pre = env.output, ext =".tped")
         args.vcf = indexVCF(args.vcf)
         samples_vcf = extractSamplenames(args.vcf)
         env.log('{:,d} samples found in [{}]'.format(len(samples_vcf), args.vcf))
@@ -505,7 +536,7 @@ def main(args):
         rewriteFamfile(env.outputfam, samples, [x for x in samples_vcf if x in samples])
         with open(args.blueprint, 'r') as f:
             regions = [x.strip().split() for x in f.readlines()]
-        env.log('Scanning for {:,d} pre-defined units in VCF file'.format(len(regions)))
+        env.log('Scanning for {:,d} pre-defined units in VCF file:'.format(len(regions)))
         env.jobs = max(min(args.jobs, len(regions)), 1)
         regions.extend([None] * env.jobs)
         queue = Queue()
@@ -538,10 +569,10 @@ def main(args):
                        env.recomb_counter.value), flush = True)
             if env.triallelic_counter.value:
                 env.log('{:,d} tri-allelic loci were ignored'.format(env.triallelic_counter.value))
-            if env.nodata_counter.value:
-                env.log('{:,d} out of {:,d} pre-defined units cannot be found in VCF file or '\
-                        'are trivial super markers'.\
-                        format(env.nodata_counter.value, env.total_counter.value, args.vcf))
+            if env.null_counter.value:
+                env.log('{:,d} units ignored due to absence in VCF file'.format(env.null_counter.value))
+            if env.trivial_counter.value:
+                env.log('{:,d} units ignored due to absence of variants in samples'.format(env.trivial_counter.value))
             fatal_errors = 0
             try:
                 # Error msg from C++ extension
@@ -560,7 +591,7 @@ def main(args):
                         otherfiles = [args.vcf, args.tfam, args.blueprint])
     env.jobs = args.jobs
     # STEP 2: write to PLINK or mega2 format
-    env.error("Di, I lack resource files to run codes below ...")
+    env.error("Dige, I do not have all resource files to run codes below ...")
     sys.exit()
     tpeds = [os.path.join(env.cache_dir, item) for item in os.listdir(env.cache_dir) if item.startswith(env.output) and item.endswith('.tped')]
     if 'plink' in args.format:

@@ -25,6 +25,7 @@ typedef std::vector<std::string> VecString;
 typedef std::vector<std::vector<std::string> > VecVecString;
 typedef std::vector<std::vector<std::vector<std::string> > > VecVecVecString;
 
+
 class DataLoader
 {
 public:
@@ -75,6 +76,52 @@ private:
 	std::string __chrom;
 };
 
+
+inline bool hasEnding(std::string const & fullString, std::string const & ending)
+{
+	if (fullString.length() >= ending.length()) {
+		return (0 == fullString.compare(fullString.length() - ending.length(), ending.length(), ending));
+	} else {
+		return false;
+	}
+}
+
+
+inline unsigned adjustSize(unsigned n, unsigned a)
+{
+	if (a <= 0) return n;
+	if (a == 1) return a;
+	div_t divresult = div(n, a);
+	// reduce size by x such that rem + res * x = a - x
+	return (unsigned)(a - ((a - divresult.rem) / (divresult.quot + 1)));
+}
+
+
+inline std::string collapse(VecString & haplotype, unsigned start, unsigned end, unsigned size)
+{
+	if (end == 0) end = haplotype.size();
+	if (start == end) return "?";
+	std::string collapsed_haplotype = "";
+	unsigned wsize = adjustSize(haplotype.size(), size);
+	unsigned counter = 0;
+	std::string code = "1";
+
+	for (unsigned i = start; i < end; ++i) {
+		counter += 1;
+		if (haplotype[i] == "2") code = "2";
+		else code = (code == "?" || code == "2") ? code : haplotype[i];
+		if (counter == wsize) {
+			collapsed_haplotype += code;
+			counter = 0;
+			code = "1";
+		}
+	}
+	// make it missing data if "?" is in the haplotype
+	if (collapsed_haplotype.find("?") != std::string::npos) return "?";
+	else return collapsed_haplotype;
+}
+
+
 class HaplotypeCoder
 {
 public:
@@ -90,10 +137,6 @@ public:
 
 private:
 	int __size;
-	unsigned __AdjustSize(unsigned n);
-
-	std::string __Collapse(VecString & haplotype, unsigned start = 0, unsigned end = 0);
-
 };
 }
 #endif
