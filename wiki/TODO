@@ -1,5 +1,8 @@
 Gao
 - support VCF plain file (have to bundle bgzip) (x)
-- recombination (x)
+- haplotyping and recombination (x)
+- support directly output phased original data
 Di or Hang
 - provide a test data set for reviewers
+Biao
+- power calculation
