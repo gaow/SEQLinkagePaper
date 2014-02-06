@@ -5,8 +5,8 @@
 ###
 # Latest version
 ###
-# The release bundle below contains the program executable and data resource for 64bit Linux platform. Source code for SEQLinco are combined into a single file available [here|@http://tigerwang.org/software/encode-linkage-source@].  
-#[{{icons:download.png?64}}|@http://tigerwang.org/downloads/SEQLinco.tar.bz2@]
+# SEQLinco is available for Linux and Mac OSX platforms.
+#[{{icons:download.png?64}}|@http://tigerwang.org/downloads/SEQLinco@]
 #! ChangeLog
 #{list
 # ""2014.01.28"" version 0.0.3, Move implementation of core methods from Python to C++
@@ -29,9 +29,9 @@
 # To see basic usage, type
 slinco -h
 #{out
-usage: slinco [-h] [--version] [--size SIZE] [--blueprint FILE]
-              [--missing STRING] --vcf FILE.gz --tfam FILE [-o FILE]
-              [--format [FORMAT [FORMAT ...]]] [-j N] [--vanilla]
+usage: slinco [-h] [--version] [--size SIZE] [--blueprint FILE] --vcf FILE
+              --tfam FILE [-o FILE] [--format [FORMAT [FORMAT ...]]] [-j N]
+              [--vanilla]
 
 SEQLinco, encode sequence data for linkage analysis
 
@@ -40,14 +40,14 @@ optional arguments:
   --version             show program's version number and exit
 
 Encoder arguments:
-  --size SIZE           Number of variants to collapse into a bin. Set to -1
-                        to collapse all variants into one bin. Default to 1 (1
+  --size SIZE           Number of variants to collapse into a bin. Set to 0 to
+                        collapse all variants into one bin. Default to 1 (1
                         variant per bin).
   --blueprint FILE      Blueprint file for super marker (format: "chr startpos
                         endpos name distance").
 
 Input / output options:
-  --vcf FILE.gz         Input VCF file, bgzipped.
+  --vcf FILE            Input VCF file, bgzipped.
   --tfam FILE           Input pedigree and phenotype information in TFAM
                         format.
   -o FILE, --output FILE
@@ -60,15 +60,15 @@ Runtime arguments:
   -j N, --jobs N        Number of CPUs to use.
   --vanilla             Encode data from scratch without loading cache.
 
-Copyright (c) 2013 Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu>
-GNU General Public License
+Copyright (c) 2013 ~ 2014 Gao Wang <gaow@bcm.edu> and Di Zhang
+<di.zhang@bcm.edu> GNU General Public License
 #}
 #! Input format
 # Input data is [bgzipped|@http://samtools.sourceforge.net/tabix.shtml@] VCF file for genotypes and TFAM file for pedigree & phenotype information. A ``blueprint'' file can be supplied to customize super marker grouping units.
 #! Examples
 #!! Data conversion
 slinco --vcf 1000g1.vcf.gz --tfam 1000g1.tfam -j8
-slinco --vcf 1000g1.vcf.gz --tfam 1000g1.tfam -j8 --vanilla --size -1
+slinco --vcf 1000g1.vcf.gz --tfam 1000g1.tfam -j8 --vanilla --size 0
 slinco --vcf 1000g1.vcf.gz --tfam 1000g1.tfam -j8 --blueprint units.bpt
 #!! Single point linkage analysis
 ###
