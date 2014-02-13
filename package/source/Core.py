@@ -9,9 +9,9 @@ from itertools import chain
 import sys, faulthandler
 
 if sys.version_info.major == 2:
-    from SEQLinco.libmped import chp_py2 as MM
+    from SEQLinco import libcore_py2 as CEXT
 else:
-    from SEQLinco.libmped import chp_py3 as MM
+    from SEQLinco import libcore_py3 as CEXT
 
 def indexVCF(vcf):
     if not vcf.endswith(".gz"):
@@ -355,7 +355,7 @@ class MarkerMaker:
                     if data.superMarkerCount < 1:
                         data.superMarkerCount = 1
                 else:
-                    worker = MM.CHP(self.size, self.position_adj, env.debug)
+                    worker = CEXT.CHP(self.size, self.position_adj, env.debug)
                     with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
                         output = worker.Apply(data.chrom,
                                               varnames,

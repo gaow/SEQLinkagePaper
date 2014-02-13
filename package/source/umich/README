@@ -1,0 +1,7 @@
+Date: Wed Feb 12 21:18:49 CST 2014
+This folder contains C++ source from Goncalo's group:
+     * ./klib, the klib library
+     * ./general and ./vcf are part of the libStatGen library
+     * ./libsrc, ./merlin, ./cluster and ./pdf are part of the merlin package
+     * ./*Patches.diff are hacks written by Gao Wang
+     * ./*Test are tests written by Gao Wang
