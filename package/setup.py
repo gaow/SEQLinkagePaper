@@ -68,12 +68,14 @@ UMICH_FILES = \
   glob(fixPath("klib/*.c")) +  glob(fixPath("general/*.cpp")) + glob(fixPath("vcf/*.cpp"))
 # Under linux/gcc, lib stdc++ is needed for C++ based extension.
 libs = ['stdc++'] if sys.platform == 'linux2' else []
-gccargs = ["-O3", "-march=native", "-std=c++11", "-D_FILE_OFFSET_BITS=64", "-D__ZLIB_AVAILABLE__ "]
+compile_args = ["-O3", "-march=native", "-std=c++11", "-D_FILE_OFFSET_BITS=64", "-D__ZLIB_AVAILABLE__"]
+link_args = ["-lm", "-lz"]
 #
 LIBCORE_MODULE = [
     Extension('{}._libcore'.format(NAME),
               sources = [WRAPPER_CPP] + CPP + UMICH_FILES,
-              extra_compile_args = gccargs,
+              extra_compile_args = compile_args,
+    	      extra_link_args = link_args,
               libraries = libs,
               library_dirs = [],
               include_dirs = fixPath(["general", "klib", "vcf", "clusters", "libsrc", "merlin", "pdf"]) + ["source"]

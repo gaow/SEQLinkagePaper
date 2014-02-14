@@ -572,8 +572,6 @@ def main(args):
                         otherfiles = [args.vcf, args.tfam, args.blueprint])
     env.jobs = args.jobs
     # STEP 2: write to PLINK or mega2 format
-    env.error("Dige, I do not have all resource files to run codes below ...")
-    sys.exit()
     tpeds = [os.path.join(env.cache_dir, item) for item in os.listdir(env.cache_dir) if item.startswith(env.output) and item.endswith('.tped')]
     if 'plink' in args.format:
         env.log('Saving data to directory [PLINK] ...')
