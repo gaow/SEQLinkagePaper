@@ -26,20 +26,24 @@ public:
 	/// \param vcf index
 	VCFstream(const std::string & vcf)
 	{
+		std::string msg;
+
 		try {
 			__reader.open(vcf.c_str(), __header);
 		} catch (std::exception & e) {
-			throw RuntimeError("Failed to open VCF file");
+			msg.assign(e.what());
+			throw RuntimeError("[BAD VCF file] " + msg);
 		}
 		try {
 			__reader.readVcfIndex();
 		} catch (std::exception & e) {
-			throw RuntimeError("BAD VCF index");
+			msg.assign(e.what());
+			throw RuntimeError("[BAD index file] " + msg);
 		}
 
-        const Tabix * tabixPtr = __reader.getVcfIndex();
+		const Tabix * tabixPtr = __reader.getVcfIndex();
 		if (tabixPtr == NULL || tabixPtr->getFormat() != Tabix::FORMAT_VCF)
-			throw RuntimeError("Failed to load VCF index");
+			throw RuntimeError("Failed to load a proper VCF index");
 		sampleCount = __header.getNumSamples();
 	}
 
@@ -96,6 +100,12 @@ public:
 	int GetPosition()
 	{
 		return __line.get1BasedPosition();
+	}
+
+
+	int CountSampleGenotypes()
+	{
+		return __line.getNumSamples();
 	}
 
 

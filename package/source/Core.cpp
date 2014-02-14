@@ -11,7 +11,7 @@
 
 void SEQLinco::DataLoader::LoadVariants(Pedigree & ped,
                                         const VecString & names,
-                                        const VecString & positions,
+                                        const VecInt & positions,
                                         const std::string & chrom,
                                         double positionAdjustment)
 {
@@ -24,7 +24,7 @@ void SEQLinco::DataLoader::LoadVariants(Pedigree & ped,
 		MarkerInfo * info = ped.GetMarkerInfo(i);
 		info->chromosome = (chrom == "X" || chrom == "x") ? 999 : atoi(chrom.c_str());
 		// adjust input position to make sure every position is unique
-		int position = atoi(positions[i].c_str());
+		int position = positions[i];
 		while (std::find(vs.begin(), vs.end(), position) != vs.end()) position++;
 		vs[i] = position;
 		info->positionFemale = info->positionMale = info->position = position * positionAdjustment;

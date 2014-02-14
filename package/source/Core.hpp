@@ -34,7 +34,7 @@ public:
 	DataLoader * clone() const { return new DataLoader(*this); }
 	void LoadVariants(Pedigree & ped,
 		const VecString & names,
-		const VecString & positions,
+		const VecInt & positions,
 		const std::string & chrom,
 		double positionAdjustment = 0.01);
 

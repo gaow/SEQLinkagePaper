@@ -303,6 +303,30 @@ def wordCount(filename):
                    word_count[word] += 1
     return word_count
 
+
+def parseVCFline(line, exclude = []):
+    if len(line) == 0:
+        return None
+    line = line.split('\t')
+    # Skip tri-allelic variant
+    if "," in line[4]:
+        with env.lock:
+            env.triallelic_counter.value += 1
+        return None
+    gs = []
+    for idx in range(len(line)):
+        if idx < 9 or idx in exclude:
+            continue
+        else:
+            # Remove separater
+            g = re.sub('\/|\|','',line[idx].split(":")[0])
+            if g == '.' or g == '..':
+                gs.append("00")
+            else:
+                gs.append(g.replace('1','2').replace('0','1'))
+    return (line[0], line[1], line[3], line[4], line[2]), gs
+
+
 ###
 # Check parameter input
 ###
@@ -333,8 +357,27 @@ def checkParams(args):
     return True
 
 ###
-# Data format conversion
+# Run External tools
 ###
+
+def indexVCF(vcf):
+    if not vcf.endswith(".gz"):
+        if os.path.exists(vcf + ".gz"):
+            env.error("Cannot compress [{0}] because [{0}.gz] exists!".format(vcf), exit = True)
+        env.log("Compressing file [{0}] to [{0}.gz] ...".format(vcf))
+        runCommand('bgzip {0}'.format(vcf))
+        vcf += ".gz"
+    if not os.path.isfile(vcf + '.tbi') or os.path.getmtime(vcf) > os.path.getmtime(vcf + '.tbi'):
+        env.log("Generating index file for [{}] ...".format(vcf))
+        runCommand('tabix -p vcf -f {}'.format(vcf))
+    return vcf
+    
+def extractSamplenames(vcf):
+    samples = runCommand('tabix -H {}'.format(vcf)).strip().split('\n')[-1].split('\t')[9:]
+    if not samples:
+        env.error("Fail to extract samples from [{}]".format(vcf), exit = True)
+    return samples
+
 
 def formatPlink(tpeds, tfams, outdir):
     mkpath(outdir)

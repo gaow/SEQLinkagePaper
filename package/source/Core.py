@@ -13,23 +13,14 @@ if sys.version_info.major == 2:
 else:
     from SEQLinco import libcore_py3 as corelib
 
-def indexVCF(vcf):
+def checkVCFBundle(vcf):
+    '''VCF bundle should have a .gz file and a tabix file'''
     if not vcf.endswith(".gz"):
-        if os.path.exists(vcf + ".gz"):
-            env.error("Cannot compress [{0}] because [{0}.gz] exists!".format(vcf), exit = True)
-        env.log("Compressing file [{0}] to [{0}.gz] ...".format(vcf))
-        runCommand('bgzip {0}'.format(vcf))
-        vcf += ".gz"
-    if not os.path.isfile(vcf + '.tbi') or os.path.getmtime(vcf) > os.path.getmtime(vcf + '.tbi'):
-        env.log("Generating index file for [{}] ...".format(vcf))
-        runCommand('tabix -p vcf -f {}'.format(vcf))
-    return vcf
-    
-def extractSamplenames(vcf):
-    samples = runCommand('tabix -H {}'.format(vcf)).strip().split('\n')[-1].split('\t')[9:]
-    if not samples:
-        env.error("Fail to extract samples from [{}]".format(vcf), exit = True)
-    return samples
+        env.error("Input VCF file has to be bgzipped and indexed (http://samtools.sourceforge.net/tabix.shtml).",
+                  exit = True)
+    if not os.path.isfile(vcf + '.tbi'):
+        env.error("Index file [{}] not found.".format(vcf + '.tbi'), exit = True)
+    return True
 
 def rewriteFamfile(tfam, samples, keys):
     with open(tfam, 'w') as f:
@@ -198,11 +189,12 @@ class TFAMParser:
         return fams, samples
     
 class RData(dict):
-    def __init__(self, samples, families, sample_in_vcf):
+    def __init__(self, samples, families, samples_vcf):
         # a dict of {sid:[fid, pid, mid, sex, trait], ...}
         self.samples = OrderedDict()
-        for k in sample_in_vcf:
-            self.samples[k] = samples[k]
+        for k in samples_vcf:
+            if k in samples:
+                self.samples[k] = samples[k]
         # a dict of {fid:[member names], ...}
         self.families = {}
         # a dict of {fid:[idx ...], ...}
@@ -212,7 +204,7 @@ class RData(dict):
         # reorder family samples based on order of VCF file
         for k in families:
             self.families[k] = [x for x in self.samples if x in families[k]]
-            self.famsampidx[k] = [i for i, x in enumerate(self.samples) if x in families[k]]
+            self.famsampidx[k] = [i for i, x in enumerate(samples_vcf) if x in families[k]]
         self.reset()
 
     def reset(self):
@@ -227,7 +219,7 @@ class RData(dict):
     def getMidPosition(self):
         if len(self.variants) == 0:
             return None
-        return sum([int(x[1]) for x in self.variants]) / len(self.variants)
+        return sum([x[1] for x in self.variants]) / len(self.variants)
 
     def getFamVariants(self, fam, style = None):
         famvar = [item for idx, item in enumerate(self.variants) if idx in self.famvaridx[fam]]
@@ -257,9 +249,8 @@ class RegionExtractor:
     '''Extract given genomic region from VCF
     converting genotypes into dictionary of
     genotype list'''
-    def __init__(self, filename, exclude_idx, build = env.build):
-        self.vcf = filename
-        self.exclude_idx = exclude_idx
+    def __init__(self, filename, build = env.build):
+        self.vcf = corelib.VCFstream(filename)
         self.chrom = self.startpos = self.endpos = self.name = self.distance = None
         self.xchecker = PseudoAutoRegion('X', build)
         self.ychecker = PseudoAutoRegion('Y', build)
@@ -268,68 +259,53 @@ class RegionExtractor:
         # Clean up
         data.reset()
         data.chrom = self.chrom
-        lines = [self.parseVCFline(x, exclude = self.exclude_idx) for x in \
-                  runCommand('tabix {} {}:{}-{}'.\
-                             format(self.vcf, self.chrom, self.startpos, self.endpos)).strip().split('\n')]
-        lines = filter(None, lines)
-        if len(lines) == 0:
-            return 1
-        # check if the first line's sample name matches with expected sample name
-        if not len(lines[0][1]) == len(data.samples):
-            raise ValueError('Genotype and sample mismatch for region {}: {:,d} vs {:,d}'.\
-                             format(self.name, len(lines[0][1]), len(data.samples)))
-        with env.lock:
-           env.variants_counter.value += len(lines) 
-        #
-        # FIXME: codes below do not read efficient
-        #
-        # for each variant
-        for var_id, line in enumerate(lines):
-            data.variants.append(line[0])
-            # for each family assign member genotype if the site is non-trivial in the fam 
+        self.vcf.Extract(self.chrom, self.startpos, self.endpos)
+        lineCount = 0
+        # for each variant site
+        while (self.vcf.Next()):
+            # skip tri-allelic sites
+            if not self.vcf.IsBiAllelic():
+                with env.lock:
+                    env.triallelic_counter.value += 1
+                continue
+            # check if the line's sample number matches the entire VCF sample number 
+            if not self.vcf.CountSampleGenotypes() == self.vcf.sampleCount:
+                raise ValueError('Genotype and sample mismatch for region {}: {:,d} vs {:,d}'.\
+                             format(self.name, self.vcf.CountSampleGenotypes(), self.vcf.sampleCount))
+            # valid line found
+            data.variants.append([self.vcf.GetChrom(), self.vcf.GetPosition(), self.name])
+            # for each family assign member genotype if the site is non-trivial in the fam
             for k in data.families:
-                gs = [y for idx, y in enumerate(line[1]) if idx in data.famsampidx[k]]
+                gs = self.vcf.GetGenotypes(data.famsampidx[k])
                 if len(set(''.join([x for x in gs if x != "00"]))) == 1:
                     # skip monomorphic gs
                     continue
                 else:
-                    data.famvaridx[k].append(var_id)
+                    # this variant is found in the family
+                    data.famvaridx[k].append(lineCount)
                     for person, g in zip(data.families[k], gs):
                         data[person].append(g)
-        return 0
-
+            lineCount += 1
+        # 
+        if lineCount == 0:
+            return 1
+        else:
+            with env.lock:
+                env.variants_counter.value += lineCount 
+            return 0
             
+
     def getRegion(self, region):
         self.chrom, self.startpos, self.endpos, self.name, self.distance = region
-        if self.chrom.lower() in ['x','23','chrx','chr23']:
-            if self.xchecker.check(int(self.startpos)) or self.xchecker.check(int(self.endpos)): 
+        self.chrom = self.chrom.upper().replace("CHR", "")
+        self.startpos = int(self.startpos)
+        self.endpos = int(self.endpos)
+        if self.chrom in ['X','23']:
+            if self.xchecker.check(self.startpos) or self.xchecker.check(self.endpos): 
                 self.chrom = 'XY'
-        if self.chrom.lower() in ['y','24','chry','chr24']:
-            if self.ychecker.check(int(self.startpos)) or self.ychecker.check(int(self.endpos)):
+        if self.chrom in ['Y','24']:
+            if self.ychecker.check(self.startpos) or self.ychecker.check(self.endpos):
                 self.chrom = 'XY'
-
-    
-    def parseVCFline(self, line, exclude = []):
-        if len(line) == 0:
-            return None
-        line = line.split('\t')
-        # Skip tri-allelic variant
-        if "," in line[4]:
-            with env.lock:
-                env.triallelic_counter.value += 1
-            return None
-        gs = []
-        for idx in range(len(line)):
-            if idx < 9 or idx in exclude:
-                continue
-            else:
-                # Remove separater
-                g = re.sub('\/|\|','',line[idx].split(":")[0])
-                if g == '.' or g == '..':
-                    gs.append("00")
-                else:
-                    gs.append(g.replace('1','2').replace('0','1'))
-        return (line[0], line[1], line[3], line[4], self.name), gs
 
     
 class MarkerMaker:
@@ -357,10 +333,7 @@ class MarkerMaker:
                 else:
                     worker = corelib.CHP(self.size, self.position_adj, env.debug)
                     with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
-                        output = worker.Apply(data.chrom,
-                                              varnames,
-                                              sorted(varpos, key = int),
-                                              data.getFamSamples(item))
+                        output = worker.Apply(data.chrom, varnames, sorted(varpos), data.getFamSamples(item))
                     if len(output) == 0:
                         # core algorithm failed
                         with env.lock:
@@ -502,19 +475,27 @@ def main(args):
     checkParams(args)
     # FIXME: add Di's resources & MAC version resource
     downloadResources([('http://tigerwang.org/uploads/genemap.txt', env.resource_dir),
-                       ('http://tigerwang.org/uploads/tabix', env.resource_bin),
-                       ('http://tigerwang.org/uploads/bgzip', env.resource_bin)])
+                       ('http://tigerwang.org/uploads/transpose.pl', env.resource_bin),
+                       ('http://tigerwang.org/uploads/runMlink.pl', env.resource_bin)])
     cache = Cache(env.cache_dir, env.output)
     # STEP 1: write encoded data to TPED format
     if not args.vanilla and cache.check():
         env.log('Loading data from archive ...')
         cache.load()
     else:
+        # load VCF file header
+        checkVCFBundle(args.vcf)
         cache.clear(pre = env.output, ext =".tped")
-        args.vcf = indexVCF(args.vcf)
-        samples_vcf = extractSamplenames(args.vcf)
+        try:
+            vs = corelib.VCFstream(args.vcf)
+        except Exception as e:
+            env.error("{}".format(e), exit = True)
+        samples_vcf = vs.GetSampleNames()
+        if len(samples_vcf) == 0:
+            env.error("Fail to extract samples from [{}]".format(vcf), exit = True)
         env.log('{:,d} samples found in [{}]'.format(len(samples_vcf), args.vcf))
         checkSamples(samples_vcf, getColumn(args.tfam, 2))
+        # load sample info from tfam file
         tfam = TFAMParser(args.tfam)
         if len(tfam.families) == 0:
             env.error('No family found in [{}]!'.format(args.tfam), exit = True)
@@ -532,8 +513,8 @@ def main(args):
             else:
                 env.log('{:,d} families with a total of {:,d} samples will be processed'.\
                     format(len(tfam.families), len(samples)))
-        #
         rewriteFamfile(env.outputfam, samples, [x for x in samples_vcf if x in samples])
+        # load blueprint
         with open(args.blueprint, 'r') as f:
             regions = [x.strip().split() for x in f.readlines()]
         env.log('Scanning for {:,d} pre-defined units in VCF file:'.format(len(regions)))
@@ -547,8 +528,8 @@ def main(args):
             jobs = [EncoderWorker(
                 i,
                 queue,
-                RData(samples, families, [x for x in samples_vcf if x in samples]),
-                RegionExtractor(args.vcf, [idx + 9 for idx, x in enumerate(samples_vcf) if x not in samples]),
+                RData(samples, families, samples_vcf),
+                RegionExtractor(args.vcf),
                 MarkerMaker(args.size),
                 LinkageWriter()
                 ) for i in range(env.jobs)]

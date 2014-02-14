@@ -68,7 +68,7 @@ public:
 	// first 5 cols are fid, sid, pid, mid and sex (0/1/2 coding), followed by genotypes
 	// (1/2 coding, 0 for missing)
 	VecVecString Apply(const std::string & chrom, const VecString & marker_names,
-	                   const VecString & marker_positions, const VecVecString & samples)
+	                   const VecInt & marker_positions, const VecVecString & samples)
 	{
 		Pedigree ped;
 
