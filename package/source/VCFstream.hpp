@@ -1,4 +1,4 @@
-// $File: VCFStream.hpp $
+// $File: VCFstream.hpp $
 // $LastChangedDate:  $
 // $Rev:  $
 // Copyright (c) 2014, Gao Wang <ewanggao@gmail.com>
@@ -8,6 +8,7 @@
 #define _VCFSTM_HPP_
 #include <string>
 #include <vector>
+#include <algorithm>
 #include <stdexcept>
 #include "Exception.hpp"
 #include "VcfFileReader.h"
@@ -23,32 +24,29 @@ public:
 	/// Initialize VCFstream with VCF file
 	/// \param vcf file
 	/// \param vcf index
-	VCFstream(const char * vcf) :
+	VCFstream(const std::string & vcf)
 	{
-		__reader.open(vcf, __header);
+		try {
+			__reader.open(vcf.c_str(), __header);
+		} catch (std::exception & e) {
+			throw RuntimeError("Failed to open VCF file");
+		}
 		try {
 			__reader.readVcfIndex();
 		} catch (std::exception & e) {
 			throw RuntimeError("BAD VCF index");
 		}
-		__tabixPtr = __reader.getVcfIndex();
-		if (__tabixPtr == NULL || tabixPtr->getFormat() != Tabix::FORMAT_VCF)
+
+        const Tabix * tabixPtr = __reader.getVcfIndex();
+		if (tabixPtr == NULL || tabixPtr->getFormat() != Tabix::FORMAT_VCF)
 			throw RuntimeError("Failed to load VCF index");
+		sampleCount = __header.getNumSamples();
 	}
 
 
 	~VCFstream()
 	{
 		__reader.close();
-		delete [] __tabixPtr;
-	}
-
-
-	/// Copy function
-	/// \return a copy of VCFstream
-	VCFstream * clone() const
-	{
-		return new VCFstream(*this);
 	}
 
 
@@ -56,7 +54,7 @@ public:
 	/// \return list of sample names
 	VecString GetSampleNames()
 	{
-		VecString samples(__header.getNumSamples());
+		VecString samples(sampleCount);
 
 		for (unsigned i = 0; i < samples.size(); ++i) {
 			samples[i].assign(__header.getSampleName(i));
@@ -69,27 +67,27 @@ public:
 	/// \param chrom
 	/// \param start pos
 	/// \param end pos
-	void Extract(const char * chrom, int start, int end)
+	void Extract(const std::string & chrom, int start, int end)
 	{
 		try {
-			__reader.set1BasedReadSection(chrom, start, end);
+			__reader.set1BasedReadSection(chrom.c_str(), start, end);
 		} catch (std::exception & e) {
 			throw RuntimeError("Failed to extract VCF region");
 		}
 	}
 
 
-	/// Point to next record with @line
-	/// \return true if line is valid otherwise false
+	/// Point to next record
+	/// \return true if __line is valid otherwise false
 	bool Next()
 	{
-		return __reader.readRecord(line);
+		return __reader.readRecord(__line);
 	}
 
 
 	std::string GetChrom()
 	{
-		std::string chrom = line.getChromStr();
+		std::string chrom = __line.getChromStr();
 
 		return chrom;
 	}
@@ -97,13 +95,13 @@ public:
 
 	int GetPosition()
 	{
-		return line.get1BasedPosition();
+		return __line.get1BasedPosition();
 	}
 
 
 	bool IsBiAllelic()
 	{
-		return line.getNumAlts() == 1;
+		return __line.getNumAlts() == 1;
 	}
 
 
@@ -111,13 +109,13 @@ public:
 	/// \param variant ID
 	/// \param sample IDs
 	/// \return list of sample genotypes
-	Vecstring GetGenotypes(const VecInt & sid)
+	VecString GetGenotypes(const VecInt & sid)
 	{
 		VecString genotypes(sid.size());
 
 		for (unsigned i = 0; i < sid.size(); ++i) {
-			int allele1 = line.getGT(sid[i], 0);
-			int allele2 = line.getGT(sid[i], 1);
+			int allele1 = __line.getGT(sid[i], 0);
+			int allele2 = __line.getGT(sid[i], 1);
 			allele1 = (allele1 == 0 || allele1 == 1) ? allele1 + 1 : 0;
 			allele2 = (allele2 == 0 || allele2 == 1) ? allele2 + 1 : 0;
 			genotypes[i] = std::to_string(allele1) + std::to_string(allele2);
@@ -126,12 +124,30 @@ public:
 	}
 
 
-	VcfRecord line;
+	VecString GetGenotypes()
+	{
+		VecString genotypes(sampleCount);
+
+		for (unsigned i = 0; i < sampleCount; ++i) {
+			int allele1 = __line.getGT(i, 0);
+			int allele2 = __line.getGT(i, 1);
+			allele1 = (allele1 == 0 || allele1 == 1) ? allele1 + 1 : 0;
+			allele2 = (allele2 == 0 || allele2 == 1) ? allele2 + 1 : 0;
+			genotypes[i] = std::to_string(allele1) + std::to_string(allele2);
+		}
+		return genotypes;
+	}
+
+
+	unsigned sampleCount;
 
 private:
+	VCFstream(const VCFstream &);
+	VCFstream & operator=(const VCFstream &);
+
+	VcfRecord __line;
 	VcfFileReader __reader;
 	VcfHeader __header;
-	const Tabix * __tabixPtr;
 };
 }
 #endif

@@ -9,6 +9,7 @@
 %{
 #include "Exception.hpp"
 #include "Core.hpp"
+#include "VCFstream.hpp"
 #include "chp.hpp"
 %}
 
@@ -56,4 +57,5 @@
 
 %include "Exception.hpp"
 %include "Core.hpp"
+%include "VCFstream.hpp"
 %include "chp.hpp"

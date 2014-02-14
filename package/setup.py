@@ -44,7 +44,7 @@ def fixPath(fn, prefix = "source/umich"):
 WRAPPER_CPP = fixPath('libcore_{0}.cpp'.format(PYVERSION), "source")
 WRAPPER_PY = fixPath('libcore_{0}.py'.format(PYVERSION), "source")
 WRAPPER_I = fixPath('libcore.i', "source")
-HEADER = fixPath(['libcore.i', 'chp.hpp', 'Core.hpp', 'Exception.hpp'], "source")
+HEADER = fixPath(['libcore.i', 'chp.hpp', 'Core.hpp', 'VCFstream.hpp', 'Exception.hpp'], "source")
 CPP = fixPath(['Core.cpp'], "source")
 # generate wrapper files
 try:
@@ -68,7 +68,7 @@ UMICH_FILES = \
   glob(fixPath("klib/*.c")) +  glob(fixPath("general/*.cpp")) + glob(fixPath("vcf/*.cpp"))
 # Under linux/gcc, lib stdc++ is needed for C++ based extension.
 libs = ['stdc++'] if sys.platform == 'linux2' else []
-gccargs = ["-O3", "-march=native", "-std=c++11"]
+gccargs = ["-O3", "-march=native", "-std=c++11", "-D_FILE_OFFSET_BITS=64", "-D__ZLIB_AVAILABLE__ "]
 #
 LIBCORE_MODULE = [
     Extension('{}._libcore'.format(NAME),
