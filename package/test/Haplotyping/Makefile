@@ -55,10 +55,10 @@ LIBMAIN = $(UMICHLIB)/general/BasicHash $(UMICHLIB)/general/Error $(UMICHLIB)/ge
  $(UMICHLIB)/general/GzipFileType $(UMICHLIB)/general/UncompressedFileType $(UMICHLIB)/general/FileType
 
 LIBPED = $(UMICHLIB)/general/PedigreeLoader $(UMICHLIB)/general/PedigreeTwin $(UMICHLIB)/general/PedigreeTrim
-$(UMICHLIB)/GENERAL = $(LIBMAIN:=.cpp) $(LIBPED:=.cpp)
+LIBSRC = $(LIBMAIN:=.cpp) $(LIBPED:=.cpp)
 LIBHDR = $(LIBMAIN:=.h) $(UMICHLIB)/general/Constant.h \
  $(UMICHLIB)/general/MathConstant.h $(UMICHLIB)/general/PedigreeAlleles.h $(UMICHLIB)/general/LongInt.h
-LIBOBJ = $($(UMICHLIB)/GENERAL:.cpp=.o)
+LIBOBJ = $(LIBSRC:.cpp=.o)
 # PDF Library File Sets
 PDFLIB = $(UMICHLIB)/pdf/libpdf.a
 PDFFILES = $(UMICHLIB)/pdf/PDF $(UMICHLIB)/pdf/PDFfont $(UMICHLIB)/pdf/PDFinfo $(UMICHLIB)/pdf/PDFpage \
