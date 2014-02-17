@@ -386,7 +386,7 @@ class LinkageWriter:
                 # everyone is missing (or monomorphic)
                 return 2
             self.output += env.delimiter.join([self.chrom, self.name, self.distance, position]) + \
-              env.delimiter.join(chain(*gs)) + "\n" 
+              + env.delimiter + env.delimiter.join(chain(*gs)) + "\n" 
         else:
             # have to expand each region into mutiple sub-regions to account for different recomb points
             gs = zip(*[data[s] for s in data.samples])
@@ -397,7 +397,7 @@ class LinkageWriter:
                 idx += 1
                 self.output += \
                   env.delimiter.join([self.chrom, '{}[{}]'.format(self.name, idx), self.distance, position]) + \
-                  env.delimiter.join(chain(*g)) + "\n"
+                  + env.delimiter + env.delimiter.join(chain(*g)) + "\n"
             if idx == 0:
                 return 2
         if self.counter < env.batch:
