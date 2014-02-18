@@ -9,9 +9,9 @@ from itertools import chain
 import sys, faulthandler
 
 if sys.version_info.major == 2:
-    from SEQLinco import libcore_py2 as corelib
+    from cstatgen import cstatgen_py2 as cstatgen
 else:
-    from SEQLinco import libcore_py3 as corelib
+    from cstatgen import cstatgen_py3 as cstatgen
 
 def checkVCFBundle(vcf):
     '''VCF bundle should have a .gz file and a tabix file'''
@@ -250,7 +250,7 @@ class RegionExtractor:
     converting genotypes into dictionary of
     genotype list'''
     def __init__(self, filename, build = env.build):
-        self.vcf = corelib.VCFstream(filename)
+        self.vcf = cstatgen.VCFstream(filename)
         self.chrom = self.startpos = self.endpos = self.name = self.distance = None
         self.xchecker = PseudoAutoRegion('X', build)
         self.ychecker = PseudoAutoRegion('Y', build)
@@ -331,7 +331,7 @@ class MarkerMaker:
                     if data.superMarkerCount < 1:
                         data.superMarkerCount = 1
                 else:
-                    worker = corelib.CHP(self.size, self.position_adj, env.debug)
+                    worker = cstatgen.CHP(self.size, self.position_adj, env.debug)
                     with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
                         output = worker.Apply(data.chrom, varnames, sorted(varpos), data.getFamSamples(item))
                     if len(output) == 0:
@@ -487,7 +487,7 @@ def main(args):
         checkVCFBundle(args.vcf)
         cache.clear(pre = env.output, ext =".tped")
         try:
-            vs = corelib.VCFstream(args.vcf)
+            vs = cstatgen.VCFstream(args.vcf)
         except Exception as e:
             env.error("{}".format(e), exit = True)
         samples_vcf = vs.GetSampleNames()
