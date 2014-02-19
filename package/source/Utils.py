@@ -7,6 +7,8 @@ from cStringIO import StringIO
 from contextlib import contextmanager
 from multiprocessing import Pool, Process, Queue, Lock, Value
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import prettyplotlib as ppl
 from distutils.dir_util import mkpath, remove_tree

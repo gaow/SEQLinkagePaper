@@ -194,10 +194,7 @@ class RData(dict):
         # tfam.families: a dict of {fid:[s1, s2 ...], ...}
         families = {k : [x for x in tfam.families[k] if x in samples_vcf] for k in tfam.families}
         self.tfam = tfam
-        self.samples = OrderedDict()
-        for k in samples_vcf:
-            if k in tfam.samples:
-                self.samples[k] = tfam.samples[k]
+        self.samples = OrderedDict({k : tfam.samples[k] for k in samples_vcf if k in tfam.samples})
         # a dict of {fid:[member names], ...}
         self.families = {}
         # a dict of {fid:[idx ...], ...}
