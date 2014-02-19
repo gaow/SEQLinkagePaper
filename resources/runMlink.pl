@@ -7,6 +7,8 @@ my $workdir = shift;
 my $resdir = shift;
 my $bindir = "$resdir/bin";
 
+open ERR, ">$workdir/err";
+
 if (! -e $workdir) {
 	exit;
 }
@@ -37,9 +39,9 @@ my @markers = <./*.PRE>;
 map s/^\.\/(\S+?)\.PRE$/$1/, @markers;
 open RES, ">all_lodscores.txt" or die "cannot open all_lodscores.txt: $!\n";
 for my $g (sort compPos @markers) {
-	if ($genemap{$g}->[0] eq 'out') {
-		next;
-	}
+#	if ($genemap{$g}->[0] eq 'out') {
+#		next;
+#	}
 	copy("$g.LOC", 'datafile.dat');
 	copy("$g.PRE", 'pedfile.pre');
 	system("$bindir/makeped pedfile.pre pedfile.ped n");
@@ -65,15 +67,25 @@ for my $g (sort compPos @markers) {
 	close LOD or die "cannot close LOD: $!\n";
 	system("/usr/bin/rm -f ped* name*");
 	for my $l (@lods) {
-		printf RES "$g\t%d\t%d\t%d\t%f\t%f\n", (@{$genemap{$g}})[1..3], @$l;
+		my ($basename) = ($g =~ m/^(\S+?)(?:\[\d+\])?$/);
+		printf RES "$g\t%d\t%d\t%d\t%f\t%f\n", (@{$genemap{$basename}})[1..3], @$l;
 	}
 }
 close RES or die "cannot close RES: $!\n";
 print STDERR "end running $workdir\n";
 
+
 sub compPos {
-	my($c1,$s1,$e1) = (@{$genemap{$a}})[1..3];
-	my($c2,$s2,$e2) = (@{$genemap{$b}})[1..3];
+	my ($g1, $suffix1) = ($a =~ m/^(\S+?)(?:\[(\d+)\])?$/);
+	my ($g2, $suffix2) = ($b =~ m/^(\S+?)(?:\[(\d+)\])?$/);
+	if (($g1 eq $g2) and $suffix1 and $suffix2) {
+		return ($suffix1 <=> $suffix2);
+	}
+	if (not exists $genemap{$g1} or not exists $genemap{$g2}) {
+		print ERR "$a $b $g1 $g2 $suffix1 $suffix2\n";
+	}
+	my($c1,$s1,$e1) = (@{$genemap{$g1}})[1..3];
+	my($c2,$s2,$e2) = (@{$genemap{$g2}})[1..3];
 	if ($c1 < $c2) {
 		return -1;
 	} elsif ($c1 == $c2 and $s1 < $s2) {
@@ -81,7 +93,7 @@ sub compPos {
 	} elsif ($c1 == $c2 and $s1 == $s2 and $e1 < $e2) {
 		return -1;
 	} elsif ($c1 == $c2 and $s1 == $s2 and $e1 == $e2) {
-		return 0;
+		return ($a cmp $b);
 	}
 	return 1;
 }

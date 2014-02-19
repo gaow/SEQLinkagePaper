@@ -58,6 +58,11 @@ if ($format eq 'plink') {
 		}
 	}
 	close TFAM or die "cannot close TFAM: $!\n";
+	sub comp_fam {
+		my ($f1, $p1) = (split(/ /, $fam[$a]))[0,1];
+		my ($f2, $p2) = (split(/ /, $fam[$b]))[0,1];
+		return (($f1 <=> $f2) or ($p1 <=> $p2));
+	}
 	while (<TPED>) {
 		chomp;
 		my ($chr, $name, $dis, $pos, @s) = split;
@@ -81,7 +86,7 @@ if ($format eq 'plink') {
 		print LOC "1 0.05 0.45\n";
 		close LOC or die "cannot close LOC: $!\n";
 		open PRE, ">$out/$name.PRE" or die "cannot open $out/$name.PRE: $!\n";
-		for (0..$#fam) {
+		for (sort comp_fam 0..$#fam) {
 			printf PRE "%s %d %d\n", $fam[$_], $s[2 * $_], $s[2 * $_ + 1];
 		}
 		close PRE or die "cannot close PRE: $!\n";
