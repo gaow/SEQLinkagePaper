@@ -61,7 +61,7 @@ if ($format eq 'plink') {
 	sub comp_fam {
 		my ($f1, $p1) = (split(/ /, $fam[$a]))[0,1];
 		my ($f2, $p2) = (split(/ /, $fam[$b]))[0,1];
-		return (($f1 <=> $f2) or ($p1 <=> $p2));
+		return (($f1 cmp $f2) or ($p1 cmp $p2));
 	}
 	while (<TPED>) {
 		chomp;

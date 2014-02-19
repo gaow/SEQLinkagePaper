@@ -466,11 +466,11 @@ def formatMlinkformmega2():
             f.write('Default_Outfile_Names=yes' + '\n')
         runCommand('mega2 -wx {}'.format(batchfile))
 
-def runMlink():
+def runMlink(blueprint):
     #if 'mlink' not in env.formats:
     #    formatMlink()
     chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
-    cmds = ['runMlink.pl MLINK/{}.{} {}'.format(env.output, chrs[i], env.resource_dir) for i in range(25)]
+    cmds = ['runMlink.pl MLINK/{}.{} {} {}'.format(env.output, chrs[i], env.resource_dir, blueprint) for i in range(25)]
     runCommands(cmds, max(min(env.jobs, cmds), 1))
 
 def heatmap(dir):

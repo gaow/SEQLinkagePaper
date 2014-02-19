@@ -5,6 +5,7 @@ use File::Copy;
 #prepare dir
 my $workdir = shift;
 my $resdir = shift;
+my $blueprint = shift;
 my $bindir = "$resdir/bin";
 
 open ERR, ">$workdir/err";
@@ -17,7 +18,7 @@ print STDERR "start running $workdir\n";
 #prepare genemap
 my %genemap;
 my %pos;
-open MAP, "$resdir/genemap.txt" or die "cannot open $resdir/genemap.txt: $!\n";
+open MAP, "$blueprint" or die "cannot open $blueprint: $!\n";
 while (<MAP>) {
 	my ($chr, $start, $end, $gene) = (split)[0..3];
 	my $checkey = join('_', $chr, $start, $end);
@@ -72,7 +73,7 @@ for my $g (sort compPos @markers) {
 	}
 }
 close RES or die "cannot close RES: $!\n";
-print STDERR "end running $workdir\n";
+print STDERR "end running $workdir";
 
 
 sub compPos {

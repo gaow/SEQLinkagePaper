@@ -34,11 +34,11 @@ def checkSamples(samp1, samp2):
     a_not_b = list(set(samp1).difference(set(samp2)))
     b_not_a = list(set(samp2).difference(set(samp1)))
     if b_not_a:
-        env.error('{:,d} samples found in TFAM file but not in VCF file:\n{}'.\
-                           format(len(b_not_a), '\n'.join(b_not_a)), exit = True) 
+        env.log('{:,d} samples found in TFAM file but not in VCF file:\n{}'.\
+                           format(len(b_not_a), '\n'.join(b_not_a)))
     if a_not_b:
         env.log('{:,d} samples in VCF file will be ignored due to absence in TFAM file'.format(len(a_not_b)))
-    return True
+    return b_not_a
 
 def loadMap(maps):
     return {}
@@ -249,9 +249,10 @@ class RegionExtractor:
     '''Extract given genomic region from VCF
     converting genotypes into dictionary of
     genotype list'''
-    def __init__(self, filename, build = env.build):
+    def __init__(self, filename, build = env.build, chrom_prefix='chr'):
         self.vcf = cstatgen.VCFstream(filename)
         self.chrom = self.startpos = self.endpos = self.name = self.distance = None
+        self.chrom_prefix = chrom_prefix
         self.xchecker = PseudoAutoRegion('X', build)
         self.ychecker = PseudoAutoRegion('Y', build)
         
@@ -297,7 +298,6 @@ class RegionExtractor:
 
     def getRegion(self, region):
         self.chrom, self.startpos, self.endpos, self.name, self.distance = region
-        self.chrom = self.chrom.upper().replace("CHR", "")
         self.startpos = int(self.startpos)
         self.endpos = int(self.endpos)
         if self.chrom in ['X','23']:
@@ -306,6 +306,8 @@ class RegionExtractor:
         if self.chrom in ['Y','24']:
             if self.ychecker.check(self.startpos) or self.ychecker.check(self.endpos):
                 self.chrom = 'XY'
+        if self.chrom_prefix:
+            self.chrom = self.chrom_prefix + self.chrom
 
     
 class MarkerMaker:
@@ -363,9 +365,11 @@ class MarkerMaker:
 
 
 class LinkageWriter:
-    def __init__(self):
+    def __init__(self, num_missing_append = 0):
         self.chrom = self.prev_chrom = self.name = self.distance = None
         self.reset()
+        self.missings = ["0", "0"]
+        self.num_missing = num_missing_append
 
     def apply(self, data):
         # input data receieved, call it a "success"
@@ -385,8 +389,9 @@ class LinkageWriter:
             if len(set(gs)) == 1:
                 # everyone is missing (or monomorphic)
                 return 2
-            self.output += env.delimiter.join([self.chrom, self.name, self.distance, position]) + \
-              env.delimiter + env.delimiter.join(chain(*gs)) + "\n" 
+            self.output += env.delimiter.join([self.chrom, self.name, self.distance, position] + \
+                list(chain(*gs)) + self.missings*self.num_missing) + "\n"
+              #env.delimiter + env.delimiter.join(chain(*gs)) + "\n" 
         else:
             # have to expand each region into mutiple sub-regions to account for different recomb points
             gs = zip(*[data[s] for s in data.samples])
@@ -396,8 +401,8 @@ class LinkageWriter:
                     continue
                 idx += 1
                 self.output += \
-                  env.delimiter.join([self.chrom, '{}[{}]'.format(self.name, idx), self.distance, position]) + \
-                  env.delimiter + env.delimiter.join(chain(*g)) + "\n"
+                  env.delimiter.join([self.chrom, '{}[{}]'.format(self.name, idx), self.distance, position] + \
+                  list(chain(*g)) + self.missings*self.num_missing) + "\n"
             if idx == 0:
                 return 2
         if self.counter < env.batch:
@@ -494,7 +499,8 @@ def main(args):
         if len(samples_vcf) == 0:
             env.error("Fail to extract samples from [{}]".format(vcf), exit = True)
         env.log('{:,d} samples found in [{}]'.format(len(samples_vcf), args.vcf))
-        checkSamples(samples_vcf, getColumn(args.tfam, 2))
+        #TODO: add samples missing in vcf as retur
+        __samples_not_vcf = checkSamples(samples_vcf, getColumn(args.tfam, 2))
         # load sample info from tfam file
         tfam = TFAMParser(args.tfam)
         if len(tfam.families) == 0:
@@ -513,7 +519,7 @@ def main(args):
             else:
                 env.log('{:,d} families with a total of {:,d} samples will be processed'.\
                     format(len(tfam.families), len(samples)))
-        rewriteFamfile(env.outputfam, samples, [x for x in samples_vcf if x in samples])
+        rewriteFamfile(env.outputfam, tfam.samples, [x for x in samples_vcf if x in samples] + __samples_not_vcf)
         # load blueprint
         with open(args.blueprint, 'r') as f:
             regions = [x.strip().split() for x in f.readlines()]
@@ -531,7 +537,7 @@ def main(args):
                 RData(samples, families, samples_vcf),
                 RegionExtractor(args.vcf),
                 MarkerMaker(args.size),
-                LinkageWriter()
+                LinkageWriter(len(__samples_not_vcf))
                 ) for i in range(env.jobs)]
             for j in jobs:
                 j.start()
@@ -582,7 +588,7 @@ def main(args):
     if 'mlink' in args.format:
         env.log('Saving data to directory [MLINK] ...')
         formatMlink(tpeds, [env.outputfam] * len(tpeds), 'MLINK')
-    runMlink()
+    runMlink(args.blueprint)
     plotMlink()
     #please implement this section
     # STEP final: clean up unwanted files
