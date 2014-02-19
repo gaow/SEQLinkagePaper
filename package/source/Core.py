@@ -38,7 +38,7 @@ def checkSamples(samp1, samp2):
                            format(len(b_not_a), '\n'.join(b_not_a)))
     if a_not_b:
         env.log('{:,d} samples in VCF file will be ignored due to absence in TFAM file'.format(len(a_not_b)))
-    return b_not_a
+    return a_not_b, b_not_a
 
 def loadMap(maps):
     return {}
@@ -189,12 +189,15 @@ class TFAMParser:
         return fams, samples
     
 class RData(dict):
-    def __init__(self, samples, families, samples_vcf):
-        # a dict of {sid:[fid, pid, mid, sex, trait], ...}
+    def __init__(self, samples_vcf, tfam):
+        # tfam.samples: a dict of {sid:[fid, pid, mid, sex, trait], ...}
+        # tfam.families: a dict of {fid:[s1, s2 ...], ...}
+        families = {k : [x for x in tfam.families[k] if x in samples_vcf] for k in tfam.families}
+        self.tfam = tfam
         self.samples = OrderedDict()
         for k in samples_vcf:
-            if k in samples:
-                self.samples[k] = samples[k]
+            if k in tfam.samples:
+                self.samples[k] = tfam.samples[k]
         # a dict of {fid:[member names], ...}
         self.families = {}
         # a dict of {fid:[idx ...], ...}
@@ -203,8 +206,9 @@ class RData(dict):
         self.famvaridx = {}
         # reorder family samples based on order of VCF file
         for k in families:
-            self.families[k] = [x for x in self.samples if x in families[k]]
-            self.famsampidx[k] = [i for i, x in enumerate(samples_vcf) if x in families[k]]
+            if len(families[k]) > 0:
+                self.families[k] = [x for x in self.samples if x in families[k]]
+                self.famsampidx[k] = [i for i, x in enumerate(samples_vcf) if x in families[k]]
         self.reset()
 
     def reset(self):
@@ -237,10 +241,16 @@ class RData(dict):
             raise ValueError("Unknown style '{}'".format(style))
 
     def getFamSamples(self, fam):
-        output = [[]] * len(self.families[fam])
-        for idx, item in enumerate(self.families[fam]):
-            output[idx] = self.samples[item][:-1]
-            output[idx].extend(self[item])
+        nvar = len([item for idx, item in enumerate(self.variants) if idx in self.famvaridx[fam]])
+        output = [[]] * len(self.tfam.families[fam])
+        for idx, item in enumerate(self.tfam.families[fam]):
+            # sample info, first 5 columns of ped
+            output[idx] = self.tfam.samples[item][:-1]
+            # sample genotypes
+            if item in self.samples:
+                output[idx].extend(self[item])
+            else:
+                output[idx].extend(["00"] * nvar)
         # Input for CHP requires founders precede offsprings!
         return sorted(output, key = lambda x: x[2])
 
@@ -343,6 +353,10 @@ class MarkerMaker:
                     else:
                         for line in output:
                             # line: [fid, sid, hap1, hap2]
+                            if not line[1] in data:
+                                # this sample is not in VCF file. Every variant site should be missing
+                                # they have to be skipped for now
+                                continue 
                             data[line[1]] = (line[2], line[3])
                             if len(line[2]) > data.superMarkerCount:
                                 data.superMarkerCount = len(line[2])
@@ -499,8 +513,7 @@ def main(args):
         if len(samples_vcf) == 0:
             env.error("Fail to extract samples from [{}]".format(vcf), exit = True)
         env.log('{:,d} samples found in [{}]'.format(len(samples_vcf), args.vcf))
-        #TODO: add samples missing in vcf as retur
-        __samples_not_vcf = checkSamples(samples_vcf, getColumn(args.tfam, 2))
+        samples_not_vcf = checkSamples(samples_vcf, getColumn(args.tfam, 2))[1]
         # load sample info from tfam file
         tfam = TFAMParser(args.tfam)
         if len(tfam.families) == 0:
@@ -519,7 +532,7 @@ def main(args):
             else:
                 env.log('{:,d} families with a total of {:,d} samples will be processed'.\
                     format(len(tfam.families), len(samples)))
-        rewriteFamfile(env.outputfam, tfam.samples, [x for x in samples_vcf if x in samples] + __samples_not_vcf)
+        rewriteFamfile(env.outputfam, tfam.samples, [x for x in samples_vcf if x in samples] + samples_not_vcf)
         # load blueprint
         with open(args.blueprint, 'r') as f:
             regions = [x.strip().split() for x in f.readlines()]
@@ -534,10 +547,10 @@ def main(args):
             jobs = [EncoderWorker(
                 i,
                 queue,
-                RData(samples, families, samples_vcf),
+                RData(samples_vcf, tfam),
                 RegionExtractor(args.vcf),
                 MarkerMaker(args.size),
-                LinkageWriter(len(__samples_not_vcf))
+                LinkageWriter(len(samples_not_vcf))
                 ) for i in range(env.jobs)]
             for j in jobs:
                 j.start()
