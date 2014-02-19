@@ -5,9 +5,10 @@
 import sys, os, subprocess, shutil, glob, shlex, urlparse, re, hashlib, tarfile, tempfile
 from cStringIO import StringIO
 from contextlib import contextmanager
-from multiprocessing import Process, Queue, Lock, Value
+from multiprocessing import Pool, Process, Queue, Lock, Value
 import numpy as np
 import matplotlib.pyplot as plt
+import prettyplotlib as ppl
 from distutils.dir_util import mkpath, remove_tree
 from . import VERSION
 
@@ -429,7 +430,7 @@ def formatMlink(tpeds, tfams, outdir):
     runCommands(cmds, max(min(env.jobs, cmds), 1))
 
 
-def formatMlinkfrommega2():
+def formatMlinkformmega2():
     if 'mega2' not in env.formats:
 	mkpath('MEGA2')
         formatMega2('MEGA2/{}*'.format(env.output))
@@ -472,16 +473,21 @@ def runMlink():
     cmds = ['runMlink.pl MLINK/{}.{} {}'.format(env.output, chrs[i], env.resource_dir) for i in range(25)]
     runCommands(cmds, max(min(env.jobs, cmds), 1))
 
+def heatmap(dir):
+    env.log("start ploting heatmap for" + dir + "\n")
+    lods = []
+    with open(dir + '/all_lodscores.txt', 'r') as f:
+        for line in f.readlines():
+            lod = line.split()[-1]
+            lods.append(lod)
+        lods = np.array(map(float,lods)).reshape((10,-1))
+        ppl.pcolormesh(lods)
+        plt.savefig('MLINK/heatmap/{}.lods.png'.format(os.path.basename(dir)))
+    env.log("end ploting heatmap for" + dir + "\n")
+
 def plotMlink():
     chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
-    for dir in ['MLINK/{}.{}'.format(env.output, i) for i in chrs]:
-        lods = []
-        with open(dir + '/all_lodscores.txt', 'r') as f:
-            for line in f.readlines():
-                lod = line.split()[-1]
-                lods.append(lod)
-        lods = np.array(map(float,lods)).reshape((10,-1))
-        plt.pcolormesh(lods)
-        plt.savefig(dir + '/lods.pdf')
-    #cmds = ['runMlink.pl MLINK/{}.{} {}'.format(env.output, chrs[i], env.resource_dir) for i in range(25)]
-    #runCommands(cmds, max(min(env.jobs, cmds), 1))
+    dirs = filter(lambda x: os.path.exists(x), ['MLINK/{}.{}'.format(env.output, i) for i in chrs])
+    mkpath('MLINK/heatmap')
+    pool = Pool(env.jobs)
+    pool.map(heatmap, dirs)
