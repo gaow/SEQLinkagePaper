@@ -35,9 +35,11 @@ class Args:
 
     def getIOArguments(self, parser):
         vargs = parser.add_argument_group('Input / output options')
-        vargs.add_argument('--vcf', metavar='FILE', required=True, help='''Input VCF file, bgzipped.''')
         vargs.add_argument('--tfam', metavar='FILE', required=True,
                            help='''Input pedigree and phenotype information in TFAM format.''')
+        vargs.add_argument('--vcf', metavar='FILE', required=True, help='''Input VCF file, bgzipped.''')
+        vargs.add_argument('--chr_prefix', metavar='STRING',
+                           help='''Prefix to chromosome name in VCF file if applicable, e.g., "chr".''')
         vargs.add_argument('-o', '--output', metavar='FILE', help='''Output file name prefix.''')
         vargs.add_argument('--format', metavar = 'FORMAT', nargs='*', default=['plink'],
                            help='''Output format, choose from {} (multiple choices allowed).

@@ -6,6 +6,7 @@ from SEQLinco.Utils import *
 from multiprocessing import Process, Queue
 from collections import Counter, OrderedDict
 from itertools import chain
+from copy import deepcopy
 import sys, faulthandler
 
 if sys.version_info.major == 2:
@@ -192,20 +193,22 @@ class RData(dict):
     def __init__(self, samples_vcf, tfam):
         # tfam.samples: a dict of {sid:[fid, pid, mid, sex, trait], ...}
         # tfam.families: a dict of {fid:[s1, s2 ...], ...}
-        families = {k : [x for x in tfam.families[k] if x in samples_vcf] for k in tfam.families}
         self.tfam = tfam
-        self.samples = OrderedDict({k : tfam.samples[k] for k in samples_vcf if k in tfam.samples})
+        # samples have to be in both vcf and tfam data
+        self.samples = OrderedDict([(k, tfam.samples[k]) for k in samples_vcf if k in tfam.samples])
         # a dict of {fid:[member names], ...}
-        self.families = {}
+        self.families = {k : [x for x in self.samples if x in tfam.families[k]] for k in tfam.families}
         # a dict of {fid:[idx ...], ...}
         self.famsampidx = {}
+        # reorder family samples based on order of VCF file
+        for k in self.families.keys():
+            if len(self.families[k]) == 0:
+                # skip families having no samples in VCF file
+                del self.families[k]
+            else:
+                self.famsampidx[k] = [i for i, x in enumerate(samples_vcf) if x in self.families[k]]
         # a dict of {fid:[idx ...], ...}
         self.famvaridx = {}
-        # reorder family samples based on order of VCF file
-        for k in families:
-            if len(families[k]) > 0:
-                self.families[k] = [x for x in self.samples if x in families[k]]
-                self.famsampidx[k] = [i for i, x in enumerate(samples_vcf) if x in families[k]]
         self.reset()
 
     def reset(self):
@@ -256,10 +259,10 @@ class RegionExtractor:
     '''Extract given genomic region from VCF
     converting genotypes into dictionary of
     genotype list'''
-    def __init__(self, filename, build = env.build, chrom_prefix='chr'):
+    def __init__(self, filename, build = env.build, chr_prefix = None):
         self.vcf = cstatgen.VCFstream(filename)
         self.chrom = self.startpos = self.endpos = self.name = self.distance = None
-        self.chrom_prefix = chrom_prefix
+        self.chr_prefix = chr_prefix
         self.xchecker = PseudoAutoRegion('X', build)
         self.ychecker = PseudoAutoRegion('Y', build)
         
@@ -313,8 +316,8 @@ class RegionExtractor:
         if self.chrom in ['Y','24']:
             if self.ychecker.check(self.startpos) or self.ychecker.check(self.endpos):
                 self.chrom = 'XY'
-        if self.chrom_prefix:
-            self.chrom = self.chrom_prefix + self.chrom
+        if self.chr_prefix and not self.chrom.startswith(self.chr_prefix):
+            self.chrom = self.chr_prefix + self.chrom
 
     
 class MarkerMaker:
@@ -511,25 +514,17 @@ def main(args):
             env.error("Fail to extract samples from [{}]".format(vcf), exit = True)
         env.log('{:,d} samples found in [{}]'.format(len(samples_vcf), args.vcf))
         samples_not_vcf = checkSamples(samples_vcf, getColumn(args.tfam, 2))[1]
-        # load sample info from tfam file
-        tfam = TFAMParser(args.tfam)
-        if len(tfam.families) == 0:
-            env.error('No family found in [{}]!'.format(args.tfam), exit = True)
-        else:
-            # samples and families have to be in both tfam file and vcf file
-            samples = {k : tfam.samples[k] for k in tfam.samples if k in samples_vcf}
-            families = {k : [x for x in tfam.families[k] if x in samples] for k in tfam.families}
-            for k in families.keys():
-                if len(families[k]) == 0:
-                    del families[k]
-            #
-            if len(samples) == 0:
-                env.error('No valid sample to process. '\
-                          'Samples have to be in families, and present in both TFAM and VCF files.', exit = True)
-            else:
-                env.log('{:,d} families with a total of {:,d} samples will be processed'.\
-                    format(len(tfam.families), len(samples)))
-        rewriteFamfile(env.outputfam, tfam.samples, [x for x in samples_vcf if x in samples] + samples_not_vcf)
+        # load sample info 
+        data = RData(samples_vcf, TFAMParser(args.tfam))
+        if len(data.families) == 0:
+            env.error('No valid family to process. ' \
+                      'Families have to be at least trio with at least one member in VCF file.', exit = True)
+        if len(data.samples) == 0:
+            env.error('No valid sample to process. ' \
+                      'Samples have to be in families, and present in both TFAM and VCF files.', exit = True)
+        env.log('{:,d} families with a total of {:,d} samples will be processed'.\
+                format(len(data.families), len(data.samples)))
+        rewriteFamfile(env.outputfam, data.tfam.samples, data.samples.keys() + samples_not_vcf)
         # load blueprint
         with open(args.blueprint, 'r') as f:
             regions = [x.strip().split() for x in f.readlines()]
@@ -544,8 +539,8 @@ def main(args):
             jobs = [EncoderWorker(
                 i,
                 queue,
-                RData(samples_vcf, tfam),
-                RegionExtractor(args.vcf),
+                deepcopy(data),
+                RegionExtractor(args.vcf, args.chr_prefix),
                 MarkerMaker(args.size),
                 LinkageWriter(len(samples_not_vcf))
                 ) for i in range(env.jobs)]
