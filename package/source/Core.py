@@ -3,6 +3,7 @@
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 
 from SEQLinco.Utils import *
+from SEQLinco.Runner import *
 from multiprocessing import Process, Queue
 from collections import Counter, OrderedDict
 from itertools import chain
@@ -584,17 +585,20 @@ def main(args):
     env.jobs = args.jobs
     # STEP 2: write to PLINK or mega2 format
     tpeds = [os.path.join(env.cache_dir, item) for item in os.listdir(env.cache_dir) if item.startswith(env.output) and item.endswith('.tped')]
-    if 'plink' in args.format:
-        env.log('Saving data to directory [PLINK] ...')
-        formatPlink(tpeds, [env.outputfam] * len(tpeds), 'PLINK')
-    if 'mega2' in args.format:
-        env.log('Saving data to directory [MEGA2] ...')
-        formatMega2('MEGA2/{}*'.format(env.output))
-    if 'mlink' in args.format:
-        env.log('Saving data to directory [MLINK] ...')
-        formatMlink(tpeds, [env.outputfam] * len(tpeds), 'MLINK')
-    runMlink(args.blueprint)
-    plotMlink()
+    for fmt in args.format:
+        env.log('Saving data to directory [{}] ...'.format(fmt.upercase()))
+        format_linkage(tpeds, tfam, fmt, args.prevalence, args.inherit_mode)
+    #if 'plink' in args.format:
+    #    env.log('Saving data to directory [PLINK] ...')
+    #    formatPlink(tpeds, [env.outputfam] * len(tpeds), 'PLINK')
+    #if 'mega2' in args.format:
+    #    env.log('Saving data to directory [MEGA2] ...')
+    #    formatMega2('MEGA2/{}*'.format(env.output))
+    #if 'mlink' in args.format:
+    #    env.log('Saving data to directory [MLINK] ...')
+    #    format_linkage(tpeds, [env.outputfam] * len(tpeds), 'MLINK')
+    #runMlink(args.blueprint)
+    #plotMlink()
     #please implement this section
     # STEP final: clean up unwanted files
     #for item in args.format:

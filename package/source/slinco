@@ -41,7 +41,7 @@ class Args:
         vargs.add_argument('--chr_prefix', metavar='STRING',
                            help='''Prefix to chromosome name in VCF file if applicable, e.g., "chr".''')
         vargs.add_argument('-o', '--output', metavar='FILE', help='''Output file name prefix.''')
-        vargs.add_argument('--format', metavar = 'FORMAT', nargs='*', default=['plink'],
+        vargs.add_argument('--format', metavar = 'FORMAT', nargs='*', default=['mlink'],
                            help='''Output format, choose from {} (multiple choices allowed).
         Default to PLINK format.'''.format(repr(env.formats.keys())))
         
@@ -53,7 +53,13 @@ class Args:
                            help='''Encode data from scratch without loading cache.''')
         vargs.add_argument('--debug', action='store_true', help=SUPPRESS)
 
-
+    def getMlinkArguments(self, parser):
+        vargs = parser.add_argument_group('Tuntime arguments')
+        vargs.add_argument('--inherit_mode', metavar='STRING', choices=['AD', 'AR', 'Xlinked', 'Y'],
+                           help='mode of inheritance, AD/AR: autosome dominant/recessive.')
+        vargs.add_argument('--prevalence', metavar='Float', type=float, default=.001,
+                           help='disease prevalence.')
+        
 if __name__ == '__main__':
     # check platform
     import platform
