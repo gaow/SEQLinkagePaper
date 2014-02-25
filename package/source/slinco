@@ -17,6 +17,7 @@ class Args:
                                  action='version',
                                  version='%(prog)s version {0}'.format(env.version))
         self.getEncoderArguments(self.parser)
+        self.getLinkageArguments(self.parser)
         self.getIOArguments(self.parser)
         self.getRuntimeArguments(self.parser)
         self.parser.set_defaults(func=main)
@@ -43,7 +44,7 @@ class Args:
         vargs.add_argument('-o', '--output', metavar='FILE', help='''Output file name prefix.''')
         vargs.add_argument('--format', metavar = 'FORMAT', nargs='*', default=['mlink'],
                            help='''Output format, choose from {} (multiple choices allowed).
-        Default to PLINK format.'''.format(repr(env.formats.keys())))
+        Default to MLINK format.'''.format(repr(env.formats.keys())))
         
     def getRuntimeArguments(self, parser):
         vargs = parser.add_argument_group('Runtime arguments')
@@ -53,8 +54,8 @@ class Args:
                            help='''Encode data from scratch without loading cache.''')
         vargs.add_argument('--debug', action='store_true', help=SUPPRESS)
 
-    def getMlinkArguments(self, parser):
-        vargs = parser.add_argument_group('Tuntime arguments')
+    def getLinkageArguments(self, parser):
+        vargs = parser.add_argument_group('Linkage runner arguments')
         vargs.add_argument('--inherit_mode', metavar='STRING', choices=['AD', 'AR', 'Xlinked', 'Y'],
                            help='mode of inheritance, AD/AR: autosome dominant/recessive.')
         vargs.add_argument('--prevalence', metavar='Float', type=float, default=.001,

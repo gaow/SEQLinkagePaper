@@ -40,7 +40,7 @@ class Environment:
         self.tmp_log = os.path.join(self.tmp_dir, self.output)
         self.formats = {
             'plink':['.ped','.map'],
-            'mega2':['.pre', '.map', '.name']
+            'mlink':['.pre', '.loc']
             }
         # Multiprocessing counters
         self.batch = 50

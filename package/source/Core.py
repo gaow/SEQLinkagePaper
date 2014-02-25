@@ -586,8 +586,8 @@ def main(args):
     # STEP 2: write to PLINK or mega2 format
     tpeds = [os.path.join(env.cache_dir, item) for item in os.listdir(env.cache_dir) if item.startswith(env.output) and item.endswith('.tped')]
     for fmt in args.format:
-        env.log('Saving data to directory [{}] ...'.format(fmt.upercase()))
-        format_linkage(tpeds, tfam, fmt, args.prevalence, args.inherit_mode)
+        env.log('Saving data to directory [{}] ...'.format(fmt.upper()))
+        format_linkage(tpeds, env.outputfam, fmt, args.prevalence, args.inherit_mode)
     #if 'plink' in args.format:
     #    env.log('Saving data to directory [PLINK] ...')
     #    formatPlink(tpeds, [env.outputfam] * len(tpeds), 'PLINK')
