@@ -119,7 +119,7 @@ class PseudoAutoRegion:
 
 class TFAMParser:
     def __init__(self, tfam):
-        self.families, self.samples = self.parse(tfam)
+        self.families, self.samples = self.__parse(tfam)
 
     def __add_or_app(self, obj, key, value):
         islist = type(value) is list
@@ -135,7 +135,7 @@ class TFAMParser:
                 else:
                     obj[key].extend(value)
 
-    def parse(self, tfam):
+    def __parse(self, tfam):
         '''Rules:
         1. samples have to have unique names
         2. both parents for a sample should be available
@@ -328,6 +328,8 @@ class MarkerMaker:
         self.position_adj = 1 / float(100000000)
         self.missings = ("0", "0")
         self.missing = "0"
+        # store raw haplotype data for each family
+        self.haplotypes = {}
 
     def apply(self, data):
         # data.superMarkerCount is the max num. of recombinant fragments among all fams
@@ -368,6 +370,21 @@ class MarkerMaker:
                     # So there is a memory leak here which I tried to partially handle on C++
             except Exception as e:
                 return -1
+        self.__FormatHaplotypes(data)
+        return 0
+
+    def __Haplotype(self, data):
+        '''genetic haplotyping'''
+        for item in data.families:
+            varnames, varpos = data.getFamVariants(item, style = "map")
+            if len(varnames) == 0:
+                continue
+            # haplotyping
+            haplotyper = cstatgen.GeneticHaplotyper
+
+        
+    
+    def __FormatHaplotypes(self, data):
         # Reformat sample genotypes 
         for person in data:
             if type(data[person]) is not tuple:
@@ -376,8 +393,7 @@ class MarkerMaker:
                 diff = data.superMarkerCount - len(data[person][0])
                 data[person] = [(x, y) for x, y in \
                                 zip(data[person][0] + self.missing * diff, data[person][1] + self.missing * diff)]
-        return 0
-
+        
 
 class LinkageWriter:
     def __init__(self, num_missing_append = 0):
