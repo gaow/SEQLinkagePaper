@@ -219,6 +219,7 @@ class RData(dict):
         self.chrom = None
         for k in self.families:
             self.famvaridx[k] = []
+        # superMarkerCount is the max num. of recombinant fragments among all fams   
         self.superMarkerCount = 0
 
     def getMidPosition(self):
@@ -324,64 +325,61 @@ class RegionExtractor:
 class MarkerMaker:
     def __init__(self, wsize):
         self.size = wsize
-        # adjust physical distance to map distance, 1 / 100 million
-        self.position_adj = 1 / float(100000000)
         self.missings = ("0", "0")
         self.missing = "0"
         # store raw haplotype data for each family
         self.haplotypes = {}
 
     def apply(self, data):
-        # data.superMarkerCount is the max num. of recombinant fragments among all fams
-        for item in data.families:
-            try:
-                varnames, varpos = data.getFamVariants(item, style = "map")
-                if len(varnames) < 2:
-                    # no more than 2 variants found in family
-                    for person in data.families[item]:
-                        if len(data[person]) == 0:
-                            data[person] = self.missings
-                        else:
-                            data[person] = tuple(data[person][0])
-                    if data.superMarkerCount < 1:
-                        data.superMarkerCount = 1
-                else:
-                    worker = cstatgen.CHP(self.size, self.position_adj, env.debug)
-                    with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
-                        output = worker.Apply(data.chrom, varnames, sorted(varpos), data.getFamSamples(item))
-                    if len(output) == 0:
-                        # core algorithm failed
-                        with env.lock:
-                            env.chperror_counter.value += 1
-                    else:
-                        for line in output:
-                            # line: [fid, sid, hap1, hap2]
-                            if not line[1] in data:
-                                # this sample is not in VCF file. Every variant site should be missing
-                                # they have to be skipped for now
-                                continue 
-                            data[line[1]] = (line[2], line[3])
-                            if len(line[2]) > data.superMarkerCount:
-                                data.superMarkerCount = len(line[2])
-                        with env.lock:
-                            env.mendelerror_counter.value += worker.countMendelianErrors()
-                            env.recomb_counter.value += worker.countRecombs()
-                    # FIXME: it is SWIG's (2.0.11) fault not to properly distroy the object "worker"
-                    # So there is a memory leak here which I tried to partially handle on C++
-            except Exception as e:
-                return -1
+        try:
+            self.__Haplotype(data)
+            self.__CodeHaplotypes(data)
+        except Exception as e:
+            raise
+            return -1
         self.__FormatHaplotypes(data)
         return 0
-
+    
     def __Haplotype(self, data):
-        '''genetic haplotyping'''
+        '''genetic haplotyping. self.haplotypes stores per family data'''
+        # FIXME: it is SWIG's (2.0.11) fault not to properly destroy the object "Pedigree" in "Execute()"
+        # So there is a memory leak here which I tried to partially handle on C++
+        haplotyper = cstatgen.HaplotypingEngine(env.debug)
         for item in data.families:
             varnames, varpos = data.getFamVariants(item, style = "map")
             if len(varnames) == 0:
                 continue
             # haplotyping
-            haplotyper = cstatgen.GeneticHaplotyper
+            with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
+                self.haplotypes[item] = haplotyper.Execute(data.chrom, varnames,
+                                                           sorted(varpos), data.getFamSamples(item))
+            if len(self.haplotypes[item]) == 0:
+                # C++ haplotyping implementation failed
+                with env.lock:
+                    env.chperror_counter.value += 1
+        # total mendelian errors found
+        with env.lock:
+            env.mendelerror_counter.value += haplotyper.countMendelianErrors()
+                
 
+    def __CodeHaplotypes(self, data):
+        coder = cstatgen.HaplotypeCoder(self.size)
+        for item in self.haplotypes:
+            coder.Execute(self.haplotypes[item])
+            if env.debug:
+                coder.Print()
+            for line in coder.data:
+                # line: [fid, sid, hap1, hap2]
+                if not line[1] in data:
+                    # this sample is not in VCF file. Every variant site should be missing
+                    # they have to be skipped for now
+                    continue 
+                data[line[1]] = (line[2], line[3])
+                if len(line[2]) > data.superMarkerCount:
+                    data.superMarkerCount = len(line[2])
+        # total recombination events found
+        with env.lock:
+            env.recomb_counter.value += coder.recombCount
         
     
     def __FormatHaplotypes(self, data):
@@ -590,7 +588,7 @@ def main(args):
             except KeyError:
                 pass
             if env.chperror_counter.value:
-                env.error("{:,d} super markers failed to be generated due to genotype coding problems!".\
+                env.error("{:,d} super markers failed to be generated due to haplotyping failures!".\
                           format(env.chperror_counter.value))
             if fatal_errors:
                 env.error("{:,d} or more super markers failed to be generated due to runtime errors!".\
