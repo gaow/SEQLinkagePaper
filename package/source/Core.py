@@ -278,7 +278,7 @@ class RegionExtractor:
         while (self.vcf.Next()):
             # skip tri-allelic sites
             if not self.vcf.IsBiAllelic():
-                with env.lock:
+                with env.triallelic_counter.get_lock():
                     env.triallelic_counter.value += 1
                 continue
             # check if the line's sample number matches the entire VCF sample number 
@@ -290,7 +290,7 @@ class RegionExtractor:
             # for each family assign member genotype if the site is non-trivial in the fam
             for k in data.families:
                 gs = self.vcf.GetGenotypes(data.famsampidx[k])
-                if len(set(''.join([x for x in gs if x != "00"]))) == 1:
+                if len(set(''.join([x for x in gs if x != "00"]))) <= 1:
                     # skip monomorphic gs
                     continue
                 else:
@@ -303,7 +303,7 @@ class RegionExtractor:
         if lineCount == 0:
             return 1
         else:
-            with env.lock:
+            with env.variants_counter.get_lock():
                 env.variants_counter.value += lineCount 
             return 0
             
@@ -324,53 +324,52 @@ class RegionExtractor:
     
 class MarkerMaker:
     def __init__(self, wsize):
-        self.size = wsize
         self.missings = ("0", "0")
         self.missing = "0"
-        # store raw haplotype data for each family
-        self.haplotypes = {}
+        self.haplotyper = cstatgen.HaplotypingEngine(verbose = env.debug)
+        self.coder = cstatgen.HaplotypeCoder(wsize)
 
     def apply(self, data):
+        # store raw haplotype data for each family
+        haplotypes = {}
         try:
-            self.__Haplotype(data)
-            self.__CodeHaplotypes(data)
+            self.__Haplotype(data, haplotypes)
+            self.__CodeHaplotypes(data, haplotypes)
         except Exception as e:
             return -1
         self.__FormatHaplotypes(data)
         return 0
     
-    def __Haplotype(self, data):
-        '''genetic haplotyping. self.haplotypes stores per family data'''
-        # FIXME: it is SWIG's (2.0.11) fault not to properly destroy the object "Pedigree" in "Execute()"
+    def __Haplotype(self, data, haplotypes):
+        '''genetic haplotyping. haplotypes stores per family data'''
+        # FIXME: it is SWIG's (2.0.12) fault not to properly destroy the object "Pedigree" in "Execute()"
         # So there is a memory leak here which I tried to partially handle on C++
-        haplotyper = cstatgen.HaplotypingEngine(env.debug)
         for item in data.families:
             varnames, varpos = data.getFamVariants(item, style = "map")
             if len(varnames) == 0:
                 for person in data.families[item]:
                     data[person] = self.missings
                 continue
-            # haplotyping
-            with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
-                self.haplotypes[item] = haplotyper.Execute(data.chrom, varnames,
-                                                           sorted(varpos), data.getFamSamples(item))
-            if len(self.haplotypes[item]) == 0:
-                # C++ haplotyping implementation failed
-                with env.lock:
-                    env.chperror_counter.value += 1
-        # total mendelian errors found
-        with env.lock:
-            env.mendelerror_counter.value += haplotyper.CountMendelianErrors()
-                
-
-    def __CodeHaplotypes(self, data):
-        coder = cstatgen.HaplotypeCoder(self.size)
-        for item in self.haplotypes:
-            # print self.haplotypes[item]
-            coder.Execute(self.haplotypes[item])
             if env.debug:
-                coder.Print()
-            for line in coder.data:
+                with env.lock:
+                    sys.stderr.write('\n'.join(['\t'.join(x) for x in data.getFamSamples(item)]) + '\n\n')
+            # haplotyping
+            with env.lock:
+                with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
+                    haplotypes[item] = self.haplotyper.Execute(data.chrom, varnames,
+                                                           sorted(varpos), data.getFamSamples(item))
+            if len(haplotypes[item]) == 0:
+                # C++ haplotyping implementation failed
+                with env.chperror_counter.get_lock():
+                    env.chperror_counter.value += 1
+
+    def __CodeHaplotypes(self, data, haplotypes):
+        for item in haplotypes:
+            self.coder.Execute(haplotypes[item])
+            if env.debug:
+                with env.lock:
+                    self.coder.Print()
+            for line in self.coder.data:
                 # line: [fid, sid, hap1, hap2]
                 if not line[1] in data:
                     # this sample is not in VCF file. Every variant site should be missing
@@ -379,10 +378,6 @@ class MarkerMaker:
                 data[line[1]] = (line[2], line[3])
                 if len(line[2]) > data.superMarkerCount:
                     data.superMarkerCount = len(line[2])
-        # total recombination events found
-        with env.lock:
-            env.recomb_counter.value += coder.CountRecombinations()
-        
     
     def __FormatHaplotypes(self, data):
         # Reformat sample genotypes 
@@ -479,28 +474,36 @@ class EncoderWorker(Process):
                 if region is None:
                     self.writer.commit()
                     self.report()
+                    # total mendelian errors found
+                    with env.mendelerror_counter.get_lock():
+                        env.mendelerror_counter.value += self.coder.haplotyper.CountMendelianErrors()
+                    # total recombination events found
+                    with env.recomb_counter.get_lock():
+                        env.recomb_counter.value += self.coder.coder.CountRecombinations()
                     break
                 else:
-                    with env.lock:
+                    with env.total_counter.get_lock():
                         env.total_counter.value += 1
                     self.extractor.getRegion(region)
                     self.writer.getRegion(region)
                     isSuccess = True
                     for m in [self.extractor, self.coder, self.writer]:
                         status = m.apply(self.data)
-                        with env.lock:
-                            if status == -1:
+                        if status == -1:
+                            with env.chperror_counter.get_lock():
                                 # previous module failed
                                 env.chperror_counter.value += 1
-                            if status == 1:
+                        if status == 1:
+                            with env.null_counter.get_lock():
                                 env.null_counter.value += 1
-                            if status == 2:
+                        if status == 2:
+                            with env.trivial_counter.get_lock():
                                 env.trivial_counter.value += 1
                         if status != 0:
                             isSuccess = False
                             break
                     if isSuccess:
-                        with env.lock:
+                        with env.success_counter.get_lock():
                             env.success_counter.value += 1
                     if env.total_counter.value % (env.batch * env.jobs) == 0:
                         self.report()
@@ -569,7 +572,7 @@ def main(args):
             # FIXME: need to properly close all jobs
             raise ValueError("Use 'killall {}' to properly terminate all processes!".format(env.prog))
         else:
-            env.log('{:,d} units (with {:,d} variants) processed; '\
+            env.log('{:,d} units (from {:,d} variants) processed; '\
                 '{:,d} Mendelian inconsistencies and {:,d} recombination events handled\n'.\
                 format(env.success_counter.value,
                        env.variants_counter.value, 
