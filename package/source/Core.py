@@ -335,7 +335,6 @@ class MarkerMaker:
             self.__Haplotype(data)
             self.__CodeHaplotypes(data)
         except Exception as e:
-            raise
             return -1
         self.__FormatHaplotypes(data)
         return 0
@@ -348,6 +347,8 @@ class MarkerMaker:
         for item in data.families:
             varnames, varpos = data.getFamVariants(item, style = "map")
             if len(varnames) == 0:
+                for person in data.families[item]:
+                    data[person] = self.missings
                 continue
             # haplotyping
             with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
@@ -359,12 +360,13 @@ class MarkerMaker:
                     env.chperror_counter.value += 1
         # total mendelian errors found
         with env.lock:
-            env.mendelerror_counter.value += haplotyper.countMendelianErrors()
+            env.mendelerror_counter.value += haplotyper.CountMendelianErrors()
                 
 
     def __CodeHaplotypes(self, data):
         coder = cstatgen.HaplotypeCoder(self.size)
         for item in self.haplotypes:
+            # print self.haplotypes[item]
             coder.Execute(self.haplotypes[item])
             if env.debug:
                 coder.Print()
@@ -379,7 +381,7 @@ class MarkerMaker:
                     data.superMarkerCount = len(line[2])
         # total recombination events found
         with env.lock:
-            env.recomb_counter.value += coder.recombCount
+            env.recomb_counter.value += coder.CountRecombinations()
         
     
     def __FormatHaplotypes(self, data):
@@ -401,9 +403,6 @@ class LinkageWriter:
         self.num_missing = num_missing_append
 
     def apply(self, data):
-        # input data receieved, call it a "success"
-        with env.lock:
-            env.success_counter.value += 1
         if self.chrom != self.prev_chrom:
             if self.prev_chrom is None:
                 self.prev_chrom = self.chrom
@@ -420,7 +419,6 @@ class LinkageWriter:
                 return 2
             self.output += env.delimiter.join([self.chrom, self.name, self.distance, position] + \
                 list(chain(*gs)) + self.missings*self.num_missing) + "\n"
-              #env.delimiter + env.delimiter.join(chain(*gs)) + "\n" 
         else:
             # have to expand each region into mutiple sub-regions to account for different recomb points
             gs = zip(*[data[s] for s in data.samples])
@@ -460,18 +458,19 @@ class LinkageWriter:
 
 
 class EncoderWorker(Process):
-    def __init__(self, wid, queue, data, extractor, coder, writer):
+    def __init__(self, wid, queue, length, data, extractor, coder, writer):
         Process.__init__(self)
         self.worker_id = wid
         self.queue = queue
+        self.numGrps = float(length)
         self.data = data
         self.extractor = extractor
         self.coder = coder
         self.writer = writer
 
     def report(self):
-        env.log('Processing {:,d} units with {:,d} super markers being generated ...'.\
-                format(env.total_counter.value, env.success_counter.value), flush = True)
+        env.log('{:,d} units processed {{{:.2%}}} ...'.\
+                format(env.success_counter.value, env.total_counter.value / self.numGrps), flush = True)
         
     def run(self):
         while True:
@@ -486,6 +485,7 @@ class EncoderWorker(Process):
                         env.total_counter.value += 1
                     self.extractor.getRegion(region)
                     self.writer.getRegion(region)
+                    isSuccess = True
                     for m in [self.extractor, self.coder, self.writer]:
                         status = m.apply(self.data)
                         with env.lock:
@@ -497,7 +497,11 @@ class EncoderWorker(Process):
                             if status == 2:
                                 env.trivial_counter.value += 1
                         if status != 0:
+                            isSuccess = False
                             break
+                    if isSuccess:
+                        with env.lock:
+                            env.success_counter.value += 1
                     if env.total_counter.value % (env.batch * env.jobs) == 0:
                         self.report()
             except KeyboardInterrupt:
@@ -537,13 +541,12 @@ def main(args):
         if len(data.samples) == 0:
             env.error('No valid sample to process. ' \
                       'Samples have to be in families, and present in both TFAM and VCF files.', exit = True)
-        env.log('{:,d} families with a total of {:,d} samples will be processed'.\
-                format(len(data.families), len(data.samples)))
         rewriteFamfile(env.outputfam, data.tfam.samples, data.samples.keys() + samples_not_vcf)
         # load blueprint
         with open(args.blueprint, 'r') as f:
             regions = [x.strip().split() for x in f.readlines()]
-        env.log('Scanning for {:,d} pre-defined units in VCF file:'.format(len(regions)))
+        env.log('{:,d} families with a total of {:,d} samples will be scanned for {:,d} pre-defined units'.\
+                format(len(data.families), len(data.samples), len(regions)))
         env.jobs = max(min(args.jobs, len(regions)), 1)
         regions.extend([None] * env.jobs)
         queue = Queue()
@@ -552,9 +555,7 @@ def main(args):
             for i in regions:
                 queue.put(i)
             jobs = [EncoderWorker(
-                i,
-                queue,
-                deepcopy(data),
+                i, queue, len(regions), deepcopy(data),
                 RegionExtractor(args.vcf, args.chr_prefix),
                 MarkerMaker(args.size),
                 LinkageWriter(len(samples_not_vcf))
@@ -568,10 +569,10 @@ def main(args):
             # FIXME: need to properly close all jobs
             raise ValueError("Use 'killall {}' to properly terminate all processes!".format(env.prog))
         else:
-            env.log('{:,d} variants processed with {:,d} super markers generated; '\
+            env.log('{:,d} units (with {:,d} variants) processed; '\
                 '{:,d} Mendelian inconsistencies and {:,d} recombination events handled\n'.\
-                format(env.variants_counter.value,
-                       env.success_counter.value,
+                format(env.success_counter.value,
+                       env.variants_counter.value, 
                        env.mendelerror_counter.value,
                        env.recomb_counter.value), flush = True)
             if env.triallelic_counter.value:
