@@ -57,6 +57,8 @@ class Args:
 
     def getLinkageArguments(self, parser):
         vargs = parser.add_argument_group('Linkage analysis options')
+        vargs.add_argument('--runner', metavar='STRING', choices=['mlink', 'allegro', 'merlin'],
+                           help='which subsequent linkage program do you want to run')
         vargs.add_argument('--moi', metavar='STRING', dest = "inherit_mode",
                            choices=['AD', 'AR', 'Xlinked', 'Y'],
                            help='Mode of inheritance, AD/AR: autosome dominant/recessive.')
