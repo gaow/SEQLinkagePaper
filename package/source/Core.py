@@ -5,7 +5,7 @@ from __future__ import print_function
 from SEQLinco.Utils import *
 from SEQLinco.Runner import *
 from multiprocessing import Process, Queue
-from collections import Counter, OrderedDict
+from collections import Counter, OrderedDict, defaultdict
 import itertools
 from copy import deepcopy
 import sys, faulthandler
@@ -66,12 +66,13 @@ class Cache:
         with tarfile.open(self.cache_name) as f:
             f.extractall(self.cache_dir)        
 
-    def write(self, ext = None, pre = None, files = [], otherfiles = []):
+    def write(self, pres = [], exts = [], files = [], otherfiles = []):
         '''Add files to cache'''
         if not self.check():
             with tarfile.open(self.cache_name, 'w:bz2') as f:
                 for item in os.listdir(self.cache_dir):
-                    if ((item.endswith(ext) or ext is None) and (item.startswith(pre) or pre is None)) \
+                    if ((any([item.endswith(x) for x in exts]) or len(exts) == 0) \
+                        and (any([item.startswith(x) for x in pres]) or len(pres) == 0)) \
                       or item in files:
                         f.add(os.path.join(self.cache_dir, item), arcname=item)
             otherfiles.append(self.cache_name)
@@ -123,11 +124,60 @@ class PseudoAutoRegion:
         return False
 
 class TFAMParser:
-    def __init__(self, tfam):
-        self.families, self.samples = self.__parse(tfam)
+    def __init__(self, tfam = None):
+        self.families, self.samples, self.graph = self.__parse(tfam)
+        self.families_sorted = OrderedDict([(k,[]) for k in self.families])
 
-    def isFounder(self, sid):
+    def is_founder(self, sid):
         return self.samples[sid][2] == "0" and self.samples[sid][3] == "0"
+
+    def get_parents(self, sid):
+        return self.samples[sid][2], self.samples[sid][3]
+
+    def add_member(self, info):
+        '''member is one line of TFAM file, [fid, sid, pid, mid, sex, pheno]'''
+        self.samples[info[1]] = info
+        self.families_sorted[info[0]] = []
+        if info[0] not in self.families:
+            self.families[info[0]] = [info[1]] 
+        else:
+            if info[1] not in self.families[info[0]]:
+                self.families[info[0]].append(info[1])
+        self.__update_graph(self.graph, info)
+
+    def get_member_idx(self, sid):
+        '''integer index, reflecting the order of the sample collected'''
+        return self.samples.keys().index(sid)
+
+    def get_members(self):
+        return self.samples.keys()
+
+    def sort_family(self, famid):
+        '''sort samples in family such that founders precede non-founders'''
+        if not self.families_sorted[famid]:
+            self.families_sorted[famid] = self.__kahn_sort(famid)
+        assert sorted(self.families_sorted[famid]) == sorted(self.families[famid])
+        return self.families_sorted[famid]
+            
+    def __kahn_sort(self, famid):
+        '''algorithm first described by Kahn (1962); implemented by Di Zhang'''
+        sorted_names = []
+        S_no_parents = filter(lambda x: True if self.is_founder(x) else False, self.families[famid])
+        graph = self.graph[famid].copy()
+        while(S_no_parents):
+            n = S_no_parents.pop()
+            sorted_names.append(n)
+            if n not in graph:
+                continue
+            offsprings = graph.pop(n)
+            for m in offsprings:
+                father, mother = self.get_parents(m)
+                if father not in graph and mother not in graph:
+                    S_no_parents.append(m)
+        if graph:
+            raise ValueError("There is a loop in the pedigree: {}\n".format(' '.join(graph.keys())))
+        else:
+            return sorted_names
 
     def __add_or_app(self, obj, key, value):
         islist = type(value) is list
@@ -143,15 +193,26 @@ class TFAMParser:
                 else:
                     obj[key].extend(value)
 
+    def __update_graph(self, g, info):
+        if info[2] != "0" and info[3] != "0":
+            g[info[0]][info[2]].append(info[1]) 
+            g[info[0]][info[3]].append(info[1]) 
+
     def __parse(self, tfam):
         '''Rules:
         1. samples have to have unique names
-        2. both parents for a sample should be available
+        2. both parents for a non-founder should be available
         3. founders should have at least one offspring'''
-        fams = {}
+        fams = OrderedDict()
+        samples = OrderedDict()
+        graph = defaultdict(lambda : defaultdict(list))
+        if tfam is None:
+            return fams, samples, graph
         observedFounders = {}
-        expectedFounders = {}
-        samples = {}
+        expectedParents = {}
+        #
+        # Load TFAM file
+        #
         with open(tfam, 'r') as f:
             for idx, line in enumerate(f.readlines()):
                 line = line.split()
@@ -161,7 +222,7 @@ class TFAMParser:
                 if line[1] in samples:
                     env.error("skipped line {} (duplicate sample name '{}' found!)".format(idx, line[1]))
                     continue
-                # collect sample info
+                # collect sample line 
                 samples[line[1]] = [line[0], line[1], line[2], line[3], line[4], line[5]]
                 # collect family member
                 self.__add_or_app(fams, line[0], line[1])
@@ -169,24 +230,25 @@ class TFAMParser:
                 if line[2] in env.ped_missing and line[3] in env.ped_missing:
                     self.__add_or_app(observedFounders, line[0], line[1])
                 else:
-                    self.__add_or_app(expectedFounders, line[0], (line[1], line[2], line[3]))
-        # if a sample's expected founder is not observed in tfam
-        # then the sample itself is a founder 
-        # after this, all families should have founders
-        for k in expectedFounders.keys():
-            if k not in observedFounders:
-                for item in expectedFounders[k]:
-                    samples[item[0]][2] = samples[item[0]][3] = "0"
-                observedFounders[k] = [item[0] for item in expectedFounders[k]]
-                continue
-            for item in expectedFounders[k]:
-                if (item[1] not in observedFounders[k] and item[2] in observedFounders[k]) \
-                    or (item[2] not in observedFounders[k] and item[1] in observedFounders[k]) \
-                    or (item[1] not in observedFounders[k] and item[2] not in observedFounders[k]):
-                    # missing one or two founders
-                    samples[item[0]][2] = samples[item[0]][3] = "0"
-                    observedFounders[k].append(item[0])
-        # now remove trivial families 
+                    self.__add_or_app(expectedParents, line[0], (line[1], line[2], line[3]))
+        #
+        # Check sample parents
+        #
+        for k in expectedParents:
+            for person in expectedParents[k]:
+                if not (person[1] in fams[k] and person[2] in fams[k]):
+                    # missing both parents, make it a founder
+                    samples[person[0]][2] = samples[person[0]][3] = "0"
+                    observedFounders[k].append(person[0])
+                if person[1] in fams[k] and not person[2] in fams[k]:
+                    # missing mother, mask as zero
+                    samples[person[0]][3] = "0"
+                if not person[1] in fams[k] and person[2] in fams[k]:
+                    # missing father, mask as zero
+                    samples[person[0]][2] = "0"
+        #
+        # Remove trivial families 
+        #
         for k in fams.keys():
             if Counter(observedFounders[k]) == Counter(fams[k]):
                 del fams[k]
@@ -196,7 +258,10 @@ class TFAMParser:
         for value in fams.values():
             valid_samples.extend(value)
         samples = {k : samples[k] for k in valid_samples}
-        return fams, samples
+        #
+        for item in samples.values():
+            self.__update_graph(graph, item)
+        return fams, samples, graph
     
     
 class RData(dict):
@@ -245,18 +310,20 @@ class RData(dict):
         elif style == "map":
             names = []
             pos = []
+            mafs = []
             for idx in self.famvaridx[fam]:
-                # names.append("{}-{}-{}".format(item[-1], item[1], idx))
                 names.append("V{}".format(idx))
                 pos.append(self.variants[idx][1])
-            return names, pos
+                mafs.append(self.variants[idx][-1])
+            return names, pos, mafs
         else:
             raise ValueError("Unknown style '{}'".format(style))
 
     def getFamSamples(self, fam):
         nvar = len([item for idx, item in enumerate(self.variants) if idx in self.famvaridx[fam]])
         output = [[]] * len(self.tfam.families[fam])
-        for idx, item in enumerate(self.tfam.families[fam]):
+        for idx, item in enumerate(self.tfam.sort_family(fam)):
+        # for idx, item in enumerate(self.tfam.families[fam]):
             # sample info, first 5 columns of ped
             output[idx] = self.tfam.samples[item][:-1]
             # sample genotypes
@@ -264,18 +331,20 @@ class RData(dict):
                 output[idx].extend(self[item])
             else:
                 output[idx].extend(["00"] * nvar)
-        # Input for CHP requires founders precede offsprings!
-        return sorted(output, key = lambda x: x[2])
+        # return sorted(output, key = lambda x: x[2])
+        return output
 
     
 class RegionExtractor:
     '''Extract given genomic region from VCF
     converting genotypes into dictionary of
     genotype list'''
-    def __init__(self, filename, build = env.build, chr_prefix = None):
+    def __init__(self, filename, build = env.build, chr_prefix = None, allele_freq_info = None):
         self.vcf = cstatgen.VCFstream(filename)
         self.chrom = self.startpos = self.endpos = self.name = self.distance = None
         self.chr_prefix = chr_prefix
+        # name of allele frequency meta info
+        self.af_info = allele_freq_info
         self.xchecker = PseudoAutoRegion('X', build)
         self.ychecker = PseudoAutoRegion('Y', build)
         
@@ -296,8 +365,15 @@ class RegionExtractor:
             if not self.vcf.CountSampleGenotypes() == self.vcf.sampleCount:
                 raise ValueError('Genotype and sample mismatch for region {}: {:,d} vs {:,d}'.\
                              format(self.name, self.vcf.CountSampleGenotypes(), self.vcf.sampleCount))
-            # valid line found
-            data.variants.append([self.vcf.GetChrom(), self.vcf.GetPosition(), self.name])
+            # valid line found, get variant info
+            try:
+                maf = float(self.vcf.GetInfo(self.af_info)) if self.af_info else None 
+                if maf > 0.5:
+                    maf = 1 - maf
+            except Exception as e:
+                raise ValueError("VCF line {}:{} does not have valid allele frequency field {}!".\
+                                 format(self.vcf.GetChrom(), self.vcf.GetPosition(), self.af_info))
+            data.variants.append([self.vcf.GetChrom(), self.vcf.GetPosition(), self.name, maf])
             # for each family assign member genotype if the site is non-trivial to the family
             for k in data.families:
                 gs = self.vcf.GetGenotypes(data.famsampidx[k])
@@ -362,44 +438,55 @@ class MarkerMaker:
         '''genetic haplotyping. haplotypes stores per family data'''
         # FIXME: it is SWIG's (2.0.12) fault not to properly destroy the object "Pedigree" in "Execute()"
         # So there is a memory leak here which I tried to partially handle on C++
+        #
+        # Per family haplotyping
+        #
         for item in data.families:
-            variants, positions = data.getFamVariants(item, style = "map")
-            if len(variants) == 0:
+            varnames[item], positions, vcf_mafs = data.getFamVariants(item, style = "map")
+            if len(varnames[item]) == 0:
                 for person in data.families[item]:
                     data[person] = self.missings
                 continue
-            for v in variants:
-                if v not in mafs:
-                    # [#alt, #haplotypes]
-                    mafs[v] = [0, 0] 
             if env.debug:
                 with env.lock:
                     sys.stderr.write('\n'.join(['\t'.join(x) for x in data.getFamSamples(item)]) + '\n\n')
             # haplotyping
             with env.lock:
                 with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
-                    haplotypes[item] = self.haplotyper.Execute(data.chrom, variants,
+                    haplotypes[item] = self.haplotyper.Execute(data.chrom, varnames[item],
                                                                sorted(positions), data.getFamSamples(item))[0]
             if len(haplotypes[item]) == 0:
                 # C++ haplotyping implementation failed
                 with env.chperror_counter.get_lock():
                     env.chperror_counter.value += 1
-            # count founder alleles
-            varnames[item] = variants
-            for hap in haplotypes[item]:
-                if not data.tfam.isFounder(hap[1]):
-                    continue
-                for idxv, v in enumerate(variants):
-                    gt = hap[2 + idxv][1] if hap[2 + idxv][0].isupper() else hap[2 + idxv][0]
-                    if not gt == "?":
-                        mafs[v][0] += self.gtconv[gt]
-                        mafs[v][1] += 1.0 
-        # compute founder MAFs
+            # either use privided MAF or computer MAF
+            if all(vcf_mafs):
+                for idx, v in enumerate(varnames[item]):
+                    if v not in mafs:
+                        mafs[v] = vcf_mafs[idx]
+            else:
+                # count founder alleles
+                for hap in haplotypes[item]:
+                    if not data.tfam.is_founder(hap[1]):
+                        continue
+                    for idxv, v in enumerate(varnames[item]):
+                        if v not in mafs:
+                            # [#alt, #haplotypes]
+                            mafs[v] = [0, 0]
+                        gt = hap[2 + idxv][1] if hap[2 + idxv][0].isupper() else hap[2 + idxv][0]
+                        if not gt == "?":
+                            mafs[v][0] += self.gtconv[gt]
+                            mafs[v][1] += 1.0 
+        #
+        # Compute founder MAFs
+        #
         for v in mafs:
+            if type(mafs[v]) is not list:
+                continue
             mafs[v] = mafs[v][0] / mafs[v][1] if mafs[v][1] > 0 else 0.0
         if env.debug:
             with env.lock:
-                print("variant mafs = ", mafs, "\n", file=sys.stderr)
+                print("variant mafs = ", mafs, "\n", file = sys.stderr)
 
     def __CodeHaplotypes(self, data, haplotypes, mafs, varnames):
         self.coder.Execute(haplotypes.values(), [[mafs[v] for v in varnames[item]] for item in haplotypes])
@@ -420,7 +507,7 @@ class MarkerMaker:
             data.maf[item] = self.coder.GetAlleleFrequencies(item)
         if env.debug:
             with env.lock:
-                print("marker freqs = ", data.maf, "\n", file=sys.stderr)
+                print("marker freqs = ", data.maf, "\n", file = sys.stderr)
     
     def __FormatHaplotypes(self, data):
         # Reformat sample genotypes 
@@ -617,7 +704,7 @@ def main(args):
                 queue.put(i)
             jobs = [EncoderWorker(
                 queue, len(regions), deepcopy(data),
-                RegionExtractor(args.vcf, args.chr_prefix),
+                RegionExtractor(args.vcf, chr_prefix = args.chr_prefix, allele_freq_info = args.freq),
                 MarkerMaker(args.size),
                 LinkageWriter(len(samples_not_vcf))
                 ) for i in range(env.jobs)]
@@ -656,7 +743,7 @@ def main(args):
                 env.error("{:,d} or more super markers failed to be generated due to runtime errors!".\
                           format(fatal_errors))
             env.log('Archiving to directory [{}]'.format(env.cache_dir))
-            cache.write(pre = env.output, ext = '.tped', files = [env.outputfam],
+            cache.write(pres = [env.output], exts = ['.tped', '.freq'], files = [env.outputfam],
                         otherfiles = [args.vcf, args.tfam, args.blueprint])
     env.jobs = args.jobs
     # STEP 2: write to PLINK or mega2 format

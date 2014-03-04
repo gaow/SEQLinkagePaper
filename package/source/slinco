@@ -39,7 +39,8 @@ class Args:
         vargs.add_argument('--tfam', metavar='FILE', required=True,
                            help='''Input pedigree and phenotype information in TFAM format.''')
         vargs.add_argument('--vcf', metavar='FILE', required=True, help='''Input VCF file, bgzipped.''')
-        vargs.add_argument('--chr_prefix', metavar='STRING',
+        vargs.add_argument('--freq', metavar='FILE', help='''Info field name for allele frequency in VCF file.''')
+        vargs.add_argument('--chrom-prefix', metavar='STRING', dest = 'chr_prefix',
                            help='''Prefix to chromosome name in VCF file if applicable, e.g., "chr".''')
         vargs.add_argument('-o', '--output', metavar='FILE', help='''Output file name prefix.''')
         vargs.add_argument('--format', metavar = 'FORMAT', nargs='*', default=['mlink'],
@@ -55,11 +56,12 @@ class Args:
         vargs.add_argument('--debug', action='store_true', help=SUPPRESS)
 
     def getLinkageArguments(self, parser):
-        vargs = parser.add_argument_group('Linkage runner arguments')
-        vargs.add_argument('--inherit_mode', metavar='STRING', choices=['AD', 'AR', 'Xlinked', 'Y'],
-                           help='mode of inheritance, AD/AR: autosome dominant/recessive.')
-        vargs.add_argument('--prevalence', metavar='Float', type=float, default=.001,
-                           help='disease prevalence.')
+        vargs = parser.add_argument_group('Linkage analysis options')
+        vargs.add_argument('--moi', metavar='STRING', dest = "inherit_mode",
+                           choices=['AD', 'AR', 'Xlinked', 'Y'],
+                           help='Mode of inheritance, AD/AR: autosome dominant/recessive.')
+        vargs.add_argument('--prevalence', metavar='FLOAT', type=float, default=.001,
+                           help='Disease prevalence.')
         
 if __name__ == '__main__':
     # check platform
