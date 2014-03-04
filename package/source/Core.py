@@ -756,6 +756,10 @@ def main(args):
     for fmt in args.format:
         env.log('Saving data to directory [{}] ...'.format(fmt.upper()))
         format_linkage(tpeds, env.outputfam, fmt, args.prevalence, args.inherit_mode)
+    if args.runner:
+        env.log('Running [{}] now ...'.format(args.runner))
+        run_linkage(args.runner, args.blueprint)
+
     #if 'plink' in args.format:
     #    env.log('Saving data to directory [PLINK] ...')
     #    formatPlink(tpeds, [env.outputfam] * len(tpeds), 'PLINK')
