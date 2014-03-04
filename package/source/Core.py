@@ -396,7 +396,7 @@ class MarkerMaker:
                         mafs[v][1] += 1.0 
         # compute founder MAFs
         for v in mafs:
-            mafs[v] = mafs[v][0] / mafs[v][1]
+            mafs[v] = mafs[v][0] / mafs[v][1] if mafs[v][1] > 0 else 0.0
         if env.debug:
             with env.lock:
                 print("variant mafs = ", mafs, "\n", file=sys.stderr)
