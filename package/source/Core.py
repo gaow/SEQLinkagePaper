@@ -123,6 +123,7 @@ class PseudoAutoRegion:
     def notWithinRegion(self, pos):
         return False
 
+
 class TFAMParser:
     def __init__(self, tfam = None):
         self.families, self.samples, self.graph = self.__parse(tfam)
@@ -237,15 +238,21 @@ class TFAMParser:
         for k in expectedParents:
             for person in expectedParents[k]:
                 if not (person[1] in fams[k] and person[2] in fams[k]):
+                    env.error("Cannot find parents ({} and {}) of {} in [{}]!".\
+                              format(person[1], person[2], person[0], tfam), exit = True)
                     # missing both parents, make it a founder
-                    samples[person[0]][2] = samples[person[0]][3] = "0"
-                    observedFounders[k].append(person[0])
+                    # samples[person[0]][2] = samples[person[0]][3] = "0"
+                    # observedFounders[k].append(person[0])
                 if person[1] in fams[k] and not person[2] in fams[k]:
+                    env.error("Cannot find mother ({}) of {} in [{}]!".\
+                              format(person[2], person[0], tfam), exit = True)
                     # missing mother, mask as zero
-                    samples[person[0]][3] = "0"
+                    # samples[person[0]][3] = "0"
                 if not person[1] in fams[k] and person[2] in fams[k]:
+                    env.error("Cannot find father ({}) of {} in [{}]!".\
+                              format(person[1], person[0], tfam), exit = True)
                     # missing father, mask as zero
-                    samples[person[0]][2] = "0"
+                    # samples[person[0]][2] = "0"
         #
         # Remove trivial families 
         #
@@ -323,7 +330,6 @@ class RData(dict):
         nvar = len([item for idx, item in enumerate(self.variants) if idx in self.famvaridx[fam]])
         output = [[]] * len(self.tfam.families[fam])
         for idx, item in enumerate(self.tfam.sort_family(fam)):
-        # for idx, item in enumerate(self.tfam.families[fam]):
             # sample info, first 5 columns of ped
             output[idx] = self.tfam.samples[item][:-1]
             # sample genotypes
@@ -331,7 +337,6 @@ class RData(dict):
                 output[idx].extend(self[item])
             else:
                 output[idx].extend(["00"] * nvar)
-        # return sorted(output, key = lambda x: x[2])
         return output
 
     

@@ -83,7 +83,7 @@ class Environment:
             sys.exit()
         
     def log(self, msg = None, flush=False):
-        if env.debug:
+        if self.debug:
             return
         if msg is None:
             sys.stderr.write('\n')
