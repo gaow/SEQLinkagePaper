@@ -5,10 +5,11 @@
 from SEQLinco.Utils import *
 from collections import deque, defaultdict
 from multiprocessing import Queue, Process, cpu_count
-from os.path import splitext, basename
+from os.path import splitext, basename, isdir
 from itertools import chain
+from shutil import copyfile
 #utils that allow lambda function in mutilprocessing map
-#copied from http://stackoverflow.com/a/16071616 by klaus-se on StackOverflow.com
+#grabbed from http://stackoverflow.com/a/16071616 by klaus-se
 def spawn(f):
     def fun(q_in,q_out):
         while True:
@@ -32,13 +33,15 @@ def parmap(f, X, nprocs = cpu_count()):
     return [x for i,x in sorted(res)]
 
 #formatters
+#the handler, called from main, can call specific formmater.
 def format_linkage(tpeds, tfam, out_format='mlink', prev=0.001, inherit_mode='AR'):
     #pool = Pool(env.jobs)
     if out_format == 'plink':
         parmap(lambda x: format_plink(x, tfam), tpeds, env.jobs)
     elif out_format == 'mlink':
         parmap(lambda x: format_mlink(x, tfam, prev, inherit_mode), tpeds, env.jobs)
-               
+
+#plink format, ped and map 
 def format_plink(tped, tfam):
     out_base = 'PLINK/' + splitext(basename(tped))[0]
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
@@ -58,8 +61,13 @@ def format_plink(tped, tfam):
     tped_fh.close()
     tfam_fh.close()
 
+#mlink format, .pre and .loc
+#per locus, per family based
+#because the haplotype patterns are different from family to family.
+#You can analyze them all together
 def format_mlink(tped, tfam, prev, inherit_mode):
     out_base = 'MLINK/' + splitext(basename(tped))[0]
+    env.log("Start converting to mlink format for {}...".format(out_base))
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
         fams = parse_tfam(tfam_fh)
         #parse per family per locus AF file
@@ -73,7 +81,7 @@ def format_mlink(tped, tfam, prev, inherit_mode):
         except IOError:
             pass
         #parse tped
-        heter_pen = 0.0
+        heter_pen = 0.01
         if inherit_mode == 'AD':
             heter_pen = 0.9
         #else:
@@ -96,11 +104,12 @@ def format_mlink(tped, tfam, prev, inherit_mode):
                     pre.write(''.join("{} {} {} {}\n".format(fid, fams[fid].print_member(pid), s[2*fams[fid].get_member_idx(pid) + 4], s[2*fams[fid].get_member_idx(pid) + 5]) for pid in ids))
                 with open('{}/{}.LOC'.format(workdir, fid), 'w') as loc:
                     loc.write("2 0 0 5\n")
+                    loc.write("0 0.0 0.0 0\n")
                     loc.write("1 2\n")
                     loc.write("1 2\n")
                     loc.write(" {} {}\n".format(1 - prev, prev))
                     loc.write(" 1\n")
-                    loc.write(" 0.0 {} 0.9\n".format(heter_pen))
+                    loc.write(" 0.01 {} 0.9\n".format(heter_pen))
                     loc.write("3 {}\n".format(gs_num))
                     loc.write(' ' + ' '.join(fam_af) + "\n")
                     loc.write("0 0\n")
@@ -108,9 +117,8 @@ def format_mlink(tped, tfam, prev, inherit_mode):
                     loc.write("1 0.05 0.45\n")
     tped_fh.close()
     tfam_fh.close()
-
-
-    
+    env.log("Finished mlink format for {}.".format(out_base))
+  
 #parse tfam file, store families into the Pedigree class                
 def parse_tfam(fh):
     fams = defaultdict(lambda: Pedigree())
@@ -172,24 +180,88 @@ class Pedigree:
                 return self.sorted
 
 #runners
-def runMlink(blueprint):
+#context manager
+#grabbed from http://stackoverflow.com/a/13197763, by Brian M. Hunt
+class cd:
+    """Context manager for changing the current working directory"""
+    def __init__(self, newPath):
+        self.newPath = newPath
+
+    def __enter__(self):
+        self.savedPath = os.getcwd()
+        os.chdir(self.newPath)
+
+    def __exit__(self, etype, value, traceback):
+        os.chdir(self.savedPath)
+
+def run_linkage(runner, blueprint):
     #if 'mlink' not in env.formats:
     #    formatMlink()
-    chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
-    cmds = ['runMlink.pl MLINK/{}.{} {} {}'.format(env.output, chrs[i], env.resource_dir, blueprint) for i in range(25)]
-    runCommands(cmds, max(min(env.jobs, cmds), 1))
-
-def heatmap(dir):
-    env.log("start ploting heatmap for" + dir + "\n")
+    #chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
+    #cmds = ['runMlink.pl MLINK/{}.{} {} {}'.format(env.output, chrs[i], env.resource_dir, blueprint) for i in range(25)]
+    #runCommands(cmds, max(min(env.jobs, cmds), 1))
+    if runner == 'mlink':
+        workdirs = glob.glob('MLINK/{}.chr*'.format(env.output))
+        parmap(lambda x: run_mlink(x, blueprint) , workdirs, env.jobs)
+    
+def run_mlink(workdir, blueprint):
+    env.log("Start running mlink for {}...".format(workdir))
+    #hash genes into genemap
+    genemap = {}
+    with open(blueprint) as f:
+        for line in f.readlines():
+            chrID, start, end, gene = line.strip().split()[:4]
+            genemap[gene] = [chrID, int(start), int(end)]
+    #This is a hack, should be simpler. Because some genes might have their suffix [\d+],
+    #We couldn't find GENENAME[\d+] in the genemap, we have to look up the original name,
+    #and when we sort them, suffixes if exist should be added properly.
+    PNULL = open(os.devnull, 'w')
+    mkpath('MLINK/heatmap')
+    lods_fh = open('MLINK/heatmap/{}.lods'.format(basename(workdir)), 'w')
+    for unitdir in sorted(filter(isdir, glob.glob(workdir + '/*')), key=lambda x: genemap[re.sub(r'^(\S+?)(?:\[\d+\])?$', r'\1', basename(x))] + [int(re.sub(r'^(?:\S+?)(?:\[(\d+)\])?$', r'\1', basename(x)) if re.search(r'\]$', x) else 0)]):
+        lods = {}
+        with cd(unitdir):
+            fams = map(lambda x: re.sub(r'^(\S+?)\.PRE', r'\1', x), glob.glob('*.PRE'))
+            for fam in fams:
+                copyfile('{}.LOC'.format(fam), 'datafile.dat')
+                copyfile('{}.PRE'.format(fam), 'pedfile.pre')
+                subprocess.call(['makeped', 'pedfile.pre', 'pedfile.ped', 'n'], stdout=PNULL, stderr=PNULL)
+                subprocess.call(['pedcheck', '-p', 'pedfile.ped', '-d', 'datafile.dat', '-c'], stdout=PNULL, stderr=PNULL)
+                copyfile('zeroout.dat', 'pedfile.dat')
+                runCommand('unknown')
+                runCommand('mlink')
+                copyfile('outfile.dat', '{}.out'.format(fam))        
+                #clean mlink tmp files
+                for f in set(glob.glob('*.dat') + glob.glob('ped*') + ['names.tmp']):
+                    os.remove(f)
+                #collect lod scores of different thelta for the fam
+                with open('{}.out'.format(fam)) as out:
+                    raw = out.read()
+                    for i in re.finditer(r'^THETAS\s+(0\.\d+)(?:\n.+?){7}LOD SCORE =\s+(-?\d+\.\d+)', raw, re.MULTILINE):
+                        theta, lod = map(float, i.group(1,2))
+                        if theta not in lods:
+                            lods[theta] = lod
+                        else:
+                            lods[theta] += lod
+        for theta in sorted(lods.keys()):
+            lods_fh.write('{} {} {}\n'.format(basename(unitdir), theta, lods[theta]))
+    PNULL.close()
+    lods_fh.close()
+    heatmap('MLINK/heatmap/{}.lods'.format(basename(workdir)))
+    env.log("Finished running mlink for {}.".format(workdir))
+    
+def heatmap(file):
+    env.log("Start ploting heatmap for {}...".format(file))
     lods = []
-    with open(dir + '/all_lodscores.txt', 'r') as f:
+    with open(file, 'r') as f:
         for line in f.readlines():
             lod = line.split()[-1]
             lods.append(lod)
-        lods = np.array(map(float,lods)).reshape((10,-1))
+        lods = np.array(map(float,lods)).reshape((11,-1))
         ppl.pcolormesh(lods)
-        plt.savefig('MLINK/heatmap/{}.lods.png'.format(os.path.basename(dir)))
-    env.log("end ploting heatmap for" + dir + "\n")
+        plt.savefig('{}.png'.format(file))
+        plt.close()
+    env.log("Finished ploting heatmap for {}.".format(file))
 
 def plotMlink():
     chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
