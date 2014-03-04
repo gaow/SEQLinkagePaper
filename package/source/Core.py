@@ -1,12 +1,12 @@
 #!/usr/bin/python
 # Copyright (c) 2013, Gao Wang <gaow@bcm.edu>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
-
+from __future__ import print_function
 from SEQLinco.Utils import *
 from SEQLinco.Runner import *
 from multiprocessing import Process, Queue
 from collections import Counter, OrderedDict
-from itertools import chain
+import itertools
 from copy import deepcopy
 import sys, faulthandler
 
@@ -79,10 +79,15 @@ class Cache:
             with open(self.cache_info, 'w') as f:
                 f.write('\n'.join(signatures))
 
-    def clear(self, pre, ext):
-        for fl in glob.glob(os.path.join(self.cache_dir, pre) +  "*" + ext) + [self.cache_info, self.cache_name]:
+    def clear(self, pres = [], exts = []):
+        for fl in [self.cache_info, self.cache_name]:
             if os.path.isfile(fl):
                 os.remove(fl)
+        #
+        for pre, ext in itertools.product(pres, exts): 
+            for fl in glob.glob(os.path.join(self.cache_dir, pre) +  "*" + ext): 
+                if os.path.isfile(fl):
+                    os.remove(fl)
         
 
 class PseudoAutoRegion:
@@ -120,6 +125,9 @@ class PseudoAutoRegion:
 class TFAMParser:
     def __init__(self, tfam):
         self.families, self.samples = self.__parse(tfam)
+
+    def isFounder(self, sid):
+        return self.samples[sid][2] == "0" and self.samples[sid][3] == "0"
 
     def __add_or_app(self, obj, key, value):
         islist = type(value) is list
@@ -190,6 +198,7 @@ class TFAMParser:
         samples = {k : samples[k] for k in valid_samples}
         return fams, samples
     
+    
 class RData(dict):
     def __init__(self, samples_vcf, tfam):
         # tfam.samples: a dict of {sid:[fid, pid, mid, sex, trait], ...}
@@ -201,6 +210,8 @@ class RData(dict):
         self.families = {k : [x for x in self.samples if x in tfam.families[k]] for k in tfam.families}
         # a dict of {fid:[idx ...], ...}
         self.famsampidx = {}
+        # a dict of {fid:[maf1, maf2 ...]}
+        self.maf = OrderedDict()
         # reorder family samples based on order of VCF file
         for k in self.families.keys():
             if len(self.families[k]) == 0:
@@ -219,6 +230,7 @@ class RData(dict):
         self.chrom = None
         for k in self.families:
             self.famvaridx[k] = []
+        self.maf = OrderedDict() 
         # superMarkerCount is the max num. of recombinant fragments among all fams   
         self.superMarkerCount = 0
 
@@ -228,16 +240,15 @@ class RData(dict):
         return sum([x[1] for x in self.variants]) / len(self.variants)
 
     def getFamVariants(self, fam, style = None):
-        famvar = [item for idx, item in enumerate(self.variants) if idx in self.famvaridx[fam]]
         if style is None:
-            return famvar
+            return [item for idx, item in enumerate(self.variants) if idx in self.famvaridx[fam]]
         elif style == "map":
             names = []
             pos = []
-            for idx, item in enumerate(famvar):
+            for idx in self.famvaridx[fam]:
                 # names.append("{}-{}-{}".format(item[-1], item[1], idx))
                 names.append("V{}".format(idx))
-                pos.append(item[1])
+                pos.append(self.variants[idx][1])
             return names, pos
         else:
             raise ValueError("Unknown style '{}'".format(style))
@@ -256,7 +267,7 @@ class RData(dict):
         # Input for CHP requires founders precede offsprings!
         return sorted(output, key = lambda x: x[2])
 
-
+    
 class RegionExtractor:
     '''Extract given genomic region from VCF
     converting genotypes into dictionary of
@@ -273,7 +284,7 @@ class RegionExtractor:
         data.reset()
         data.chrom = self.chrom
         self.vcf.Extract(self.chrom, self.startpos, self.endpos)
-        lineCount = 0
+        varIdx = 0
         # for each variant site
         while (self.vcf.Next()):
             # skip tri-allelic sites
@@ -287,7 +298,7 @@ class RegionExtractor:
                              format(self.name, self.vcf.CountSampleGenotypes(), self.vcf.sampleCount))
             # valid line found
             data.variants.append([self.vcf.GetChrom(), self.vcf.GetPosition(), self.name])
-            # for each family assign member genotype if the site is non-trivial in the fam
+            # for each family assign member genotype if the site is non-trivial to the family
             for k in data.families:
                 gs = self.vcf.GetGenotypes(data.famsampidx[k])
                 if len(set(''.join([x for x in gs if x != "00"]))) <= 1:
@@ -295,16 +306,16 @@ class RegionExtractor:
                     continue
                 else:
                     # this variant is found in the family
-                    data.famvaridx[k].append(lineCount)
+                    data.famvaridx[k].append(varIdx)
                     for person, g in zip(data.families[k], gs):
                         data[person].append(g)
-            lineCount += 1
+            varIdx += 1
         # 
-        if lineCount == 0:
+        if varIdx == 0:
             return 1
         else:
             with env.variants_counter.get_lock():
-                env.variants_counter.value += lineCount 
+                env.variants_counter.value += varIdx 
             return 0
             
 
@@ -326,58 +337,90 @@ class MarkerMaker:
     def __init__(self, wsize):
         self.missings = ("0", "0")
         self.missing = "0"
+        self.gtconv = {'1':0, '2':1}
         self.haplotyper = cstatgen.HaplotypingEngine(verbose = env.debug)
         self.coder = cstatgen.HaplotypeCoder(wsize)
 
     def apply(self, data):
-        # store raw haplotype data for each family
-        haplotypes = {}
+        # temp raw haplotype, maf and variant names data
+        haplotypes = OrderedDict() 
+        mafs = {}
+        varnames = {}
         try:
-            self.__Haplotype(data, haplotypes)
-            self.__CodeHaplotypes(data, haplotypes)
+            # haplotyping plus collect found allele counts
+            # and computer founder MAFS
+            self.__Haplotype(data, haplotypes, mafs, varnames)
+            # recoding the genotype of the region
+            self.__CodeHaplotypes(data, haplotypes, mafs, varnames)
         except Exception as e:
+            raise
             return -1
         self.__FormatHaplotypes(data)
         return 0
     
-    def __Haplotype(self, data, haplotypes):
+    def __Haplotype(self, data, haplotypes, mafs, varnames):
         '''genetic haplotyping. haplotypes stores per family data'''
         # FIXME: it is SWIG's (2.0.12) fault not to properly destroy the object "Pedigree" in "Execute()"
         # So there is a memory leak here which I tried to partially handle on C++
         for item in data.families:
-            varnames, varpos = data.getFamVariants(item, style = "map")
-            if len(varnames) == 0:
+            variants, positions = data.getFamVariants(item, style = "map")
+            if len(variants) == 0:
                 for person in data.families[item]:
                     data[person] = self.missings
                 continue
+            for v in variants:
+                if v not in mafs:
+                    # [#alt, #haplotypes]
+                    mafs[v] = [0, 0] 
             if env.debug:
                 with env.lock:
                     sys.stderr.write('\n'.join(['\t'.join(x) for x in data.getFamSamples(item)]) + '\n\n')
             # haplotyping
             with env.lock:
                 with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
-                    haplotypes[item] = self.haplotyper.Execute(data.chrom, varnames,
-                                                           sorted(varpos), data.getFamSamples(item))
+                    haplotypes[item] = self.haplotyper.Execute(data.chrom, variants,
+                                                               sorted(positions), data.getFamSamples(item))[0]
             if len(haplotypes[item]) == 0:
                 # C++ haplotyping implementation failed
                 with env.chperror_counter.get_lock():
                     env.chperror_counter.value += 1
+            # count founder alleles
+            varnames[item] = variants
+            for hap in haplotypes[item]:
+                if not data.tfam.isFounder(hap[1]):
+                    continue
+                for idxv, v in enumerate(variants):
+                    gt = hap[2 + idxv][1] if hap[2 + idxv][0].isupper() else hap[2 + idxv][0]
+                    if not gt == "?":
+                        mafs[v][0] += self.gtconv[gt]
+                        mafs[v][1] += 1.0 
+        # compute founder MAFs
+        for v in mafs:
+            mafs[v] = mafs[v][0] / mafs[v][1]
+        if env.debug:
+            with env.lock:
+                print("variant mafs = ", mafs, "\n", file=sys.stderr)
 
-    def __CodeHaplotypes(self, data, haplotypes):
+    def __CodeHaplotypes(self, data, haplotypes, mafs, varnames):
+        self.coder.Execute(haplotypes.values(), [[mafs[v] for v in varnames[item]] for item in haplotypes])
+        if env.debug:
+            with env.lock:
+                self.coder.Print()
+        # line: [fid, sid, hap1, hap2]
+        for line in self.coder.GetHaplotypes():
+            if not line[1] in data:
+                # this sample is not in VCF file. Every variant site should be missing
+                # they have to be skipped for now
+                continue 
+            data[line[1]] = (line[2], line[3])
+            if len(line[2]) > data.superMarkerCount:
+                data.superMarkerCount = len(line[2])
+        # get MAF
         for item in haplotypes:
-            self.coder.Execute(haplotypes[item])
-            if env.debug:
-                with env.lock:
-                    self.coder.Print()
-            for line in self.coder.data:
-                # line: [fid, sid, hap1, hap2]
-                if not line[1] in data:
-                    # this sample is not in VCF file. Every variant site should be missing
-                    # they have to be skipped for now
-                    continue 
-                data[line[1]] = (line[2], line[3])
-                if len(line[2]) > data.superMarkerCount:
-                    data.superMarkerCount = len(line[2])
+            data.maf[item] = self.coder.GetAlleleFrequencies(item)
+        if env.debug:
+            with env.lock:
+                print("marker freqs = ", data.maf, "\n", file=sys.stderr)
     
     def __FormatHaplotypes(self, data):
         # Reformat sample genotypes 
@@ -405,15 +448,15 @@ class LinkageWriter:
                 # new chrom entered,
                 # commit whatever is in buffer before accepting new data
                 self.commit()
-        # write output
+        # write tped output
         position = str(data.getMidPosition())
         if data.superMarkerCount <= 1:
             gs = [data[s] for s in data.samples]
             if len(set(gs)) == 1:
-                # everyone is missing (or monomorphic)
+                # everyone's genotype is the same (most likely missing or monomorphic)
                 return 2
-            self.output += env.delimiter.join([self.chrom, self.name, self.distance, position] + \
-                list(chain(*gs)) + self.missings*self.num_missing) + "\n"
+            self.tped += env.delimiter.join([self.chrom, self.name, self.distance, position] + \
+                list(itertools.chain(*gs)) + self.missings*self.num_missing) + "\n"
         else:
             # have to expand each region into mutiple sub-regions to account for different recomb points
             gs = zip(*[data[s] for s in data.samples])
@@ -422,11 +465,22 @@ class LinkageWriter:
                 if len(set(g)) == 1:
                     continue
                 idx += 1
-                self.output += \
+                self.tped += \
                   env.delimiter.join([self.chrom, '{}[{}]'.format(self.name, idx), self.distance, position] + \
-                  list(chain(*g)) + self.missings*self.num_missing) + "\n"
+                  list(itertools.chain(*g)) + self.missings*self.num_missing) + "\n"
             if idx == 0:
+                # everyone's genotype is the same (most likely missing or monomorphic)
                 return 2
+        # write freq file output
+        if data.superMarkerCount > 1:
+            for k in data.maf:
+                for idx in range(data.superMarkerCount):
+                    if idx < len(data.maf[k]):
+                        self.freq += env.delimiter.join([k, '{}[{}]'.format(self.name, idx + 1)] + \
+                                                        map(str, data.maf[k][idx])) + "\n" 
+        else:
+            for k in data.maf:
+                self.freq += env.delimiter.join([k, self.name] + map(str, data.maf[k][0])) + "\n" 
         if self.counter < env.batch:
             self.counter += data.superMarkerCount
         else:
@@ -434,16 +488,21 @@ class LinkageWriter:
         return 0
 
     def commit(self):
-        if not self.output:
-            return
-        with env.lock:
-            with open(os.path.join(env.cache_dir, '{}.chr{}.tped'.format(env.output, self.prev_chrom)),
-                      'a') as f:
-                f.write(self.output)
+        if self.tped:
+            with env.lock:
+                with open(os.path.join(env.cache_dir, '{}.chr{}.tped'.format(env.output, self.prev_chrom)),
+                          'a') as f:
+                    f.write(self.tped)
+        if self.freq:
+            with env.lock:
+                with open(os.path.join(env.cache_dir, '{}.chr{}.freq'.format(env.output, self.prev_chrom)),
+                          'a') as f:
+                    f.write(self.freq)
         self.reset()
 
     def reset(self):
-        self.output = ''
+        self.tped = ''
+        self.freq = ''
         self.counter = 0
         self.prev_chrom = self.chrom
             
@@ -453,14 +512,13 @@ class LinkageWriter:
 
 
 class EncoderWorker(Process):
-    def __init__(self, wid, queue, length, data, extractor, coder, writer):
+    def __init__(self, queue, length, data, extractor, coder, writer):
         Process.__init__(self)
-        self.worker_id = wid
         self.queue = queue
         self.numGrps = float(length)
         self.data = data
         self.extractor = extractor
-        self.coder = coder
+        self.maker = coder
         self.writer = writer
 
     def report(self):
@@ -476,10 +534,10 @@ class EncoderWorker(Process):
                     self.report()
                     # total mendelian errors found
                     with env.mendelerror_counter.get_lock():
-                        env.mendelerror_counter.value += self.coder.haplotyper.CountMendelianErrors()
+                        env.mendelerror_counter.value += self.maker.haplotyper.CountMendelianErrors()
                     # total recombination events found
                     with env.recomb_counter.get_lock():
-                        env.recomb_counter.value += self.coder.coder.CountRecombinations()
+                        env.recomb_counter.value += self.maker.coder.CountRecombinations()
                     break
                 else:
                     with env.total_counter.get_lock():
@@ -487,7 +545,7 @@ class EncoderWorker(Process):
                     self.extractor.getRegion(region)
                     self.writer.getRegion(region)
                     isSuccess = True
-                    for m in [self.extractor, self.coder, self.writer]:
+                    for m in [self.extractor, self.maker, self.writer]:
                         status = m.apply(self.data)
                         if status == -1:
                             with env.chperror_counter.get_lock():
@@ -526,7 +584,7 @@ def main(args):
     else:
         # load VCF file header
         checkVCFBundle(args.vcf)
-        cache.clear(pre = env.output, ext =".tped")
+        cache.clear(pres = [env.output], exts = [".tped", ".freq"])
         try:
             vs = cstatgen.VCFstream(args.vcf)
         except Exception as e:
@@ -558,7 +616,7 @@ def main(args):
             for i in regions:
                 queue.put(i)
             jobs = [EncoderWorker(
-                i, queue, len(regions), deepcopy(data),
+                queue, len(regions), deepcopy(data),
                 RegionExtractor(args.vcf, args.chr_prefix),
                 MarkerMaker(args.size),
                 LinkageWriter(len(samples_not_vcf))
