@@ -12,7 +12,7 @@ def arguments(parser):
                         type=str,
                         metavar='FILE, FILE',
                         nargs='+',
-                        default=[],
+                        default=[None, None],
                         help='''Specify input gene file names (gene1 gene2)
                         ''')
     parser.add_argument('-o', '--offspring',
@@ -46,7 +46,7 @@ def arguments(parser):
                         type=str,
                         default='sample',
                         help='''Specify output file name, simulated data will be save to a *.ped file in linkage format''')
-    parser.add_argument('-s', '--seed',
+    parser.add_argument('--seed',
                         type=float,
                         default=None,
                         help='''Specify seed for random number generator, if left unspecified the current system time will be used''')
@@ -94,7 +94,7 @@ def updateOffNumProp(offspringRange):
     '''
     return an updated proportion of number of offspring, according to both OFF_PROP and args.offspring
     '''
-
+    offProp = []
     return offProp
     
 
@@ -114,6 +114,7 @@ def simPedigree(genes, numOffspring, mode, hetero):
     Note: at least two affected offspring are required per family sample
     '''
     varGeneIdx = 0 if random.random() < hetero[0] else 1
+    pedInfo = {}
     if mode == 'dominant': # require at least 1 haplotype (out of 4) in parents carries variants, and haps 2,3,4 can carry vars (by maf) only on sites where hap 1 does 
         pass
     elif mode == 'compound_dominant': # at least 1 hap (out of 4) in parents need to carry variants, and haps 2,3,4 can carry vars (by maf) on any causal site
@@ -124,6 +125,7 @@ def simPedigree(genes, numOffspring, mode, hetero):
         pass
     else:
         raise ValueError('')
+    
     return pedInfo
     
 
@@ -131,6 +133,7 @@ def getNumOffspring(offNumProp):
     '''
     return randomly generated number of offspring according to proportion of number of offspring
     '''
+    num = 0
     return num
 
 
