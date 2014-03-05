@@ -2,6 +2,7 @@
 
 
 import argparse, random, tempfile, os, shutil, time, glob, tarfile
+import progressbar
 
 DEBUG = True
 
@@ -40,7 +41,7 @@ def arguments(parser):
     parser.add_argument('-n', '--numreps',
                         type=int,
                         metavar='INT',
-                        default=500,
+                        default=5000,
                         help='''Specify desired number of replicates (sample size)''')
     parser.add_argument('-f', '--outfile',
                         type=str,
@@ -69,6 +70,7 @@ def simSEQLinco(args):
     ## parse input gene info
     gene1, gene2 = parseGeneInfo(args.genes[0]), parseGeneInfo(args.genes[1])
     ## simulation
+    pbar = progressbar.ProgressBar(widgets=['Simulating for {} replicates'.format(args.numreps), ' ', progressbar.Percentage(), ' ', progressbar.Bar(marker=progressbar.RotatingMarker()), ' ', progressbar.ETA(), ' ', progressbar.FileTransferSpeed()], maxval=int(args.numreps)).start()
     for i in range(1, args.numreps+1):
         # per replicate
         samples = []
@@ -76,7 +78,9 @@ def simSEQLinco(args):
             numOffspring = getNumOffspring(offNumProp)
             pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.allelicheteroprop)
             samples.append(pedInfo)
-        #
+        pbar.update(i)
+    pbar.finish()    
+    #
         # FIXME! here do something about simulated pedigree samples,
         # e.g. save to file, do analysis, etc...
     
