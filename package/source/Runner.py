@@ -18,7 +18,6 @@ def spawn(f):
                 break
             q_out.put((i,f(x)))
     return fun
-
 def parmap(f, X, nprocs = cpu_count()):
     q_in   = Queue(1)
     q_out  = Queue()
@@ -67,19 +66,19 @@ def format_plink(tped, tfam):
 #You can analyze them all together
 def format_mlink(tped, tfam, prev, inherit_mode):
     out_base = 'MLINK/' + splitext(basename(tped))[0]
-    env.log("Start converting to mlink format for {}...".format(out_base))
+    env.log("Start converting to mlink format for {} ...\n".format(out_base), flush=True)
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
         fams = parse_tfam(tfam_fh)
         #parse per family per locus AF file
         af = defaultdict(lambda: [])
         #try to open the file for allele frequencies, otherwise use the defaut value
         try:
-            with open('cache/variant_af.tbl') as af_fh:
+            with open('cache/{}.freq'.format(basename(out_base))) as af_fh:
                 for line in af_fh:
                     s = line.strip().split()
                     af[(s[0],s[1])] = s[2:]
         except IOError:
-            pass
+            env.error('freq info not properly read for [{}]'.format(basename(out_base)))
         #parse tped
         heter_pen = 0.01
         if inherit_mode == 'AD':
@@ -93,13 +92,18 @@ def format_mlink(tped, tfam, prev, inherit_mode):
             for fid in fams:
                 #env.error("fid {} num {}\n".format(fid, fams[fid].get_member_ids()))
                 fam_af = af[(fid, s[1])]
-                gs_num = 0
+                ids = fams[fid].get_sorted_ids()
+                idxes = map(lambda x: fams[fid].get_member_idx(x), ids)
+                gs = map(lambda x: s[2 * x + 4 : 2 * x + 6], idxes)
+                #if re.search(r'\[21\]$', workdir):
+                #    env.log(set(filter(lambda x: x != '0', chain(*gs))))
+                gs_num = len(set(filter(lambda x: x != '0', chain(*gs))))
+                if gs_num >= 10:
+                    env.log('pattern number larger than 9 for unit {} in family {}, skipped'.format(s[1], fid))
+                    continue
                 with open('{}/{}.PRE'.format(workdir, fid), 'w') as pre:
-                    ids = fams[fid].get_sorted_ids()
-                    idxes = map(lambda x: fams[fid].get_member_idx(x), ids)
-                    gs = map(lambda x: s[2 * x + 4 : 2 * x + 6], idxes)
-                    gs_num = len(set(filter(lambda x: x != 0, chain(*gs))))
                     if not fam_af:
+                        env.error('no family-wise allele freq info for {} {} {}'.format(fid, s[1], fam_af))
                         fam_af = ['0.1'] * gs_num
                     pre.write(''.join("{} {} {} {}\n".format(fid, fams[fid].print_member(pid), s[2*fams[fid].get_member_idx(pid) + 4], s[2*fams[fid].get_member_idx(pid) + 5]) for pid in ids))
                 with open('{}/{}.LOC'.format(workdir, fid), 'w') as loc:
@@ -115,9 +119,12 @@ def format_mlink(tped, tfam, prev, inherit_mode):
                     loc.write("0 0\n")
                     loc.write("0.0\n")
                     loc.write("1 0.05 0.45\n")
+            if not os.listdir(workdir):
+                env.log('empty dir [{}], deteled'.format(workdir))
+                os.rmdir(workdir)
     tped_fh.close()
     tfam_fh.close()
-    env.log("Finished mlink format for {}.".format(out_base))
+    env.log("Finished mlink format for {}.\n".format(out_base), flush=True)
   
 #parse tfam file, store families into the Pedigree class                
 def parse_tfam(fh):
@@ -205,7 +212,7 @@ def run_linkage(runner, blueprint):
         parmap(lambda x: run_mlink(x, blueprint) , workdirs, env.jobs)
     
 def run_mlink(workdir, blueprint):
-    env.log("Start running mlink for {}...".format(workdir))
+    env.log("Start running mlink for {} ...".format(workdir), flush=True)
     #hash genes into genemap
     genemap = {}
     with open(blueprint) as f:
@@ -248,10 +255,10 @@ def run_mlink(workdir, blueprint):
     PNULL.close()
     lods_fh.close()
     heatmap('MLINK/heatmap/{}.lods'.format(basename(workdir)))
-    env.log("Finished running mlink for {}.".format(workdir))
+    env.log("Finished running mlink for {}.".format(workdir), flush=True)
     
 def heatmap(file):
-    env.log("Start ploting heatmap for {}...".format(file))
+    env.log("Start ploting heatmap for {} ...".format(file), flush=True)
     lods = []
     with open(file, 'r') as f:
         for line in f.readlines():
@@ -261,7 +268,7 @@ def heatmap(file):
         ppl.pcolormesh(lods)
         plt.savefig('{}.png'.format(file))
         plt.close()
-    env.log("Finished ploting heatmap for {}.".format(file))
+    env.log("Finished ploting heatmap for {}.".format(file), flush=True)
 
 def plotMlink():
     chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
