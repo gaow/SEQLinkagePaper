@@ -417,7 +417,6 @@ class RegionExtractor:
 class MarkerMaker:
     def __init__(self, wsize):
         self.missings = ("0", "0")
-        self.missing = "0"
         self.gtconv = {'1':0, '2':1}
         self.haplotyper = cstatgen.HaplotypingEngine(verbose = env.debug)
         self.coder = cstatgen.HaplotypeCoder(wsize)
@@ -504,7 +503,7 @@ class MarkerMaker:
                 # this sample is not in VCF file. Every variant site should be missing
                 # they have to be skipped for now
                 continue 
-            data[line[1]] = (line[2], line[3])
+            data[line[1]] = (line[2].split(','), line[3].split(','))
             if len(line[2]) > data.superMarkerCount:
                 data.superMarkerCount = len(line[2])
         # get MAF
@@ -519,10 +518,11 @@ class MarkerMaker:
         for person in data:
             if type(data[person]) is not tuple:
                 data[person] = self.missings
-            if data.superMarkerCount >= 2:
-                diff = data.superMarkerCount - len(data[person][0])
-                data[person] = [(x, y) for x, y in \
-                                zip(data[person][0] + self.missing * diff, data[person][1] + self.missing * diff)]
+                continue
+            diff = data.superMarkerCount - len(data[person][0])
+            data[person] = zip(*data[person])
+            if diff > 0:
+                data[person].extend([self.missings] * diff)
         
 
 class LinkageWriter:
