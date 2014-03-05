@@ -543,7 +543,7 @@ class LinkageWriter:
         # write tped output
         position = str(data.getMidPosition())
         if data.superMarkerCount <= 1:
-            gs = [data[s] for s in data.samples]
+            gs = [data[s][0] for s in data.samples]
             if len(set(gs)) == 1:
                 # everyone's genotype is the same (most likely missing or monomorphic)
                 return 2
