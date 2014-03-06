@@ -25,7 +25,7 @@ def arguments(parser):
     parser.add_argument('-m', '--mode',
                         type=str,
                         default='recessive',
-                        choices=['recessive', 'dominant', 'compound_recessive'],
+                        choices=['recessive', 'dominant', 'compound_recessive', 'compound_dominant'],
                         help='''Specify mode of inheritance of disease locus, e.g. recessive or dominant or compound_recessive or compound_dominant''')
     parser.add_argument('-s', '--samplesize',
                         type=int,
@@ -54,7 +54,7 @@ def arguments(parser):
 
 
 
-def simSEQLinco(args):
+def main(args):
     '''
     main func: pass cmd input and simulate pedigree samples
     '''
@@ -66,8 +66,10 @@ def simSEQLinco(args):
     else:
         random.seed(time.time())
     ## update proportions of number of offspring
+    #### FIXME!
     offNumProp = updateOffNumProp(args.offspring)
     ## parse input gene info
+    #### FIXME!
     gene1, gene2 = parseGeneInfo(args.genes[0]), parseGeneInfo(args.genes[1])
     ## simulation
     pbar = progressbar.ProgressBar(widgets=['Simulating for {} replicates'.format(args.numreps), ' ', progressbar.Percentage(), ' ', progressbar.Bar(marker=progressbar.RotatingMarker()), ' ', progressbar.ETA(), ' ', progressbar.FileTransferSpeed()], maxval=int(args.numreps)).start()
@@ -75,15 +77,18 @@ def simSEQLinco(args):
         # per replicate
         samples = []
         for j in range(args.samplesize):
+            #### FIXME!
             numOffspring = getNumOffspring(offNumProp)
+            #### FIXME!
             pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.allelicheteroprop)
             samples.append(pedInfo)
         pbar.update(i)
     pbar.finish()    
     #
         # FIXME! here do something about simulated pedigree samples,
+        #### FIXME!
         # e.g. save to file, do analysis, etc...
-    
+        # saveToFile(...)
     return
     
     
@@ -150,7 +155,7 @@ if __name__ == '__main__':
     )
     master_parser.add_argument('--version,', action='version', version='%(prog)s 0.1.0')
     arguments(master_parser)
-    master_parser.set_defaults(func=simSEQLinco)
+    master_parser.set_defaults(func=main)
     # getting arguments
     args = master_parser.parse_args()
     
