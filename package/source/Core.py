@@ -504,8 +504,8 @@ class MarkerMaker:
                 # they have to be skipped for now
                 continue 
             data[line[1]] = (line[2].split(','), line[3].split(','))
-            if len(line[2]) > data.superMarkerCount:
-                data.superMarkerCount = len(line[2])
+            if len(data[line[1]][0]) > data.superMarkerCount:
+                data.superMarkerCount = len(data[line[1]][0])
         # get MAF
         for item in haplotypes:
             data.maf[item] = self.coder.GetAlleleFrequencies(item)
@@ -543,36 +543,42 @@ class LinkageWriter:
         # write tped output
         position = str(data.getMidPosition())
         if data.superMarkerCount <= 1:
+            # genotypes
             gs = [data[s][0] for s in data.samples]
             if len(set(gs)) == 1:
                 # everyone's genotype is the same (most likely missing or monomorphic)
                 return 2
             self.tped += env.delimiter.join([self.chrom, self.name, self.distance, position] + \
                 list(itertools.chain(*gs)) + self.missings*self.num_missing) + "\n"
-        else:
-            # have to expand each region into mutiple sub-regions to account for different recomb points
-            gs = zip(*[data[s] for s in data.samples])
-            idx = 0
-            for g in gs:
-                if len(set(g)) == 1:
-                    continue
-                idx += 1
-                self.tped += \
-                  env.delimiter.join([self.chrom, '{}[{}]'.format(self.name, idx), self.distance, position] + \
-                  list(itertools.chain(*g)) + self.missings*self.num_missing) + "\n"
-            if idx == 0:
-                # everyone's genotype is the same (most likely missing or monomorphic)
-                return 2
-        # write freq file output
-        if data.superMarkerCount > 1:
-            for k in data.maf:
-                for idx in range(data.superMarkerCount):
-                    if idx < len(data.maf[k]):
-                        self.freq += env.delimiter.join([k, '{}[{}]'.format(self.name, idx + 1)] + \
-                                                        map(str, data.maf[k][idx])) + "\n" 
-        else:
+            # freqs
             for k in data.maf:
                 self.freq += env.delimiter.join([k, self.name] + map(str, data.maf[k][0])) + "\n" 
+        else:
+            # have to expand each region into mutiple chunks to account for different recomb points
+            gs = zip(*[data[s] for s in data.samples])
+            # sub-chunk id
+            cid = 0
+            skipped_chunk = []
+            for idx, g in enumerate(gs):
+                if len(set(g)) == 1:
+                    skipped_chunk.append(idx)
+                    continue
+                cid += 1
+                self.tped += \
+                  env.delimiter.join([self.chrom, '{}[{}]'.format(self.name, cid), self.distance, position] + \
+                  list(itertools.chain(*g)) + self.missings*self.num_missing) + "\n"
+            if cid == 0:
+                # everyone's genotype is the same (most likely missing or monomorphic)
+                return 2
+            # freqs
+            cid = 0
+            for k in data.maf:
+                for idx in range(data.superMarkerCount):
+                    if idx in skipped_chunk:
+                        continue
+                    cid += 1
+                    self.freq += env.delimiter.join([k, '{}[{}]'.format(self.name, cid)] + \
+                                                    map(str, data.maf[k][idx])) + "\n" 
         if self.counter < env.batch:
             self.counter += data.superMarkerCount
         else:
