@@ -1,19 +1,29 @@
 #!/usr/bin/env python
+# Author: Biao Li (biaol@bcm.edu)
+# Date: 03-01-2014
+# Purpose: simulation program to test SEQLinco 
 
 
 import argparse, random, tempfile, os, shutil, time, glob, tarfile
 import progressbar
+import collections, csv
 
 DEBUG = True
 
-OFF_PROP = {'2': 0.6314, '3': 0.2556, '4_more': 0.1130}
+OFF_PROP_2more = {2: 0.6314, 3: 0.2556, '4_more': 0.1130}
+OFF_PROP_2and3 = {2: 0.7118, 3: 0.2882}
+OFF_PROP_3more = {3:0.6934, '4_more':0.3066}
+
+GENE_1 = "/Users/biao/Projects/SEQLinco/simulations/GJB2.tsv"
+GENE_2 = "/Users/biao/Projects/SEQLinco/simulations/SLC26A4.tsv"
+
 
 def arguments(parser):
     parser.add_argument('-g', '--genes',
                         type=str,
                         metavar='FILE, FILE',
                         nargs='+',
-                        default=[None, None],
+                        default=[GENE_1, GENE_2],
                         help='''Specify input gene file names (gene1 gene2)
                         ''')
     parser.add_argument('-o', '--offspring',
@@ -30,7 +40,7 @@ def arguments(parser):
     parser.add_argument('-s', '--samplesize',
                         type=int,
                         metavar='INT',
-                        default=3000,
+                        default=3,
                         help='''Specify sample size, number of families''')
     parser.add_argument('-a', '--allelicheteroprop',
                         type=float,
@@ -41,7 +51,7 @@ def arguments(parser):
     parser.add_argument('-n', '--numreps',
                         type=int,
                         metavar='INT',
-                        default=5000,
+                        default=5,
                         help='''Specify desired number of replicates (sample size)''')
     parser.add_argument('-f', '--outfile',
                         type=str,
@@ -66,18 +76,15 @@ def main(args):
     else:
         random.seed(time.time())
     ## update proportions of number of offspring
-    #### FIXME!
     offNumProp = updateOffNumProp(args.offspring)
     ## parse input gene info
-    #### FIXME!
     gene1, gene2 = parseGeneInfo(args.genes[0]), parseGeneInfo(args.genes[1])
     ## simulation
     pbar = progressbar.ProgressBar(widgets=['Simulating for {} replicates'.format(args.numreps), ' ', progressbar.Percentage(), ' ', progressbar.Bar(marker=progressbar.RotatingMarker()), ' ', progressbar.ETA(), ' ', progressbar.FileTransferSpeed()], maxval=int(args.numreps)).start()
-    for i in range(1, args.numreps+1):
+    for i in xrange(1, args.numreps+1):
         # per replicate
         samples = []
         for j in range(args.samplesize):
-            #### FIXME!
             numOffspring = getNumOffspring(offNumProp)
             #### FIXME!
             pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.allelicheteroprop)
@@ -96,6 +103,9 @@ def checkInput(args):
     '''
     validate user inputs and raise InputError in case of exception
     '''
+    # minimum # offspring between [2,4], maximum # offspring between [3,10]
+    if args.offspring[0] not in [2,3,4] or args.offspring[1] not in range(3,11) or args.offspring[0] > args.offspring[1]:
+        raise ValueError('Inappropriate input of argument "offspring"')
     return
 
 
@@ -103,17 +113,45 @@ def updateOffNumProp(offspringRange):
     '''
     return an updated proportion of number of offspring, according to both OFF_PROP and args.offspring
     '''
-    offProp = []
+    minimum, maximum = offspringRange[0], offspringRange[1]
+    offProp, lenRange = collections.OrderedDict({}), maximum-minimum+1
+    # special cases
+    if lenRange == 1:
+        return offProp.update({offspringRange[0]:1.0})
+    elif offspringRange == [2,3]:
+        offProp.update({2: 0.7118, 3: 0.2882})
+    elif offspringRange == [2,4]:
+        offProp.update({2: 0.6314, 3: 0.2556, 4: 0.1130})
+    elif offspringRange == [3,4]:
+        offProp.update({3: 0.6934, 4:0.3066})
+    #
+    else:
+        if minimum == 2:
+            Sn = 0.1130
+            offProp.update({2: 0.6314, 3: 0.2556})
+        elif minimum == 3:
+            Sn = 0.3066
+            offProp.update({3: 0.6934})
+        else: # minimum == 4
+            Sn = 1.0
+        p = 2/3.*Sn/(1-(1./3**(maximum-4+1)))
+        [offProp.update({n:p*((1/3.)**i)}) for i,n in enumerate(range(4, maximum+1))]
     return offProp
     
-
 
 def parseGeneInfo(fileName):
     '''
     parse input gene file (*.tsv) and return dict obj of gene info
     '''
-    info = {'pos':[], 'maf':[], 'function':[]}
-    ## FIXME!
+    info = {'pos':[], 'maf':[], 'annotation':[]}
+    try:
+        reader = csv.reader(open(fileName, 'rb'), delimiter='\t')
+        rows = list(reader)
+    except Exception:
+        raise ValueError("Inappropriate argument value --genes")
+    info['pos'] = [int(i[1]) for i in rows]
+    info['maf'] = [float(i[2]) for i in rows]
+    info['annotation'] = [bool(int(i[4])) for i in rows]
     return info
 
 
@@ -142,8 +180,11 @@ def getNumOffspring(offNumProp):
     '''
     return randomly generated number of offspring according to proportion of number of offspring
     '''
-    num = 0
-    return num
+    nums, probs = offNumProp.keys(), offNumProp.values()
+    cumuProbs = [sum(probs[:i]) for i in range(1, len(probs)+1)]
+    randNum = random.random()
+    idx = [randNum < p for p in cumuProbs].index(True)
+    return nums[idx]
 
 
 
