@@ -4,7 +4,7 @@
 # Purpose: simulation program to test SEQLinco 
 
 
-import argparse, random, tempfile, os, shutil, time, glob, tarfile
+import argparse, random, tempfile, os, sys, shutil, time, glob, tarfile
 import progressbar
 import collections, csv
 
@@ -61,7 +61,7 @@ def arguments(parser):
                         type=float,
                         default=None,
                         help='''Specify seed for random number generator, if left unspecified the current system time will be used''')
-
+    
 
 
 def main(args):
@@ -80,17 +80,25 @@ def main(args):
     ## parse input gene info
     gene1, gene2 = parseGeneInfo(args.genes[0]), parseGeneInfo(args.genes[1])
     ## simulation
-    pbar = progressbar.ProgressBar(widgets=['Simulating for {} replicates'.format(args.numreps), ' ', progressbar.Percentage(), ' ', progressbar.Bar(marker=progressbar.RotatingMarker()), ' ', progressbar.ETA(), ' ', progressbar.FileTransferSpeed()], maxval=int(args.numreps)).start()
+    if not DEBUG:
+        pbar = progressbar.ProgressBar(widgets=['Simulating for {} replicates'.format(args.numreps), ' ', progressbar.Percentage(), ' ', progressbar.Bar(marker=progressbar.RotatingMarker()), ' ', progressbar.ETA(), ' ', progressbar.FileTransferSpeed()], maxval=int(args.numreps)).start()
     for i in xrange(1, args.numreps+1):
         # per replicate
-        samples = []
-        for j in range(args.samplesize):
-            numOffspring = getNumOffspring(offNumProp)
-            #### FIXME!
-            pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.allelicheteroprop)
-            samples.append(pedInfo)
-        pbar.update(i)
-    pbar.finish()    
+        samples = simSamples(args.samplesize, args.mode, args.allelicheteroprop)
+        
+        
+        #samples = []
+        #for j in xrange(args.samplesize):
+        #    numOffspring = getNumOffspring(offNumProp)
+        #    #### FIXME!
+        #    pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.allelicheteroprop)
+        #    samples.append(pedInfo)
+        
+        
+        if not DEBUG:
+            pbar.update(i)
+    if not DEBUG:
+        pbar.finish()    
     #
         # FIXME! here do something about simulated pedigree samples,
         #### FIXME!
@@ -143,7 +151,7 @@ def parseGeneInfo(fileName):
     '''
     parse input gene file (*.tsv) and return dict obj of gene info
     '''
-    info = {'pos':[], 'maf':[], 'annotation':[]}
+    info = {'pos':[], 'maf':[], 'annotation':[], 'd_idx':[], 'd_maf':[]}
     try:
         reader = csv.reader(open(fileName, 'rb'), delimiter='\t')
         rows = list(reader)
@@ -152,6 +160,12 @@ def parseGeneInfo(fileName):
     info['pos'] = [int(i[1]) for i in rows]
     info['maf'] = [float(i[2]) for i in rows]
     info['annotation'] = [bool(int(i[4])) for i in rows]
+    info['d_idx'] = [i for i,j in enumerate(info['annotation']) if j]
+    info['nd_idx'] = [i for i,j in enumerate(info['annotation']) if not j]
+    info['d_maf'] = [info['maf'][i] for i in info['d_idx']]
+    cumu_dMaf = [sum(info['d_maf'][:i]) for i in range(1, len(info['d_maf'])+1)]
+    sum_dMaf = sum(info['d_maf'])
+    info['cumuProbs_dMaf'] = [i/sum_dMaf for i in cumu_dMaf]
     return info
 
 
@@ -160,7 +174,12 @@ def simPedigree(genes, numOffspring, mode, hetero):
     simulate two-generational pedigree based on given input gene info, number of offspring, mode of inheritance and allelic heterogenity ratio.
     Note: at least two affected offspring are required per family sample
     '''
-    varGeneIdx = 0 if random.random() < hetero[0] else 1
+    causalGeneIdx = 0 if random.random() < hetero[0] else 1
+    markerGeneIdx = 1 if causalGeneIdx == 0 else 0
+    #
+    causalHaps = getCausalHaps(genes[causalGeneIdx], mode, numOffspring)
+    #markerHaps = getMarkerHaps()
+    
     pedInfo = {}
     if mode == 'dominant': # require at least 1 haplotype (out of 4) in parents carries variants, and haps 2,3,4 can carry vars (by maf) only on sites where hap 1 does 
         pass
@@ -174,7 +193,78 @@ def simPedigree(genes, numOffspring, mode, hetero):
         raise ValueError('')
     
     return pedInfo
-    
+  
+
+def getCausalHaps(geneInfo, mode, numOffspring):
+    '''
+    '''
+    causalHaps = collections.OrderedDict({})
+    parentalHapCausality = [1,0,0,0] # 1 - causal; 0 - non-causal
+    if mode == 'dominant': # require at least 1 haplotype (out of 4) in parents carries variants, and haps 2,3,4 can carry vars (by maf) only on sites where hap 1 does
+        while True:
+            hap1, dVarIdx = genCausalHap(geneInfo)
+            parentalHapCausality[1] = 1 if random.random() < geneInfo['maf'][dVarIdx] else 0
+            parentalHapCausality[2] = 1 if (parentalHapCausality.count(1) <  2 and random.random() < geneInfo['maf'][dVarIdx]) else 0
+            parentalHapCausality[3] = 1 if (parentalHapCausality.count(1) <  2 and random.random() < geneInfo['maf'][dVarIdx]) else 0
+            offspringAff, offHapIdx = genOffspringAffAndHaps(mode, parentalHapCausality, numOffspring)
+            if offspringAff.count(2) >= 2:
+                # generate hap2, hap3 and hap4
+                hap2 = genOtherHap(geneInfo, [dVarIdx]) if parentalHapCausality[1] == 1 else genOtherHap(geneInfo)
+                hap3 = genOtherHap(geneInfo, [dVarIdx]) if parentalHapCausality[2] == 1 else genOtherHap(geneInfo)
+                hap4 = genOtherHap(geneInfo, [dVarIdx]) if parentalHapCausality[3] == 1 else genOtherHap(geneInfo)
+                # fill in parental and offspring causalHaps dict (1 - father; 2 - mother; 3,...,n - offspring)
+                causalHaps[1], causalHaps[2] = [hap1, hap2], [hap3, hap4]
+                parHaps = [hap1, hap2, hap3, hap4]
+                [causalHaps.update({i+3:[parHaps[j[0]], parHaps[j[1]]]}) for i,j in enumerate(offHapIdx)]
+                
+                break
+
+            
+    print dVarIdx
+    print parentalHapCausality
+    print offspringAff, offHapIdx
+    print causalHaps
+        
+        
+    return causalHaps
+        
+
+def genOffspringAffAndHaps(mode, parentalHapCausality, numOffspring):
+    hapIdx = [None] * numOffspring
+    aff = [1] * numOffspring # 1 - unaffected; 2 - affected
+    for idx in range(numOffspring):
+        hapIdx[idx] = [random.choice([0,1]), random.choice([2,3])]
+        g = [parentalHapCausality[hapIdx[idx][0]], parentalHapCausality[hapIdx[idx][1]]]
+        n = g.count(1)
+        if mode in ['dominant', 'compound_dominant']:
+            aff[idx] = 2 if n > 0 else 1
+        elif mode in ['recessive', 'compound_recessive']:
+            aff[idx] = 2 if n == 2 else 1
+        else:
+            raise ValueError("Inappropriate argument value '--mode'")
+    return aff, hapIdx
+            
+
+
+def genOtherHap(geneInfo, addMutantToSites=[]):
+    hap = [0] * len(geneInfo['maf'])
+    for idx in geneInfo['nd_idx']:
+        if random.random() < geneInfo['maf'][idx]:
+            hap[idx] = 1
+    # add mutants on given sites
+    for idx in addMutantToSites:
+        hap[idx] = 1
+    return hap
+  
+
+def genCausalHap(geneInfo):
+    '''
+    generate 1st parental haplotype that contains 1 disease variant
+    '''
+    dVarIdx = weightedRandomIdx(geneInfo['cumuProbs_dMaf'])
+    hap = genOtherHap(geneInfo, [dVarIdx])
+    return hap, dVarIdx
+
 
 def getNumOffspring(offNumProp):
     '''
@@ -182,10 +272,19 @@ def getNumOffspring(offNumProp):
     '''
     nums, probs = offNumProp.keys(), offNumProp.values()
     cumuProbs = [sum(probs[:i]) for i in range(1, len(probs)+1)]
-    randNum = random.random()
-    idx = [randNum < p for p in cumuProbs].index(True)
+    idx = weightedRandomIdx(cumuProbs)
     return nums[idx]
 
+
+def weightedRandomIdx(cumuProbs):
+    '''
+    return a weighted random choice 
+    '''
+    randNum = random.random()
+    for idx, p in enumerate(cumuProbs):
+        if randNum < p:
+            return idx
+    
 
 
 if __name__ == '__main__':
