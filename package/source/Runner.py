@@ -8,6 +8,7 @@ from multiprocessing import Queue, Process, cpu_count
 from os.path import splitext, basename, isdir
 from itertools import chain
 from shutil import copyfile
+from scipy.optimize import minimize_scalar
 #utils that allow lambda function in mutilprocessing map
 #grabbed from http://stackoverflow.com/a/16071616 by klaus-se
 def spawn(f):
@@ -225,8 +226,10 @@ def run_mlink(workdir, blueprint):
     PNULL = open(os.devnull, 'w')
     mkpath('MLINK/heatmap')
     lods_fh = open('MLINK/heatmap/{}.lods'.format(basename(workdir)), 'w')
+    hlods_fh = open('MLINK/heatmap/{}.hlods'.format(basename(workdir)), 'w')
     for unitdir in sorted(filter(isdir, glob.glob(workdir + '/*')), key=lambda x: genemap[re.sub(r'^(\S+?)(?:\[\d+\])?$', r'\1', basename(x))] + [int(re.sub(r'^(?:\S+?)(?:\[(\d+)\])?$', r'\1', basename(x)) if re.search(r'\]$', x) else 0)]):
         lods = {}
+        hlods = {}
         with cd(unitdir):
             fams = map(lambda x: re.sub(r'^(\S+?)\.PRE', r'\1', x), glob.glob('*.PRE'))
             for fam in fams:
@@ -247,14 +250,18 @@ def run_mlink(workdir, blueprint):
                     for i in re.finditer(r'^THETAS\s+(0\.\d+)(?:\n.+?){7}LOD SCORE =\s+(-?\d+\.\d+)', raw, re.MULTILINE):
                         theta, lod = map(float, i.group(1,2))
                         if theta not in lods:
-                            lods[theta] = lod
+                            lods[theta] = [lod]
                         else:
-                            lods[theta] += lod
+                            lods[theta].append(lod)
         for theta in sorted(lods.keys()):
-            lods_fh.write('{} {} {}\n'.format(basename(unitdir), theta, lods[theta]))
+            res = minimize_scalar(hlod_fun(lods[theta], -1), bounds=(0,1), method='bounded', options={'xtol':1e-8})
+            a = res.x
+            lods_fh.write('{} {} {}\n'.format(basename(unitdir), theta, sum(lods[theta])))
+            hlods_fh.write('{} {} {} {}\n'.format(basename(unitdir), theta, a, hlod_fun(lods[theta])(a)))
     PNULL.close()
     lods_fh.close()
     heatmap('MLINK/heatmap/{}.lods'.format(basename(workdir)))
+    heatmap('MLINK/heatmap/{}.hlods'.format(basename(workdir)))
     env.log("Finished running mlink for {}.".format(workdir), flush=True)
     
 def heatmap(file):
@@ -276,3 +283,8 @@ def plotMlink():
     mkpath('MLINK/heatmap')
     pool = Pool(env.jobs)
     pool.map(heatmap, dirs)
+
+def hlod_fun(Li, sign=1):
+    def _fun(alpha):
+        return sign * sum(np.log10(alpha*np.power(10, Li) + 1 - alpha))
+    return _fun 
