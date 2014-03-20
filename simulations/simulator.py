@@ -8,8 +8,6 @@ import argparse, random, tempfile, os, sys, shutil, time, glob, tarfile
 import progressbar
 import collections, csv
 
-DEBUG = True
-
 OFF_PROP_2more = {2: 0.6314, 3: 0.2556, '4_more': 0.1130}
 OFF_PROP_2and3 = {2: 0.7118, 3: 0.2882}
 OFF_PROP_3more = {3:0.6934, '4_more':0.3066}
@@ -49,7 +47,7 @@ def arguments(parser):
                         nargs='+',
                         default=[0.5,0.5],
                         help='''Specify proportion of allelic heterogeneity between two genes in the sample, e.g. 0.5 0.5''')
-    parser.add_argument('-n', '--numreps',
+    parser.add_argument('-r', '--numreps',
                         type=int,
                         metavar='INT',
                         default=3,
@@ -57,12 +55,15 @@ def arguments(parser):
     parser.add_argument('-f', '--outfile',
                         type=str,
                         default='sample',
-                        help='''Specify output file name, simulated data will be save to a *.ped file in linkage format''')
+                        help='''Specify output file name, simulated data will be save to a *.ped file in linkage format and a *.vcf file in variant seq format''')
     parser.add_argument('--seed',
                         type=float,
                         default=None,
                         help='''Specify seed for random number generator, if left unspecified the current system time will be used''')
-    
+    parser.add_argument('-d', '--debug',
+                        type=bool,
+                        default=False,
+                        help='''Turn on Debug mode in which progress bar will not be shown and if an error occurs detailed error messages will be printed''')
 
 
 def main(args):
@@ -81,8 +82,8 @@ def main(args):
     ## parse input gene info
     gene1, gene2 = parseGeneInfo(args.genes[0]), parseGeneInfo(args.genes[1])
     ## simulation
-    if not DEBUG:
-        pbar = progressbar.ProgressBar(widgets=['Simulating for {} replicates'.format(args.numreps), ' ', progressbar.Percentage(), ' ', progressbar.Bar(marker=progressbar.RotatingMarker()), ' ', progressbar.ETA(), ' ', progressbar.FileTransferSpeed()], maxval=int(args.numreps)).start()
+    if not args.debug:
+        pbar = progressbar.ProgressBar(widgets=['Simulating for {} replicates'.format(args.numreps), ' ', progressbar.Percentage(), ' ', progressbar.Bar(marker=progressbar.RotatingMarker()), ' ', progressbar.ETA(), ' '], maxval=int(args.numreps)).start()
     for i in xrange(1, args.numreps+1):
         # per replicate
         samples = []
@@ -90,10 +91,14 @@ def main(args):
         for j in xrange(args.samplesize):
             numOffspring = getNumOffspring(offNumProp)
             pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.allelicheteroprop, diseaseVariantIndices, familyID=j+1)
-            samples.append(pedInfo)
-        if not DEBUG:
+            samples.extend(pedInfo)
+        # write *.ped file per sample for pedigree structure info only
+        writePedsToFile(samples, args.outfile+"_rep"+str(i)+".ped", pedStructOnly=True)
+        # write *.vcf file per sample for variant info
+        writeVCF(samples, args.outfile+"_rep"+str(i)+".vcf")
+        if not args.debug:
             pbar.update(i)
-    if not DEBUG:
+    if not args.debug:
         pbar.finish()    
     #
         # FIXME! here do something about simulated pedigree samples,
@@ -101,6 +106,27 @@ def main(args):
         # e.g. save to file, do analysis, etc...
         # saveToFile(...)
     return
+    
+
+def writeVCF(samples, fileName):
+    pass
+    
+    
+def writePedsToFile(peds, fileName, pedStructOnly=False):
+    '''
+    write pedigree samples to 'fileName' in linkage format,
+    if 'pedStructOnly' is True, output only the first 6 columns
+    '''
+    if not fileName.endswith('.ped'):
+        fileName += '.ped'
+    fi = open(fileName, 'w')
+    for ind_info in peds:
+        if pedStructOnly:
+            fi.write(' '.join(str(x) for x in ind_info[:6]) + '\n')
+        else:
+            fi.write(' '.join(str(x) for x in ind_info) + '\n')
+    fi.close()
+    return    
     
     
 def checkInput(args):
@@ -344,11 +370,9 @@ if __name__ == '__main__':
     master_parser.set_defaults(func=main)
     # getting arguments
     args = master_parser.parse_args()
-    
-    print vars(args)
-    
+    #print vars(args)
     # calling associated functions
-    if DEBUG:
+    if args.debug:
         args.func(args)
     else:
         try:
