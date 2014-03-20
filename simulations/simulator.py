@@ -14,9 +14,10 @@ OFF_PROP_2more = {2: 0.6314, 3: 0.2556, '4_more': 0.1130}
 OFF_PROP_2and3 = {2: 0.7118, 3: 0.2882}
 OFF_PROP_3more = {3:0.6934, '4_more':0.3066}
 
-GENE_1 = "/Users/biao/Projects/SEQLinco/simulations/GJB2.tsv"
-GENE_2 = "/Users/biao/Projects/SEQLinco/simulations/SLC26A4.tsv"
-
+#GENE_1 = "/Users/biao/Projects/SEQLinco/simulations/GJB2.tsv"
+#GENE_2 = "/Users/biao/Projects/SEQLinco/simulations/SLC26A4.tsv"
+GENE_1 = "GJB2.tsv"
+GENE_2 = "SLC26A4.tsv"
 
 def arguments(parser):
     parser.add_argument('-g', '--genes',
@@ -84,15 +85,16 @@ def main(args):
         pbar = progressbar.ProgressBar(widgets=['Simulating for {} replicates'.format(args.numreps), ' ', progressbar.Percentage(), ' ', progressbar.Bar(marker=progressbar.RotatingMarker()), ' ', progressbar.ETA(), ' ', progressbar.FileTransferSpeed()], maxval=int(args.numreps)).start()
     for i in xrange(1, args.numreps+1):
         # per replicate
-        samples = simSamples(args.samplesize, args.mode, args.allelicheteroprop)
         
         
-        #samples = []
-        #for j in xrange(args.samplesize):
-        #    numOffspring = getNumOffspring(offNumProp)
-        #    #### FIXME!
-        #    pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.allelicheteroprop)
-        #    samples.append(pedInfo)
+        
+        samples = []
+        diseaseVariantIndices = [weightedRandomIdx(gene1['cumuProbs_dMaf']), weightedRandomIdx(gene2['cumuProbs_dMaf'])]
+        for j in xrange(args.samplesize):
+            numOffspring = getNumOffspring(offNumProp)
+            #### FIXME!
+            pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.allelicheteroprop, diseaseVariantIndices)
+            samples.append(pedInfo)
         
         
         if not DEBUG:
@@ -147,6 +149,7 @@ def updateOffNumProp(offspringRange):
     return offProp
     
 
+
 def parseGeneInfo(fileName):
     '''
     parse input gene file (*.tsv) and return dict obj of gene info
@@ -169,7 +172,7 @@ def parseGeneInfo(fileName):
     return info
 
 
-def simPedigree(genes, numOffspring, mode, hetero):
+def simPedigree(genes, numOffspring, mode, hetero, dVarIdx):
     '''
     simulate two-generational pedigree based on given input gene info, number of offspring, mode of inheritance and allelic heterogenity ratio.
     Note: at least two affected offspring are required per family sample
@@ -177,6 +180,11 @@ def simPedigree(genes, numOffspring, mode, hetero):
     causalGeneIdx = 0 if random.random() < hetero[0] else 1
     markerGeneIdx = 1 if causalGeneIdx == 0 else 0
     #
+    
+    # if mode in ['dominant', 'recessive'], use given dVarIdx as disease variant indices for simulating the first causal haplotype, otherwise re-generate such indices if mode in ['compound_dominant', 'compound_recessive']
+    
+    
+    
     causalHaps = getCausalHaps(genes[causalGeneIdx], mode, numOffspring)
     #markerHaps = getMarkerHaps()
     
