@@ -178,9 +178,6 @@ def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID):
     causalHaps, diseaseStatus = getCausalHaps(genes[causalGeneIdx], mode, numOffspring, dVarIdx)
     markerHaps = getMarkerHaps(genes[markerGeneIdx], numOffspring)
     pedInfo = createPedInfoDict(causalGeneIdx, causalHaps, markerHaps, diseaseStatus, familyID)
-    
-    print pedInfo
-    
     return pedInfo
 
 
