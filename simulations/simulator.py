@@ -35,13 +35,13 @@ def arguments(parser):
                         help='''Specify a range of allowed number of offspring each parent may produce, e.g. 2 5, allowed minimum number is between 2 and 4, maximum between 5 and 10''')
     parser.add_argument('-m', '--mode',
                         type=str,
-                        default='recessive',
+                        default='dominant',
                         choices=['recessive', 'dominant', 'compound_recessive', 'compound_dominant'],
                         help='''Specify mode of inheritance of disease locus, e.g. recessive or dominant or compound_recessive or compound_dominant''')
     parser.add_argument('-s', '--samplesize',
                         type=int,
                         metavar='INT',
-                        default=3,
+                        default=2,
                         help='''Specify sample size, number of families''')
     parser.add_argument('-a', '--allelicheteroprop',
                         type=float,
@@ -52,7 +52,7 @@ def arguments(parser):
     parser.add_argument('-n', '--numreps',
                         type=int,
                         metavar='INT',
-                        default=5,
+                        default=3,
                         help='''Specify desired number of replicates (sample size)''')
     parser.add_argument('-f', '--outfile',
                         type=str,
@@ -85,18 +85,12 @@ def main(args):
         pbar = progressbar.ProgressBar(widgets=['Simulating for {} replicates'.format(args.numreps), ' ', progressbar.Percentage(), ' ', progressbar.Bar(marker=progressbar.RotatingMarker()), ' ', progressbar.ETA(), ' ', progressbar.FileTransferSpeed()], maxval=int(args.numreps)).start()
     for i in xrange(1, args.numreps+1):
         # per replicate
-        
-        
-        
         samples = []
         diseaseVariantIndices = [weightedRandomIdx(gene1['cumuProbs_dMaf']), weightedRandomIdx(gene2['cumuProbs_dMaf'])]
         for j in xrange(args.samplesize):
             numOffspring = getNumOffspring(offNumProp)
-            #### FIXME!
-            pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.allelicheteroprop, diseaseVariantIndices)
+            pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.allelicheteroprop, diseaseVariantIndices, familyID=j+1)
             samples.append(pedInfo)
-        
-        
         if not DEBUG:
             pbar.update(i)
     if not DEBUG:
@@ -172,72 +166,107 @@ def parseGeneInfo(fileName):
     return info
 
 
-def simPedigree(genes, numOffspring, mode, hetero, dVarIdx):
+def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID):
     '''
     simulate two-generational pedigree based on given input gene info, number of offspring, mode of inheritance and allelic heterogenity ratio.
     Note: at least two affected offspring are required per family sample
     '''
     causalGeneIdx = 0 if random.random() < hetero[0] else 1
     markerGeneIdx = 1 if causalGeneIdx == 0 else 0
+    dVarIdx = dVarIndices[causalGeneIdx]
     #
+    causalHaps, diseaseStatus = getCausalHaps(genes[causalGeneIdx], mode, numOffspring, dVarIdx)
+    markerHaps = getMarkerHaps(genes[markerGeneIdx], numOffspring)
+    pedInfo = createPedInfoDict(causalGeneIdx, causalHaps, markerHaps, diseaseStatus, familyID)
     
-    # if mode in ['dominant', 'recessive'], use given dVarIdx as disease variant indices for simulating the first causal haplotype, otherwise re-generate such indices if mode in ['compound_dominant', 'compound_recessive']
-    
-    
-    
-    causalHaps = getCausalHaps(genes[causalGeneIdx], mode, numOffspring)
-    #markerHaps = getMarkerHaps()
-    
-    pedInfo = {}
-    if mode == 'dominant': # require at least 1 haplotype (out of 4) in parents carries variants, and haps 2,3,4 can carry vars (by maf) only on sites where hap 1 does 
-        pass
-    elif mode == 'compound_dominant': # at least 1 hap (out of 4) in parents need to carry variants, and haps 2,3,4 can carry vars (by maf) on any causal site
-        pass
-    elif mode == 'recessive': # at least 1 hap in father and 1 hap in mother have to carry variants on same DSL sites, and haps 3,4 can carry vars only on those sites and at least 3 or 4 has to be wild-type hap
-        pass
-    elif mode == 'compound_recessive': # at least 1 hap in father and 1 haps in mother have to carry vars on some DSL sites, and haps 3,4 can carry vars on any DSL site and at least 3 or 4 has to be wild-type hap
-        pass
-    else:
-        raise ValueError('')
+    print pedInfo
     
     return pedInfo
-  
 
-def getCausalHaps(geneInfo, mode, numOffspring):
+
+def createPedInfoDict(causalGeneIdx, causalHaps, markerHaps, diseaseStatus, familyID):
+    pedInfo = []
+    gene1Haps = causalHaps if causalGeneIdx == 0 else markerHaps
+    gene2Haps = markerHaps if causalGeneIdx == 0 else causalHaps
+    for idx, indID in enumerate(gene1Haps.keys()):
+        tmp = [familyID, indID]
+        if indID == 1:
+            sex1 = 1 if random.random() < 0.5 else 2
+            tmp += [0,0,sex1]
+        elif indID == 2:
+            sex2 = 1 if sex1 == 2 else 2
+            tmp += [0,0,sex2]
+        else:
+            sex = 1 if random.random() < 0.5 else 2
+            tmp += [sex1,sex2,sex]
+        tmp += [diseaseStatus[idx]]
+        [tmp.extend([v1, v2]) for v1, v2 in zip(gene1Haps[indID][0], gene1Haps[indID][1])]
+        [tmp.extend([v1, v2]) for v1, v2 in zip(gene2Haps[indID][0], gene2Haps[indID][1])]
+        pedInfo.append(tmp)
+    return pedInfo
+
+
+def getMarkerHaps(geneInfo, numOffspring):
     '''
+    simulate non-disease-causing haplotypes
+    '''
+    markerHaps = collections.OrderedDict({})
+    parHaps = [genMarkerHap(geneInfo) for _ in range(4)]
+    markerHaps[1], markerHaps[2] = parHaps[:2], parHaps[2:]
+    [markerHaps.update({i+3:[parHaps[random.choice([0,1])], parHaps[random.choice([2,3])]]}) for i in range(numOffspring)]
+    return markerHaps
+
+def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx):
+    '''
+    if mode in ['dominant', 'recessive'], use given dVarIdx as disease variant indices for simulating the first causal haplotype, otherwise re-generate such indices if mode in ['compound_dominant', 'compound_recessive']
+    Allowed dominant parental haplotype patterns:
+    +-/--, ++/--, +-/+-
+    Allowed recessive parental haplotype patterns:
+    +-/+-, ++/+-
     '''
     causalHaps = collections.OrderedDict({})
     parentalHapCausality = [1,0,0,0] # 1 - causal; 0 - non-causal
-    if mode == 'dominant': # require at least 1 haplotype (out of 4) in parents carries variants, and haps 2,3,4 can carry vars (by maf) only on sites where hap 1 does
-        while True:
-            hap1, dVarIdx = genCausalHap(geneInfo)
-            parentalHapCausality[1] = 1 if random.random() < geneInfo['maf'][dVarIdx] else 0
-            parentalHapCausality[2] = 1 if (parentalHapCausality.count(1) <  2 and random.random() < geneInfo['maf'][dVarIdx]) else 0
-            parentalHapCausality[3] = 1 if (parentalHapCausality.count(1) <  2 and random.random() < geneInfo['maf'][dVarIdx]) else 0
-            offspringAff, offHapIdx = genOffspringAffAndHaps(mode, parentalHapCausality, numOffspring)
-            if offspringAff.count(2) >= 2:
-                # generate hap2, hap3 and hap4
-                hap2 = genOtherHap(geneInfo, [dVarIdx]) if parentalHapCausality[1] == 1 else genOtherHap(geneInfo)
-                hap3 = genOtherHap(geneInfo, [dVarIdx]) if parentalHapCausality[2] == 1 else genOtherHap(geneInfo)
-                hap4 = genOtherHap(geneInfo, [dVarIdx]) if parentalHapCausality[3] == 1 else genOtherHap(geneInfo)
-                # fill in parental and offspring causalHaps dict (1 - father; 2 - mother; 3,...,n - offspring)
-                causalHaps[1], causalHaps[2] = [hap1, hap2], [hap3, hap4]
-                parHaps = [hap1, hap2, hap3, hap4]
-                [causalHaps.update({i+3:[parHaps[j[0]], parHaps[j[1]]]}) for i,j in enumerate(offHapIdx)]
-                
-                break
+    parAff = [1,1] # 1 - unaffected; 2 - affected
+    if mode in ['compound_dominant', 'compound_recessive']:
+        # randomly choose another dVarIdx to use per family instead of using the provided one
+        dVarIdx = weightedRandomIdx(geneInfo['cumuProbs_dMaf'])
+    while True:
+        hap2, parentalHapCausality[1] = genCausalHap(geneInfo)
+        hap4, parentalHapCausality[3] = genCausalHap(geneInfo)  
+        if mode in ['dominant', 'compound_dominant']:
+            hap1, parentalHapCausality[0] = genCausalHap(geneInfo, addCausalVars=[dVarIdx])
+            hap3, parentalHapCausality[2] = genCausalHap(geneInfo)
+            # up to two '+' are allowed
+            if parentalHapCausality.count(1) > 2:
+                continue
+            parAff[0] = 2
+            parAff[1] = 2 if sum(parentalHapCausality[2:]) > 0 else 1
+        elif mode in ['recessive', 'compound_recessive']:
+            hap1, parentalHapCausality[0] = genCausalHap(geneInfo, addCausalVars=[dVarIdx])
+            hap3, parentalHapCausality[2] = genCausalHap(geneInfo, addCausalVars=[dVarIdx])
+            # up to three '+' are allowed
+            if parentalHapCausality.count(1) > 3:
+                continue
+            parAff[0] = 2 if sum(parentalHapCausality[:2]) == 2 else 1
+            parAff[1] = 2 if sum(parentalHapCausality[2:]) == 2 else 1
+        else:
+            pass
+        offspringAff, offHapIdx = genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring)
+        if offspringAff.count(2) >= 2:
+            # fill in parental and offspring causalHaps dict (1 - father; 2 - mother; 3,...,n - offspring)
+            causalHaps[1], causalHaps[2] = [hap1, hap2], [hap3, hap4]
+            parHaps = [hap1, hap2, hap3, hap4]
+            [causalHaps.update({i+3:[parHaps[j[0]], parHaps[j[1]]]}) for i,j in enumerate(offHapIdx)]
+            break
+    aff = parAff + offspringAff
+    #print dVarIdx
+    #print parentalHapCausality
+    #print offspringAff, offHapIdx
+    #if parentalHapCausality.count(1) == 2:
+    return causalHaps, aff
+        
 
-            
-    print dVarIdx
-    print parentalHapCausality
-    print offspringAff, offHapIdx
-    print causalHaps
-        
-        
-    return causalHaps
-        
-
-def genOffspringAffAndHaps(mode, parentalHapCausality, numOffspring):
+def genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring):
     hapIdx = [None] * numOffspring
     aff = [1] * numOffspring # 1 - unaffected; 2 - affected
     for idx in range(numOffspring):
@@ -254,24 +283,36 @@ def genOffspringAffAndHaps(mode, parentalHapCausality, numOffspring):
             
 
 
-def genOtherHap(geneInfo, addMutantToSites=[]):
+def genMarkerHap(geneInfo):
     hap = [0] * len(geneInfo['maf'])
     for idx in geneInfo['nd_idx']:
         if random.random() < geneInfo['maf'][idx]:
             hap[idx] = 1
-    # add mutants on given sites
-    for idx in addMutantToSites:
-        hap[idx] = 1
     return hap
   
 
-def genCausalHap(geneInfo):
+def genCausalHap(geneInfo, addCausalVars=[]):
     '''
     generate 1st parental haplotype that contains 1 disease variant
     '''
-    dVarIdx = weightedRandomIdx(geneInfo['cumuProbs_dMaf'])
-    hap = genOtherHap(geneInfo, [dVarIdx])
-    return hap, dVarIdx
+    ifCausal = False
+    hap = [0] * len(geneInfo['maf'])
+    for idx in xrange(len(geneInfo['maf'])):
+        if random.random() < geneInfo['maf'][idx]:
+            hap[idx] = 1
+    # add causal variants on given sites
+    for idx in addCausalVars:
+        hap[idx] = 1
+    if len(addCausalVars) > 0 or checkIfCausal(geneInfo['d_idx'], hap):
+        ifCausal = True
+    return hap, ifCausal
+
+
+def checkIfCausal(causalSites, hap):
+    for d_idx in causalSites:
+        if hap[d_idx] == 1:
+            return True
+    return False
 
 
 def getNumOffspring(offNumProp):
