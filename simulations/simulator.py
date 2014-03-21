@@ -7,6 +7,7 @@
 import argparse, random, tempfile, os, sys, shutil, time, glob, tarfile
 import progressbar
 import collections, csv
+import numpy as np
 
 OFF_PROP_2more = {2: 0.6314, 3: 0.2556, '4_more': 0.1130}
 OFF_PROP_2and3 = {2: 0.7118, 3: 0.2882}
@@ -95,7 +96,7 @@ def main(args):
         # write *.ped file per sample for pedigree structure info only
         writePedsToFile(samples, args.outfile+"_rep"+str(i)+".ped", pedStructOnly=True)
         # write *.vcf file per sample for variant info
-        writeVCF(samples, args.outfile+"_rep"+str(i)+".vcf")
+        writeVCF(samples, gene1, gene2, args.outfile+"_rep"+str(i)+".vcf")
         if not args.debug:
             pbar.update(i)
     if not args.debug:
@@ -108,9 +109,20 @@ def main(args):
     return
     
 
-def writeVCF(samples, fileName):
-    pass
-    
+def writeVCF(samples, gene1, gene2, fileName):
+    '''
+    write variant info to 'filename' in vcf format
+    '''
+    fi = open(fileName, 'w')
+    varInfo = np.transpose(np.array(samples)[:,6:])
+    chrInfo = gene1['chr'] + gene2['chr']
+    posInfo = gene1['pos'] + gene2['pos']
+    numVars = len(varInfo)/2
+    for idx in xrange(numVars):
+        fi.write(' '.join([str(chrInfo[idx]), 'V'+str(idx+1), str(posInfo[idx]), 'A', 'C', '.', 'PASS', '.', 'GT']) + ' ')
+        fi.write(' '.join(str(i)+'/'+str(j) for i,j in zip(varInfo[2*idx], varInfo[2*idx+1])) + '\n') 
+    fi.close()
+    return
     
 def writePedsToFile(peds, fileName, pedStructOnly=False):
     '''
@@ -180,6 +192,7 @@ def parseGeneInfo(fileName):
         rows = list(reader)
     except Exception:
         raise ValueError("Inappropriate argument value --genes")
+    info['chr'] = [int(i[0]) for i in rows]
     info['pos'] = [int(i[1]) for i in rows]
     info['maf'] = [float(i[2]) for i in rows]
     info['annotation'] = [bool(int(i[4])) for i in rows]
@@ -357,7 +370,6 @@ def weightedRandomIdx(cumuProbs):
         if randNum < p:
             return idx
     
-
 
 if __name__ == '__main__':
     master_parser = argparse.ArgumentParser(
