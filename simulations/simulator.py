@@ -21,15 +21,15 @@ GENE_2 = "SLC26A4.tsv"
 def arguments(parser):
     parser.add_argument('-g', '--genes',
                         type=str,
-                        metavar='FILE, FILE',
-                        nargs='+',
-                        default=[GENE_1, GENE_2],
+                        metavar='FILE',
+                        nargs=2,
+                        required=True,
                         help='''Specify input gene file names (gene1 gene2)
                         ''')
     parser.add_argument('-o', '--offspring',
                         type=int,
-                        metavar='INT, INT',
-                        nargs='+',
+                        metavar='INT',
+                        nargs=2,
                         default=[2,5],
                         help='''Specify a range of allowed number of offspring each parent may produce, e.g. 2 5, allowed minimum number is between 2 and 4, maximum between 5 and 10''')
     parser.add_argument('-m', '--mode',
@@ -44,19 +44,19 @@ def arguments(parser):
                         help='''Specify sample size, number of families''')
     parser.add_argument('-a', '--allelicheteroprop',
                         type=float,
-                        metavar='FLOAT, FLOAT',
-                        nargs='+',
+                        metavar='FLOAT',
+                        nargs=2,
                         default=[0.5,0.5],
-                        help='''Specify proportion of allelic heterogeneity between two genes in the sample, e.g. 0.5 0.5''')
+                        help='''Specify proportion of allelic heterogeneity between two genes in the sample (the two proportion should sum to 1.0), e.g. 0.5 0.5''')
     parser.add_argument('-r', '--numreps',
                         type=int,
                         metavar='INT',
                         default=3,
-                        help='''Specify desired number of replicates (sample size)''')
+                        help='''Specify desired number of replicates''')
     parser.add_argument('-f', '--outfile',
                         type=str,
                         default='sample',
-                        help='''Specify output file name, simulated data will be save to a *.ped file in linkage format and a *.vcf file in variant seq format''')
+                        help='''Specify output file path, simulated data will be save to a *.fam file in linkage format and a *.vcf file in variant seq format''')
     parser.add_argument('--seed',
                         type=float,
                         default=None,
@@ -93,8 +93,8 @@ def main(args):
             numOffspring = getNumOffspring(offNumProp)
             pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.allelicheteroprop, diseaseVariantIndices, familyID=j+1)
             samples.extend(pedInfo)
-        # write *.ped file per sample for pedigree structure info only
-        writePedsToFile(samples, args.outfile+"_rep"+str(i)+".ped", pedStructOnly=True)
+        # write *.fam file per sample for pedigree structure info only
+        writePedsToFile(samples, args.outfile+"_rep"+str(i)+".fam", pedStructOnly=True)
         # write *.vcf file per sample for variant info
         writeVCF(samples, gene1, gene2, args.outfile+"_rep"+str(i)+".vcf")
         if not args.debug:
@@ -119,8 +119,8 @@ def writeVCF(samples, gene1, gene2, fileName):
     posInfo = gene1['pos'] + gene2['pos']
     numVars = len(varInfo)/2
     for idx in xrange(numVars):
-        fi.write(' '.join([str(chrInfo[idx]), 'V'+str(idx+1), str(posInfo[idx]), 'A', 'C', '.', 'PASS', '.', 'GT']) + ' ')
-        fi.write(' '.join(str(i)+'/'+str(j) for i,j in zip(varInfo[2*idx], varInfo[2*idx+1])) + '\n') 
+        fi.write('\t'.join([str(chrInfo[idx]), 'V'+str(idx+1), str(posInfo[idx]), 'A', 'C', '.', 'PASS', '.', 'GT']) + '\t')
+        fi.write('\t'.join(str(i)+'/'+str(j) for i,j in zip(varInfo[2*idx], varInfo[2*idx+1])) + '\n') 
     fi.close()
     return
     
@@ -129,8 +129,6 @@ def writePedsToFile(peds, fileName, pedStructOnly=False):
     write pedigree samples to 'fileName' in linkage format,
     if 'pedStructOnly' is True, output only the first 6 columns
     '''
-    if not fileName.endswith('.ped'):
-        fileName += '.ped'
     fi = open(fileName, 'w')
     for ind_info in peds:
         if pedStructOnly:
