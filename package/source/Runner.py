@@ -43,7 +43,7 @@ def format_linkage(tpeds, tfam, prev, wild_pen, muta_pen,out_format='mlink', inh
 
 #plink format, ped and map 
 def format_plink(tped, tfam):
-    out_base = 'PLINK/' + splitext(basename(tped))[0]
+    out_base = 'PLINK/{}'.format(splitext(basename(tped))[0])
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
         geno = []
         with open(out_base + '.map', 'w') as m:
@@ -66,12 +66,12 @@ def format_plink(tped, tfam):
 #because the haplotype patterns are different from family to family.
 #You can analyze them all together
 def format_mlink(tped, tfam, prev, wild_pen, muta_pen, inherit_mode):
-    out_base = 'MLINK/' + splitext(basename(tped))[0]
+    out_base = 'MLINK/{}'.format(env.tmp_dir, splitext(basename(tped))[0])
     try:
         rmtree(out_base)
     except:
         pass
-    env.log("Start converting to mlink format for {} ...\n".format(out_base), flush=True)
+    env.log("Start converting to mlink format for {} ...\n".format(basename(out_base)), flush=True)
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
         fams = parse_tfam(tfam_fh)
         #parse per family per locus AF file
@@ -159,7 +159,7 @@ class Pedigree:
         
     def add_member(self, info, idx): #list [pid, father, mother, sex, pheno]
         if info[1] != '0' and info[2] != '0':
-            self.graph[info[1]].append(info[0]) 
+            self.graph[info[1]].append(info[0])
             self.graph[info[2]].append(info[0])
         self.data[info[0]] = info + [idx]
         
