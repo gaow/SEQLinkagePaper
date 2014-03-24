@@ -571,11 +571,13 @@ class LinkageWriter:
                 # everyone's genotype is the same (most likely missing or monomorphic)
                 return 2
             # freqs
-            cid = 0
             for k in data.maf:
+                cid = 0
                 for idx in range(data.superMarkerCount):
                     if idx in skipped_chunk:
                         continue
+                    if idx >= len(data.maf[k]):
+                        break
                     cid += 1
                     self.freq += env.delimiter.join([k, '{}[{}]'.format(self.name, cid)] + \
                                                     map(str, data.maf[k][idx])) + "\n" 
@@ -761,7 +763,7 @@ def main(args):
     tpeds = [os.path.join(env.cache_dir, item) for item in os.listdir(env.cache_dir) if item.startswith(env.output) and item.endswith('.tped')]
     for fmt in args.format:
         env.log('Saving data to directory [{}] ...'.format(fmt.upper()))
-        format_linkage(tpeds, env.outputfam, fmt, args.prevalence, args.inherit_mode)
+        format_linkage(tpeds, env.outputfam, args.prevalence, args.wild_pen, args.muta_pen, fmt, args.inherit_mode)
     if args.runner:
         env.log('Running [{}] now ...'.format(args.runner))
         run_linkage(args.runner, args.blueprint)

@@ -7,7 +7,7 @@ from collections import deque, defaultdict
 from multiprocessing import Queue, Process, cpu_count
 from os.path import splitext, basename, isdir
 from itertools import chain
-from shutil import copyfile
+from shutil import copyfile, rmtree
 from scipy.optimize import minimize_scalar
 #utils that allow lambda function in mutilprocessing map
 #grabbed from http://stackoverflow.com/a/16071616 by klaus-se
@@ -34,12 +34,12 @@ def parmap(f, X, nprocs = cpu_count()):
 
 #formatters
 #the handler, called from main, can call specific formmater.
-def format_linkage(tpeds, tfam, out_format='mlink', prev=0.001, inherit_mode='AR'):
+def format_linkage(tpeds, tfam, prev, wild_pen, muta_pen,out_format='mlink', inherit_mode='AR'):
     #pool = Pool(env.jobs)
     if out_format == 'plink':
         parmap(lambda x: format_plink(x, tfam), tpeds, env.jobs)
     elif out_format == 'mlink':
-        parmap(lambda x: format_mlink(x, tfam, prev, inherit_mode), tpeds, env.jobs)
+        parmap(lambda x: format_mlink(x, tfam, prev, wild_pen, muta_pen, inherit_mode), tpeds, env.jobs)
 
 #plink format, ped and map 
 def format_plink(tped, tfam):
@@ -65,8 +65,12 @@ def format_plink(tped, tfam):
 #per locus, per family based
 #because the haplotype patterns are different from family to family.
 #You can analyze them all together
-def format_mlink(tped, tfam, prev, inherit_mode):
+def format_mlink(tped, tfam, prev, wild_pen, muta_pen, inherit_mode):
     out_base = 'MLINK/' + splitext(basename(tped))[0]
+    try:
+        rmtree(out_base)
+    except:
+        pass
     env.log("Start converting to mlink format for {} ...\n".format(out_base), flush=True)
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
         fams = parse_tfam(tfam_fh)
@@ -81,18 +85,25 @@ def format_mlink(tped, tfam, prev, inherit_mode):
         except IOError:
             env.error('freq info not properly read for [{}]'.format(basename(out_base)))
         #parse tped
-        heter_pen = 0.01
+        heter_pen = wild_pen
         if inherit_mode == 'AD':
-            heter_pen = 0.9
+            heter_pen = muta_pen
         #else:
         #    env.error('Inheritance mode {} not implemented yet'.format(inherit_mode))
         for line in tped_fh:
             s = line.strip().split()
-            workdir = '{}/{}'.format(out_base, s[1])
-            mkpath(workdir)
+            gene, gno = re.search(r'^(\S+?)(?:\[(\d+)\])?$', s[1]).groups()
+            if not gno:
+                gno = '0'
             for fid in fams:
+                workdir = '{}/{}/{}'.format(out_base, gene, fid)
+                mkpath(workdir)
                 #env.error("fid {} num {}\n".format(fid, fams[fid].get_member_ids()))
                 fam_af = af[(fid, s[1])]
+                if not fam_af:
+                    continue
+                    #env.error('no family-wise allele freq info for {} {} {}'.format(fid, s[1], fam_af))
+                    #fam_af = ['0.1'] * gs_num
                 ids = fams[fid].get_sorted_ids()
                 idxes = map(lambda x: fams[fid].get_member_idx(x), ids)
                 gs = map(lambda x: s[2 * x + 4 : 2 * x + 6], idxes)
@@ -102,26 +113,26 @@ def format_mlink(tped, tfam, prev, inherit_mode):
                 if gs_num >= 10:
                     env.log('pattern number larger than 9 for unit {} in family {}, skipped'.format(s[1], fid))
                     continue
-                with open('{}/{}.PRE'.format(workdir, fid), 'w') as pre:
-                    if not fam_af:
-                        env.error('no family-wise allele freq info for {} {} {}'.format(fid, s[1], fam_af))
-                        fam_af = ['0.1'] * gs_num
+                with open('{}/{}.PRE'.format(workdir, gno), 'w') as pre:
                     pre.write(''.join("{} {} {} {}\n".format(fid, fams[fid].print_member(pid), s[2*fams[fid].get_member_idx(pid) + 4], s[2*fams[fid].get_member_idx(pid) + 5]) for pid in ids))
-                with open('{}/{}.LOC'.format(workdir, fid), 'w') as loc:
+                with open('{}/{}.LOC'.format(workdir, gno), 'w') as loc:
                     loc.write("2 0 0 5\n")
                     loc.write("0 0.0 0.0 0\n")
                     loc.write("1 2\n")
                     loc.write("1 2\n")
                     loc.write(" {} {}\n".format(1 - prev, prev))
                     loc.write(" 1\n")
-                    loc.write(" 0.01 {} 0.9\n".format(heter_pen))
+                    loc.write(" {} {} {}\n".format(wild_pen, heter_pen, muta_pen))
                     loc.write("3 {}\n".format(gs_num))
                     loc.write(' ' + ' '.join(fam_af) + "\n")
                     loc.write("0 0\n")
                     loc.write("0.0\n")
                     loc.write("1 0.05 0.45\n")
-            if not os.listdir(workdir):
-                env.log('empty dir [{}], deteled'.format(workdir))
+                if not os.listdir(workdir):
+                    env.log('empty dir [{}], deteled'.format(workdir))
+                    os.rmdir(workdir)
+            if not os.listdir('{}/{}'.format(out_base, gene)):
+                env.log('empty dir [{}/{}], deteled'.format(out_base, gene))
                 os.rmdir(workdir)
     tped_fh.close()
     tfam_fh.close()
@@ -227,45 +238,50 @@ def run_mlink(workdir, blueprint):
     mkpath('MLINK/heatmap')
     lods_fh = open('MLINK/heatmap/{}.lods'.format(basename(workdir)), 'w')
     hlods_fh = open('MLINK/heatmap/{}.hlods'.format(basename(workdir)), 'w')
-    for unitdir in sorted(filter(isdir, glob.glob(workdir + '/*')), key=lambda x: genemap[re.sub(r'^(\S+?)(?:\[\d+\])?$', r'\1', basename(x))] + [int(re.sub(r'^(?:\S+?)(?:\[(\d+)\])?$', r'\1', basename(x)) if re.search(r'\]$', x) else 0)]):
+    #for unitdir in sorted(filter(isdir, glob.glob(workdir + '/*')), key=lambda x: genemap[re.sub(r'^(\S+?)(?:\[\d+\])?$', r'\1', basename(x))] + [int(re.sub(r'^(?:\S+?)(?:\[(\d+)\])?$', r'\1', basename(x)) if re.search(r'\]$', x) else 0)]):
+    genes = filter(lambda g: g in genemap, map(basename, glob.glob(workdir + '/*')))
+    for gene in sorted(genes, key=lambda g: genemap[g]):
         lods = {}
         hlods = {}
-        with cd(unitdir):
-            fams = map(lambda x: re.sub(r'^(\S+?)\.PRE', r'\1', x), glob.glob('*.PRE'))
-            for fam in fams:
-                copyfile('{}.LOC'.format(fam), 'datafile.dat')
-                copyfile('{}.PRE'.format(fam), 'pedfile.pre')
-                subprocess.call(['makeped', 'pedfile.pre', 'pedfile.ped', 'n'], stdout=PNULL, stderr=PNULL)
-                subprocess.call(['pedcheck', '-p', 'pedfile.ped', '-d', 'datafile.dat', '-c'], stdout=PNULL, stderr=PNULL)
-                copyfile('zeroout.dat', 'pedfile.dat')
-                runCommand('unknown')
-                runCommand('mlink')
-                copyfile('outfile.dat', '{}.out'.format(fam))        
-                #clean mlink tmp files
-                for f in set(glob.glob('*.dat') + glob.glob('ped*') + ['names.tmp']):
-                    os.remove(f)
-                #collect lod scores of different thelta for the fam
-                with open('{}.out'.format(fam)) as out:
-                    raw = out.read()
-                    for i in re.finditer(r'^THETAS\s+(0\.\d+)(?:\n.+?){7}LOD SCORE =\s+(-?\d+\.\d+)', raw, re.MULTILINE):
-                        theta, lod = map(float, i.group(1,2))
-                        if theta not in lods:
-                            lods[theta] = [lod]
-                        else:
-                            lods[theta].append(lod)
+        fams = map(basename, filter(isdir, glob.glob('{}/{}/*'.format(workdir, gene))))
+        for fam in fams:
+            with cd('{}/{}/{}'.format(workdir, gene, fam)):
+                units = map(lambda x: re.sub(r'^(\d+?)\.PRE$', r'\1', x) ,glob.glob('*.PRE'))
+                for unit in units:
+                    copyfile('{}.LOC'.format(unit), 'datafile.dat')
+                    copyfile('{}.PRE'.format(unit), 'pedfile.pre')
+                    subprocess.call(['makeped', 'pedfile.pre', 'pedfile.ped', 'n'], stdout=PNULL, stderr=PNULL)
+                    subprocess.call(['pedcheck', '-p', 'pedfile.ped', '-d', 'datafile.dat', '-c'], stdout=PNULL, stderr=PNULL)
+                    copyfile('zeroout.dat', 'pedfile.dat')
+                    runCommand('unknown')
+                    runCommand('mlink')
+                    copyfile('outfile.dat', '{}.out'.format(unit))        
+                    #clean mlink tmp files
+                    for f in set(glob.glob('*.dat') + glob.glob('ped*') + ['names.tmp']):
+                        os.remove(f)
+                    #collect lod scores of different thelta for the fam
+                    with open('{}.out'.format(unit)) as out:
+                        raw = out.read()
+                        for i in re.finditer(r'^THETAS\s+(0\.\d+)(?:\n.+?){7}LOD SCORE =\s+(-?\d+\.\d+)', raw, re.MULTILINE):
+                            theta, lod = map(float, i.group(1,2))
+                            if theta not in lods:
+                                lods[theta] = {fam: lod}
+                            elif fam not in lods[theta] or lod > lods[theta][fam]:
+                                lods[theta][fam] = lod
         for theta in sorted(lods.keys()):
-            res = minimize_scalar(hlod_fun(lods[theta], -1), bounds=(0,1), method='bounded', options={'xtol':1e-8})
+            res = minimize_scalar(hlod_fun(lods[theta].values(), -1), bounds=(0,1), method='bounded', options={'xtol':1e-8})
             a = res.x
-            lods_fh.write('{} {} {}\n'.format(basename(unitdir), theta, sum(lods[theta])))
-            hlods_fh.write('{} {} {} {}\n'.format(basename(unitdir), theta, a, hlod_fun(lods[theta])(a)))
+            lods_fh.write('{} {} {}\n'.format(gene, theta, sum(lods[theta].values())))
+            hlods_fh.write('{} {} {} {}\n'.format(gene, theta, a, hlod_fun(lods[theta].values())(a)))
     PNULL.close()
     lods_fh.close()
+    hlods_fh.close()
     heatmap('MLINK/heatmap/{}.lods'.format(basename(workdir)))
     heatmap('MLINK/heatmap/{}.hlods'.format(basename(workdir)))
     env.log("Finished running mlink for {}.".format(workdir), flush=True)
     
 def heatmap(file):
-    env.log("Start ploting heatmap for {} ...".format(file), flush=True)
+    env.log("Start ploting heatmap for {} ...\n".format(file), flush=True)
     lods = []
     with open(file, 'r') as f:
         for line in f.readlines():
@@ -275,7 +291,7 @@ def heatmap(file):
         ppl.pcolormesh(lods)
         plt.savefig('{}.png'.format(file))
         plt.close()
-    env.log("Finished ploting heatmap for {}.".format(file), flush=True)
+    env.log("Finished ploting heatmap for {}.\n".format(file), flush=True)
 
 def plotMlink():
     chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']

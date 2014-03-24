@@ -62,8 +62,12 @@ class Args:
         vargs.add_argument('--moi', metavar='STRING', dest = "inherit_mode",
                            choices=['AD', 'AR', 'Xlinked', 'Y'],
                            help='Mode of inheritance, AD/AR: autosome dominant/recessive.')
-        vargs.add_argument('--prevalence', metavar='FLOAT', type=float, default=.001,
+        vargs.add_argument('--prevalence', metavar='FLOAT', type=float, default=.01,
                            help='Disease prevalence.')
+        vargs.add_argument('--wild_pen', metavar='FLOAT', type=float,
+                           help='Penetrance for wild type')
+        vargs.add_argument('--muta_pen', metavar='FLOAT', type=float,
+                           help='Penetrance for mutation')
         
 if __name__ == '__main__':
     # check platform
