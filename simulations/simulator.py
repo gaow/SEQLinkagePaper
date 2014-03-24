@@ -373,7 +373,7 @@ if __name__ == '__main__':
     master_parser = argparse.ArgumentParser(
         description = '''Program to generate two generational family samples with two gene regions''',
         prog = 'simSEQLinco',
-        epilog = '''Biao Li (biaol@bcm.edu) and Hang Dai (hang.dai@bcm.edu) (c) 2014.'''
+        epilog = '''Biao Li (biaol@bcm.edu) (c) 2014.'''
     )
     master_parser.add_argument('--version,', action='version', version='%(prog)s 0.1.0')
     arguments(master_parser)
