@@ -331,7 +331,7 @@ def html(theta_inc, theta_max, limit):
     <a href="#" onclick="toggle(\'hlods_heatmap\')">Hlod scores heatmap</a>
     <div id="hlods_heatmap">{}</div>
     </html>"""
-    colNum = theta_max/theta_inc + 1
+    colNum = int(theta_max/theta_inc + 1)
     thetas = np.array(range(colNum))*theta_inc
     #table
     table = '<table style="width:600px">{}</table>'
