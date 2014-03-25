@@ -763,7 +763,7 @@ def main(args):
     tpeds = [os.path.join(env.cache_dir, item) for item in os.listdir(env.cache_dir) if item.startswith(env.output) and item.endswith('.tped')]
     for fmt in args.format:
         env.log('Saving data to directory [{}] ...'.format(fmt.upper()))
-        format_linkage(tpeds, env.outputfam, args.prevalence, args.wild_pen, args.muta_pen, fmt, args.inherit_mode)
+        format_linkage(tpeds, env.outputfam, args.prevalence, args.wild_pen, args.muta_pen, fmt, args.inherit_mode, args.theta_max, args.theta_inc)
     if args.runner:
         env.log('Running [{}] now ...'.format(args.runner))
         run_linkage(args.runner, args.blueprint)

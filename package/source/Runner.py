@@ -34,16 +34,16 @@ def parmap(f, X, nprocs = cpu_count()):
 
 #formatters
 #the handler, called from main, can call specific formmater.
-def format_linkage(tpeds, tfam, prev, wild_pen, muta_pen,out_format='mlink', inherit_mode='AR'):
+def format_linkage(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, theta_max, theta_inc):
     #pool = Pool(env.jobs)
     if out_format == 'plink':
         parmap(lambda x: format_plink(x, tfam), tpeds, env.jobs)
     elif out_format == 'mlink':
-        parmap(lambda x: format_mlink(x, tfam, prev, wild_pen, muta_pen, inherit_mode), tpeds, env.jobs)
+        parmap(lambda x: format_mlink(x, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc), tpeds, env.jobs)
 
 #plink format, ped and map 
 def format_plink(tped, tfam):
-    out_base = 'PLINK/{}'.format(splitext(basename(tped))[0])
+    out_base = '{}/PLINK/{}'.format(env.output, splitext(basename(tped))[0])
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
         geno = []
         with open(out_base + '.map', 'w') as m:
@@ -65,8 +65,8 @@ def format_plink(tped, tfam):
 #per locus, per family based
 #because the haplotype patterns are different from family to family.
 #You can analyze them all together
-def format_mlink(tped, tfam, prev, wild_pen, muta_pen, inherit_mode):
-    out_base = 'MLINK/{}'.format(env.tmp_dir, splitext(basename(tped))[0])
+def format_mlink(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc):
+    out_base = '{}/MLINK/{}'.format(env.output, splitext(basename(tped))[0])
     try:
         rmtree(out_base)
     except:
@@ -127,7 +127,7 @@ def format_mlink(tped, tfam, prev, wild_pen, muta_pen, inherit_mode):
                     loc.write(' ' + ' '.join(fam_af) + "\n")
                     loc.write("0 0\n")
                     loc.write("0.0\n")
-                    loc.write("1 0.05 0.45\n")
+                    loc.write("1 {} {}\n".format(theta_inc, theta_max))
                 if not os.listdir(workdir):
                     env.log('empty dir [{}], deteled'.format(workdir))
                     os.rmdir(workdir)
@@ -220,7 +220,7 @@ def run_linkage(runner, blueprint):
     #cmds = ['runMlink.pl MLINK/{}.{} {} {}'.format(env.output, chrs[i], env.resource_dir, blueprint) for i in range(25)]
     #runCommands(cmds, max(min(env.jobs, cmds), 1))
     if runner == 'mlink':
-        workdirs = glob.glob('MLINK/{}.chr*'.format(env.output))
+        workdirs = glob.glob('{0}/MLINK/{0}.chr*'.format(env.output))
         parmap(lambda x: run_mlink(x, blueprint) , workdirs, env.jobs)
     
 def run_mlink(workdir, blueprint):
@@ -235,9 +235,9 @@ def run_mlink(workdir, blueprint):
     #We couldn't find GENENAME[\d+] in the genemap, we have to look up the original name,
     #and when we sort them, suffixes if exist should be added properly.
     PNULL = open(os.devnull, 'w')
-    mkpath('MLINK/heatmap')
-    lods_fh = open('MLINK/heatmap/{}.lods'.format(basename(workdir)), 'w')
-    hlods_fh = open('MLINK/heatmap/{}.hlods'.format(basename(workdir)), 'w')
+    mkpath('{}/heatmap'.format(env.output))
+    lods_fh = open('{}/heatmap/{}.lods'.format(env.output, basename(workdir)), 'w')
+    hlods_fh = open('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)), 'w')
     #for unitdir in sorted(filter(isdir, glob.glob(workdir + '/*')), key=lambda x: genemap[re.sub(r'^(\S+?)(?:\[\d+\])?$', r'\1', basename(x))] + [int(re.sub(r'^(?:\S+?)(?:\[(\d+)\])?$', r'\1', basename(x)) if re.search(r'\]$', x) else 0)]):
     genes = filter(lambda g: g in genemap, map(basename, glob.glob(workdir + '/*')))
     for gene in sorted(genes, key=lambda g: genemap[g]):
@@ -276,8 +276,8 @@ def run_mlink(workdir, blueprint):
     PNULL.close()
     lods_fh.close()
     hlods_fh.close()
-    heatmap('MLINK/heatmap/{}.lods'.format(basename(workdir)))
-    heatmap('MLINK/heatmap/{}.hlods'.format(basename(workdir)))
+    heatmap('{}/heatmap/{}.lods'.format(env.output, basename(workdir)))
+    heatmap('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)))
     env.log("Finished running mlink for {}.".format(workdir), flush=True)
     
 def heatmap(file):
@@ -293,14 +293,42 @@ def heatmap(file):
         plt.close()
     env.log("Finished ploting heatmap for {}.\n".format(file), flush=True)
 
-def plotMlink():
-    chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
-    dirs = filter(lambda x: os.path.exists(x), ['MLINK/{}.{}'.format(env.output, i) for i in chrs])
-    mkpath('MLINK/heatmap')
-    pool = Pool(env.jobs)
-    pool.map(heatmap, dirs)
-
 def hlod_fun(Li, sign=1):
     def _fun(alpha):
         return sign * sum(np.log10(alpha*np.power(10, Li) + 1 - alpha))
     return _fun 
+
+def html():
+    template = '<html>
+    <head>
+    <title>Results for __env.output__</title>
+    <script type="text/javascript">
+      function toggle(obj) {
+        var elstyle = document.getElementById(obj).style;
+        var text    = document.getElementById(obj + "tog");
+        if (elstyle.display == \'none\') {
+          elstyle.display = \'block\';
+          text.innerHTML = "hide";
+        } else {
+          elstyle.display = \'none\';
+          text.innerHTML = "show";
+        }
+      }</script>
+    </head>
+    <a href="#" onclick="toggle(\'lods_tbl\')">Ranked lod scores</a>
+    <div id="lods_tbl" class="divinfo">{}</div>
+    <a href="#" onclick="toggle(\'hlods_tbl\')">Ranked Hlod scores</a>
+    <div id="hlods_tbl" class="divinfo">{}</div>
+    <a href="#" onclick="toggle(\'lods_heatmap\')">Lod scores heatmap</a>
+    <div id="lods_heatmap">{}</div>
+    <a href="#" onclick="toggle(\'hlods_heatmap\')">Hlod scores heatmap</a>
+    <div id="hlods_heatmap">{}</div>
+    </html>'
+    #read lods, and sort by theta
+    lods_files = glob.glob('{0}/heatmap/{0}.*.lods'.format(env.output))
+    lods = {}
+    for file in lods_files:
+        with open(file, 'r') as f:
+            for line in f:
+                
+    template.format(lods_tbl, hlods_tbl, )
