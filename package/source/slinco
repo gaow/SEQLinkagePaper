@@ -72,6 +72,8 @@ class Args:
                            help='Maximum theta for Mlink')
         vargs.add_argument('--theta-inc', metavar='FLOAT', type=float, dest = "theta_inc", default = 0.05,
                            help='Theta increament for Mlink')
+        vargs.add_argument('--output-limit', metavar='Num', type=int, dest = "output_limit", default = 10,
+                           help='Show [Num] highest lod scores in the output table')
         
 if __name__ == '__main__':
     # check platform

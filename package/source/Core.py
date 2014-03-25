@@ -767,6 +767,7 @@ def main(args):
     if args.runner:
         env.log('Running [{}] now ...'.format(args.runner))
         run_linkage(args.runner, args.blueprint)
+        html(args.theta_inc, args.theta_max, args.output_limit)
 
     #if 'plink' in args.format:
     #    env.log('Saving data to directory [PLINK] ...')

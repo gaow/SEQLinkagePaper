@@ -271,8 +271,8 @@ def run_mlink(workdir, blueprint):
         for theta in sorted(lods.keys()):
             res = minimize_scalar(hlod_fun(lods[theta].values(), -1), bounds=(0,1), method='bounded', options={'xtol':1e-8})
             a = res.x
-            lods_fh.write('{} {} {}\n'.format(gene, theta, sum(lods[theta].values())))
-            hlods_fh.write('{} {} {} {}\n'.format(gene, theta, a, hlod_fun(lods[theta].values())(a)))
+            lods_fh.write('{} {} {} {}\n'.format(gene, ' '.join(map(str, genemap[gene])), theta, sum(lods[theta].values())))
+            hlods_fh.write('{} {} {} {}\n'.format(gene, ' '.join(map(str, genemap[gene])), theta, a, hlod_fun(lods[theta].values())(a)))
     PNULL.close()
     lods_fh.close()
     hlods_fh.close()
@@ -298,22 +298,29 @@ def hlod_fun(Li, sign=1):
         return sign * sum(np.log10(alpha*np.power(10, Li) + 1 - alpha))
     return _fun 
 
-def html():
-    template = '<html>
+def html(theta_inc, theta_max, limit):
+    index = """<html>
     <head>
     <title>Results for __env.output__</title>
+    <style>
+    table,th,td
+    {
+    border:1px solid black;
+    border-collapse:collapse;
+    }
+    </style>
     <script type="text/javascript">
-      function toggle(obj) {
-        var elstyle = document.getElementById(obj).style;
-        var text    = document.getElementById(obj + "tog");
-        if (elstyle.display == \'none\') {
-          elstyle.display = \'block\';
-          text.innerHTML = "hide";
-        } else {
-          elstyle.display = \'none\';
-          text.innerHTML = "show";
-        }
-      }</script>
+    function toggle(obj) {
+    var elstyle = document.getElementById(obj).style;
+    var text    = document.getElementById(obj + "tog");
+    if (elstyle.display == \'none\') {
+    elstyle.display = \'block\';
+    text.innerHTML = "hide";
+    } else {
+    elstyle.display = \'none\';
+    text.innerHTML = "show";
+    }
+    }</script>
     </head>
     <a href="#" onclick="toggle(\'lods_tbl\')">Ranked lod scores</a>
     <div id="lods_tbl" class="divinfo">{}</div>
@@ -323,12 +330,40 @@ def html():
     <div id="lods_heatmap">{}</div>
     <a href="#" onclick="toggle(\'hlods_heatmap\')">Hlod scores heatmap</a>
     <div id="hlods_heatmap">{}</div>
-    </html>'
-    #read lods, and sort by theta
-    lods_files = glob.glob('{0}/heatmap/{0}.*.lods'.format(env.output))
+    </html>"""
+    colNum = theta_max/theta_inc + 1
+    thetas = np.array(range(colNum))*theta_inc
+    #table
+    table = '<table style="width:600px">{}</table>'
+    #table header
+    lods_header = '<tr>{}</tr>'.format(''.join('<th colspan="2">Theta:{}</td>'.format(x) for x in thetas))
+    lods_header += '<tr>{}</tr>'.format('<th rowspan="2">Lod</th><th>Gene</th>' * colNum)
+    lods_header += '<tr>{}</tr>'.format('<th>chr:start-end</th>' * colNum)
+    #initialize lods dict
     lods = {}
+    for theta in thetas:
+        lods[theta] = {}
+    #read lods
+    lods_files = glob.glob('{0}/heatmap/{0}.*.lods'.format(env.output))
     for file in lods_files:
         with open(file, 'r') as f:
             for line in f:
-                
-    template.format(lods_tbl, hlods_tbl, )
+                gene, chrId, start, end, theta, lod = line.strip().split()
+                lods[float(theta)][gene] = [float(lod), gene, chrId, start, end]
+    #collect result
+    res = {}
+    for theta in thetas:
+        i=0
+        for gene in sorted(lods[theta].keys(), key=lambda x: lods[theta][x][0], reverse=True):
+            res[theta,i] = lods[theta][gene]
+            if i >= limit:
+                break     
+            i += 1
+    #write lods table
+    lods_res = ''
+    for i in range(limit):
+        lods_res += '<tr></tr>'.format(''.join('<td rowspan="2">{}</td><td>{}</td>'.format(res[theta,i][0],res[theta,i][1]) for theta in thetas))
+        lods_res += '<tr></tr>'.format(''.join('<td>{}:{}-{}</td>'.format(res[theta,i][2],res[theta,i][3],res[theta,i][4]) for theta in thetas))
+    lods_tbl = table.format(lods_header + lods_res)
+    template.format(lods_tbl, lods_tbl, lods_tbl, lods_tbl)
+    
