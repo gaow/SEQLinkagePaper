@@ -319,7 +319,7 @@ class RData(dict):
             pos = []
             mafs = []
             for idx in self.famvaridx[fam]:
-                names.append("V{}".format(idx))
+                names.append("V{}-{}".format(idx, self.variants[idx][1]))
                 pos.append(self.variants[idx][1])
                 mafs.append(self.variants[idx][-1])
             return names, pos, mafs
