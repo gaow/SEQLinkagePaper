@@ -6,6 +6,7 @@ import sys, os, subprocess, shutil, glob, shlex, urlparse, re, hashlib, tarfile,
 from cStringIO import StringIO
 from contextlib import contextmanager
 from multiprocessing import Pool, Process, Queue, Lock, Value
+from collections import defaultdict
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -308,6 +309,23 @@ def wordCount(filename):
                    word_count[word] += 1
     return word_count
 
+def connected_components(lists):
+    neighbors = defaultdict(set)
+    seen = set()
+    for each in lists:
+        for item in each:
+            neighbors[item].update(each)
+    def component(node, neighbors=neighbors, seen=seen, see=seen.add):
+        nodes = set([node])
+        next_node = nodes.pop
+        while nodes:
+            node = next_node()
+            see(node)
+            nodes |= neighbors[node] - seen
+            yield node
+    for node in neighbors:
+        if node not in seen:
+            yield sorted(component(node))
 
 def parseVCFline(line, exclude = []):
     if len(line) == 0:

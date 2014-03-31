@@ -9,6 +9,7 @@ from collections import Counter, OrderedDict, defaultdict
 import itertools
 from copy import deepcopy
 import sys, faulthandler
+from egglib import Align
 
 if sys.version_info.major == 2:
     from cstatgen import cstatgen_py2 as cstatgen
@@ -31,15 +32,15 @@ def rewriteFamfile(tfam, samples, keys):
 
 def checkSamples(samp1, samp2):
     '''check if two sample lists agree
-    1. samples in TFAM but not in VCF --> ERROR
-    2. samples in VCF but not in TFAM --> give a message'''
+    1. samples in FAM but not in VCF --> ERROR
+    2. samples in VCF but not in FAM --> give a message'''
     a_not_b = list(set(samp1).difference(set(samp2)))
     b_not_a = list(set(samp2).difference(set(samp1)))
     if b_not_a:
-        env.log('{:,d} samples found in TFAM file but not in VCF file:\n{}'.\
+        env.log('{:,d} samples found in FAM file but not in VCF file:\n{}'.\
                            format(len(b_not_a), '\n'.join(b_not_a)))
     if a_not_b:
-        env.log('{:,d} samples in VCF file will be ignored due to absence in TFAM file'.format(len(a_not_b)))
+        env.log('{:,d} samples in VCF file will be ignored due to absence in FAM file'.format(len(a_not_b)))
     return a_not_b, b_not_a
 
 def loadMap(maps):
@@ -136,7 +137,7 @@ class TFAMParser:
         return self.samples[sid][2], self.samples[sid][3]
 
     def add_member(self, info):
-        '''member is one line of TFAM file, [fid, sid, pid, mid, sex, pheno]'''
+        '''member is one line of FAM file, [fid, sid, pid, mid, sex, pheno]'''
         self.samples[info[1]] = info
         self.families_sorted[info[0]] = []
         if info[0] not in self.families:
@@ -419,6 +420,10 @@ class MarkerMaker:
         self.missings = ("0", "0")
         self.gtconv = {'1':0, '2':1}
         self.haplotyper = cstatgen.HaplotypingEngine(verbose = env.debug)
+        if wsize == 0 or wsize >= 1:
+            self.r2 = None
+        else:
+            self.r2 = wsize
         self.coder = cstatgen.HaplotypeCoder(wsize)
 
     def apply(self, data):
@@ -430,8 +435,10 @@ class MarkerMaker:
             # haplotyping plus collect found allele counts
             # and computer founder MAFS
             self.__Haplotype(data, haplotypes, mafs, varnames)
+            # calculate LD clusters using founder haplotypes
+            clusters = self.__ClusterByLD(data, haplotypes, varnames)
             # recoding the genotype of the region
-            self.__CodeHaplotypes(data, haplotypes, mafs, varnames)
+            self.__CodeHaplotypes(data, haplotypes, mafs, varnames, clusters)
         except Exception as e:
             raise
             return -1
@@ -492,8 +499,40 @@ class MarkerMaker:
             with env.lock:
                 print("variant mafs = ", mafs, "\n", file = sys.stderr)
 
-    def __CodeHaplotypes(self, data, haplotypes, mafs, varnames):
-        self.coder.Execute(haplotypes.values(), [[mafs[v] for v in varnames[item]] for item in haplotypes])
+
+    def __ClusterByLD(self, data, haplotypes, varnames):
+        if self.r2 is None:
+            return None
+        # get founder haplotypes
+        founder_haplotypes = []
+        markers = ["V{}-{}".format(idx, item[1]) for idx, item in enumerate(data.variants)]
+        for item in haplotypes:
+            for ihap, hap in enumerate(haplotypes[item]):
+                if not data.tfam.is_founder(hap[1]):
+                    continue
+                gt = [hap[2 + varnames[item].index(v)] if v in varnames[item] else '?' for v in markers]
+                founder_haplotypes.append(("{}-{}".format(hap[1], ihap % 2), "".join([x[1] if x[0].isupper() else x[0] for x in gt])))
+        # calculate LD blocks, use r2 measure
+        ld = Align.create(founder_haplotypes).matrixLD(validCharacters="12")["r2"]
+        blocks = []
+        for j in ld:
+            block = [j]
+            for k in ld[j]:
+                if ld[j][k] > self.r2:
+                    block.append(k)
+            if len(block) > 1:
+                blocks.append(block)
+        # get LD clusters
+        return [[markers[idx] for idx in item] for item in list(connected_components(blocks))]
+        
+
+    def __CodeHaplotypes(self, data, haplotypes, mafs, varnames, clusters):
+        # apply CHP coding
+        if clusters is not None:
+            clusters_idx = [[[varnames[item].index(x) for x in y] for y in clusters] for item in haplotypes]
+        else:
+            clusters_idx = [[[]] for item in haplotypes]
+        self.coder.Execute(haplotypes.values(), [[mafs[v] for v in varnames[item]] for item in haplotypes], clusters_idx)
         if env.debug:
             with env.lock:
                 self.coder.Print()

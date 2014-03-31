@@ -27,9 +27,10 @@ class Args:
 
     def getEncoderArguments(self, parser):
         vargs = parser.add_argument_group('Encoder arguments')
-        vargs.add_argument('--size', default = 1, type = int,
-                           help='''Number of variants to collapse into a bin. Set to 0 to collapse
-        all variants into one bin. Default to 1 (1 variant per bin).''')
+        vargs.add_argument('--size', default = 0.8, type = float,
+                           help='''Defines theme to collapse variants. Set to 0 for "complete collapsing",
+        1 for "no collapsing", r2 between 0 and 1 for "LD based collapsing" and other integer values for customized
+        collapsing window sizes. Default to 0.8 (variants having r2 >= 0.8 will be collapsed).''')
         vargs.add_argument('--blueprint', metavar = 'FILE',
                            help='''Blueprint file for super marker
         (format: "chr startpos endpos name distance").''')
