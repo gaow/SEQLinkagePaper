@@ -53,6 +53,7 @@ class Environment:
         self.chperror_counter = Value('i',0)
         self.variants_counter = Value('i',0)
         self.triallelic_counter = Value('i',0)
+        self.commonvar_counter = Value('i',0)
         self.mendelerror_counter = Value('i',0)
         self.recomb_counter = Value('i',0)
 
@@ -327,6 +328,9 @@ def connected_components(lists):
         if node not in seen:
             yield sorted(component(node))
 
+def listit(t):
+    return list(map(listit, t)) if isinstance(t, (list, tuple)) else t
+            
 def parseVCFline(line, exclude = []):
     if len(line) == 0:
         return None

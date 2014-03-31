@@ -9,12 +9,12 @@ from collections import Counter, OrderedDict, defaultdict
 import itertools
 from copy import deepcopy
 import sys, faulthandler
-from egglib import Align
 
 if sys.version_info.major == 2:
     from cstatgen import cstatgen_py2 as cstatgen
 else:
     from cstatgen import cstatgen_py3 as cstatgen
+from cstatgen.egglib import Align
 
 def checkVCFBundle(vcf):
     '''VCF bundle should have a .gz file and a tabix file'''
@@ -416,7 +416,7 @@ class RegionExtractor:
 
     
 class MarkerMaker:
-    def __init__(self, wsize):
+    def __init__(self, wsize, maf_cutoff = None):
         self.missings = ("0", "0")
         self.gtconv = {'1':0, '2':1}
         self.haplotyper = cstatgen.HaplotypingEngine(verbose = env.debug)
@@ -425,6 +425,7 @@ class MarkerMaker:
         else:
             self.r2 = wsize
         self.coder = cstatgen.HaplotypeCoder(wsize)
+        self.maf_cutoff = maf_cutoff
 
     def apply(self, data):
         # temp raw haplotype, maf and variant names data
@@ -435,10 +436,11 @@ class MarkerMaker:
             # haplotyping plus collect found allele counts
             # and computer founder MAFS
             self.__Haplotype(data, haplotypes, mafs, varnames)
-            # calculate LD clusters using founder haplotypes
-            clusters = self.__ClusterByLD(data, haplotypes, varnames)
-            # recoding the genotype of the region
-            self.__CodeHaplotypes(data, haplotypes, mafs, varnames, clusters)
+            if len(varnames):
+                # calculate LD clusters using founder haplotypes
+                clusters = self.__ClusterByLD(data, haplotypes, varnames)
+                # recoding the genotype of the region
+                self.__CodeHaplotypes(data, haplotypes, mafs, varnames, clusters)
         except Exception as e:
             raise
             return -1
@@ -452,6 +454,7 @@ class MarkerMaker:
         #
         # Per family haplotyping
         #
+        self.markers = ["V{}-{}".format(idx, item[1]) for idx, item in enumerate(data.variants)]
         for item in data.families:
             varnames[item], positions, vcf_mafs = data.getFamVariants(item, style = "map")
             if len(varnames[item]) == 0:
@@ -498,6 +501,29 @@ class MarkerMaker:
         if env.debug:
             with env.lock:
                 print("variant mafs = ", mafs, "\n", file = sys.stderr)
+        #
+        # Drop some variants if maf is greater than given threshold 
+        #
+        if self.maf_cutoff is not None:
+            exclude_vars = []
+            for v in mafs.keys():
+                if mafs[v] > self.maf_cutoff:
+                    exclude_vars.append(v)
+            for i in haplotypes.keys():
+                haplotypes[i] = listit(haplotypes[i])
+                for j in range(len(haplotypes[i])):
+                    haplotypes[i][j] = haplotypes[i][j][:2] + \
+                      [x for idx, x in enumerate(haplotypes[i][j][2:]) if varnames[i][idx] not in exclude_vars]
+                varnames[i] = [x for x in varnames[i] if x not in exclude_vars]
+                # handle trivial data
+                if len(varnames[i]) == 0:
+                    for person in data.families[i]:
+                        data[person] = self.missings
+                    del varnames[i]
+                    del haplotypes[i]
+            # count how many variants are removed
+            with env.commonvar_counter.get_lock():
+                env.commonvar_counter.value += len(exclude_vars)
 
 
     def __ClusterByLD(self, data, haplotypes, varnames):
@@ -505,7 +531,7 @@ class MarkerMaker:
             return None
         # get founder haplotypes
         founder_haplotypes = []
-        markers = ["V{}-{}".format(idx, item[1]) for idx, item in enumerate(data.variants)]
+        markers = sorted(set(itertools.chain(*varnames.values())), key = lambda x: int(x.split("-")[0][1:]))
         for item in haplotypes:
             for ihap, hap in enumerate(haplotypes[item]):
                 if not data.tfam.is_founder(hap[1]):
@@ -757,7 +783,7 @@ def main(args):
             jobs = [EncoderWorker(
                 queue, len(regions), deepcopy(data),
                 RegionExtractor(args.vcf, chr_prefix = args.chr_prefix, allele_freq_info = args.freq),
-                MarkerMaker(args.size),
+                MarkerMaker(args.size, args.maf_cutoff),
                 LinkageWriter(len(samples_not_vcf))
                 ) for i in range(env.jobs)]
             for j in jobs:
@@ -777,6 +803,9 @@ def main(args):
                        env.recomb_counter.value), flush = True)
             if env.triallelic_counter.value:
                 env.log('{:,d} tri-allelic loci were ignored'.format(env.triallelic_counter.value))
+            if env.commonvar_counter.value:
+                env.log('{:,d} variants ignored due to having MAF > {}'.\
+                        format(env.commonvar_counter.value, args.maf_cutoff))
             if env.null_counter.value:
                 env.log('{:,d} units ignored due to absence in VCF file'.format(env.null_counter.value))
             if env.trivial_counter.value:

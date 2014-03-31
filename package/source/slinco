@@ -41,8 +41,10 @@ class Args:
                            help='''Input pedigree and phenotype information in TFAM format.''')
         vargs.add_argument('--vcf', metavar='FILE', required=True, help='''Input VCF file, bgzipped.''')
         vargs.add_argument('--freq', metavar='FILE', help='''Info field name for allele frequency in VCF file.''')
+        vargs.add_argument('--maf-threshold', metavar='P', type=float, dest = "maf_cutoff",
+                           help='''MAF threshold to define "common" variants to be excluded from recoding.''')
         vargs.add_argument('--chrom-prefix', metavar='STRING', dest = 'chr_prefix',
-                           help='''Prefix to chromosome name in VCF file if applicable, e.g., "chr".''')
+                           help='''Prefix to chromosome name in VCF file if applicable, e.g. "chr".''')
         vargs.add_argument('-o', '--output', metavar='FILE', help='''Output file name prefix.''')
         vargs.add_argument('--format', metavar = 'FORMAT', nargs='*', default=['mlink'],
                            help='''Output format, choose from {} (multiple choices allowed).
