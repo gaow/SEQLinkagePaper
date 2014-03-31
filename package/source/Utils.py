@@ -39,7 +39,6 @@ class Environment:
         self.output = 'LINKAGE'
         self.outputfam = os.path.join(self.cache_dir, '{}.tfam'.format(self.output))
         self.tmp_log = os.path.join(self.tmp_dir, self.output)
-        self.runner = False
         # Multiprocessing counters
         self.batch = 50
         self.lock = Lock()
@@ -374,10 +373,10 @@ def checkParams(args):
     if not args.blueprint:
         args.blueprint = os.path.join(env.resource_dir, 'genemap.txt')
     args.format = [x.lower() for x in set(args.format)]
-    if not None in [args.inherit_mode, args.prevalence, args.wild_pen, args.muta_pen]:
-        env.runner = True
-        if "linkage" not in args.format:
-            args.format.append('linkage')
+    if args.run_linkage and "linkage" not in args.format:
+        args.format.append('linkage')
+    if None in [args.inherit_mode, args.prevalence, args.wild_pen, args.muta_pen] and "linkage" in args.format:
+        env.error('To generate LINKAGE format or run LINKAGE analysis, please specify all options below:\n\t--prevalence, -K\n\t--moi\n\t--wild-pen, -W\n\t--muta-pen, -M', show_help = True, exit = True)
     return True
 
 ###
@@ -401,5 +400,3 @@ def extractSamplenames(vcf):
     if not samples:
         env.error("Fail to extract samples from [{}]".format(vcf), exit = True)
     return samples
-
-

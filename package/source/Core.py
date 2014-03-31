@@ -828,12 +828,10 @@ def main(args):
     for fmt in args.format:
         env.log('Saving data to directory [{}] ...'.format(fmt.upper()))
         format(tpeds, env.outputfam, args.prevalence, args.wild_pen, args.muta_pen, fmt, args.inherit_mode, args.theta_max, args.theta_inc)
-    if env.runner:
+    if args.run_linkage:
         env.log('Running LINKAGE now ...')
         run_linkage(args.blueprint, args.theta_inc, args.theta_max)
         html(args.theta_inc, args.theta_max, args.output_limit)
-    else:
-        env.log('To perform linkage analysis, please specify all options below:\n--prevalence/--moi/--wild-pen/--muta-pen')
 
     #if 'plink' in args.format:
     #    env.log('Saving data to directory [PLINK] ...')

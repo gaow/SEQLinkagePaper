@@ -59,21 +59,23 @@ class Args:
         vargs.add_argument('--debug', action='store_true', help=SUPPRESS)
 
     def getLinkageArguments(self, parser):
-        vargs = parser.add_argument_group('Linkage analysis options')
-        vargs.add_argument('--prevalence', metavar='FLOAT', type=float,
+        vargs = parser.add_argument_group('LINKAGE options')
+        vargs.add_argument('-K', '--prevalence', metavar='FLOAT', type=float,
                            help='Disease prevalence.')
         vargs.add_argument('--moi', metavar='STRING', dest = "inherit_mode",
                            # choices=['AD', 'AR', 'Xlinked', 'Y'],
                            choices=['AD', 'AR'],
                            help='Mode of inheritance, AD/AR: autosome dominant/recessive.')
-        vargs.add_argument('--wild-pen', metavar='FLOAT', type=float, dest = "wild_pen",
+        vargs.add_argument('-W', '--wild-pen', metavar='FLOAT', type=float, dest = "wild_pen",
                            help='Penetrance for wild type.')
-        vargs.add_argument('--muta-pen', metavar='FLOAT', type=float, dest = "muta_pen",
+        vargs.add_argument('-M', '--muta-pen', metavar='FLOAT', type=float, dest = "muta_pen",
                            help='Penetrance for mutation.')
         vargs.add_argument('--theta-max', metavar='FLOAT', type=float, dest = "theta_max", default = 0.5,
                            help='Theta upper bound. Default to 0.5.')
         vargs.add_argument('--theta-inc', metavar='FLOAT', type=float, dest = "theta_inc", default = 0.05,
                            help='Theta increment. Default to 0.05.')
+        vargs.add_argument('--run-linkage', action='store_true', dest = "run_linkage",
+                           help='''Perform Linkage analysis using FASTLINK program.''')
         vargs.add_argument('--output-entries', metavar='N', type=int, dest = "output_limit", default = 10,
                            help='Write the highest N LOD/HLOD scores to output tables. Default to 10.')
         
