@@ -5,7 +5,7 @@
 from SEQLinco.Utils import *
 from collections import deque, defaultdict
 from multiprocessing import Queue, Process, cpu_count
-from os.path import splitext, basename, isdir
+from os.path import splitext, basename, isdir, isfile
 from itertools import chain
 from shutil import copyfile, rmtree
 from scipy.optimize import minimize_scalar
@@ -213,7 +213,7 @@ class cd:
     def __exit__(self, etype, value, traceback):
         os.chdir(self.savedPath)
 
-def run_linkage(runner, blueprint):
+def run_linkage(runner, blueprint, theta_inc, theta_max):
     #if 'mlink' not in env.formats:
     #    formatMlink()
     #chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
@@ -221,9 +221,9 @@ def run_linkage(runner, blueprint):
     #runCommands(cmds, max(min(env.jobs, cmds), 1))
     if runner == 'mlink':
         workdirs = glob.glob('{0}/MLINK/{0}.chr*'.format(env.output))
-        parmap(lambda x: run_mlink(x, blueprint) , workdirs, env.jobs)
+        parmap(lambda x: run_mlink(x, blueprint, theta_inc, theta_max) , workdirs, env.jobs)
     
-def run_mlink(workdir, blueprint):
+def run_mlink(workdir, blueprint, theta_inc, theta_max):
     env.log("Start running mlink for {} ...".format(workdir), flush=True)
     #hash genes into genemap
     genemap = {}
@@ -272,36 +272,43 @@ def run_mlink(workdir, blueprint):
             res = minimize_scalar(hlod_fun(lods[theta].values(), -1), bounds=(0,1), method='bounded', options={'xtol':1e-8})
             a = res.x
             lods_fh.write('{} {} {} {}\n'.format(gene, ' '.join(map(str, genemap[gene])), theta, sum(lods[theta].values())))
-            hlods_fh.write('{} {} {} {}\n'.format(gene, ' '.join(map(str, genemap[gene])), theta, a, hlod_fun(lods[theta].values())(a)))
+            hlods_fh.write('{} {} {} {} {}\n'.format(gene, ' '.join(map(str, genemap[gene])), a, theta, hlod_fun(lods[theta].values())(a)))
     PNULL.close()
     lods_fh.close()
     hlods_fh.close()
-    heatmap('{}/heatmap/{}.lods'.format(env.output, basename(workdir)))
-    heatmap('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)))
+    heatmap('{}/heatmap/{}.lods'.format(env.output, basename(workdir)), theta_inc, theta_max)
+    heatmap('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)), theta_inc, theta_max)
     env.log("Finished running mlink for {}.".format(workdir), flush=True)
     
-def heatmap(file):
+def heatmap(file, theta_inc, theta_max):
     env.log("Start ploting heatmap for {} ...\n".format(file), flush=True)
     lods = []
     with open(file, 'r') as f:
         for line in f.readlines():
-            lod = line.split()[-1]
+            theta,lod = line.split()[-2:]
+            if float(theta) >= theta_max:
+                continue
             lods.append(lod)
-        lods = np.array(map(float,lods)).reshape((11,-1))
-        ppl.pcolormesh(lods)
-        plt.savefig('{}.png'.format(file))
-        plt.close()
+        Num=int(round(theta_max/theta_inc))
+        lods = np.array(map(float,lods)).reshape((-1,Num))
+        chrID = re.search(r'\.chr([0-9XY]+)\.', file).group(1)
+        fig, ax = plt.subplots(1)
+        ax.set_title('Chromosome {}'.format(chrID))
+        ppl.pcolormesh(fig,ax,lods.transpose(),
+                       yticklabels=np.round(np.array(range(Num)) * theta_inc,2).tolist())
+        fig.savefig('{}.png'.format(file))
+        #fig.close()
     env.log("Finished ploting heatmap for {}.\n".format(file), flush=True)
 
 def hlod_fun(Li, sign=1):
     def _fun(alpha):
         return sign * sum(np.log10(alpha*np.power(10, Li) + 1 - alpha))
     return _fun 
-
+    
 def html(theta_inc, theta_max, limit):
-    index = """<html>
+    head = """<html>
     <head>
-    <title>Results for __env.output__</title>
+    <title>Results for {}</title>""".format(env.output) + """
     <style>
     table,th,td
     {
@@ -321,49 +328,77 @@ def html(theta_inc, theta_max, limit):
     text.innerHTML = "show";
     }
     }</script>
-    </head>
-    <a href="#" onclick="toggle(\'lods_tbl\')">Ranked lod scores</a>
-    <div id="lods_tbl" class="divinfo">{}</div>
-    <a href="#" onclick="toggle(\'hlods_tbl\')">Ranked Hlod scores</a>
-    <div id="hlods_tbl" class="divinfo">{}</div>
-    <a href="#" onclick="toggle(\'lods_heatmap\')">Lod scores heatmap</a>
-    <div id="lods_heatmap">{}</div>
-    <a href="#" onclick="toggle(\'hlods_heatmap\')">Hlod scores heatmap</a>
-    <div id="hlods_heatmap">{}</div>
+    </head>"""
+    body = """<body>
+    <p><a href="#Lods_Table" onclick="toggle(\'lods_tbl\')">Ranked lod scores</a>
+    <div id="lods_tbl" class="divinfo">{}</div></p>
+    <p><a href="#Hlods_Table" onclick="toggle(\'hlods_tbl\')">Ranked Hlod scores</a>
+    <div id="hlods_tbl" class="divinfo">{}</div></p>
+    <p><a href="#Lods_Heatmap" onclick="toggle(\'lods_heatmap\')">Lod scores heatmap</a>
+    <div id="lods_heatmap">{}</div></p>
+    <p><a href="#Hlods_Heatmap" onclick="toggle(\'hlods_heatmap\')">Hlod scores heatmap</a>
+    <div id="hlods_heatmap">{}</div></p>
+    </body>
     </html>"""
-    colNum = int(theta_max/theta_inc + 1)
-    thetas = np.array(range(colNum))*theta_inc
+    with open('{}/index.html'.format(env.output), 'w') as f:
+        #t = Template(index)
+        #c = Context({ "lods": lods_tbl })
+        f.write(head + body.format(html_table('Lod', theta_inc, theta_max, limit), html_table('Hlod', theta_inc, theta_max, limit), html_img('lod'), html_img('hlod')))
+
+def html_img(ltype):
+    chrs = ['{}'.format(i+1) for i in range(22)] + ['X', 'Y']
+    imgs = ['heatmap/{0}.chr{1}.{2}s.png'.format(env.output, chrID, ltype) for chrID in chrs]
+    exist_imgs = [img for img in imgs if isfile('{}/{}'.format(env.output,img))]
+    return ''.join('<img src={}></img>'.format(img) for img in exist_imgs)
+        
+def html_table(type, theta_inc, theta_max, limit):
+    colNum = int(round(theta_max/theta_inc))
+    theta_orders = range(colNum)
+    thetas = map(lambda x: theta_inc * x, range(colNum))
     #table
-    table = '<table style="width:600px">{}</table>'
+    table = r'<table style="width:300px;font-size:12px">{}</table>'
     #table header
-    lods_header = '<tr>{}</tr>'.format(''.join('<th colspan="2">Theta:{}</td>'.format(x) for x in thetas))
-    lods_header += '<tr>{}</tr>'.format('<th rowspan="2">Lod</th><th>Gene</th>' * colNum)
-    lods_header += '<tr>{}</tr>'.format('<th>chr:start-end</th>' * colNum)
+    lods_header = r'<tr>{}</tr>'.format(''.join(r'<th colspan="2">&#952;:{}</td>'.format(x) for x in thetas))
+    lods_header += r'<tr>{}</tr>'.format(r'<th rowspan="2">{}</th><th>Gene</th>'.format(type) * colNum)
+    lods_header += r'<tr>{}</tr>'.format(r'<th>chr:start-end</th>' * colNum)
     #initialize lods dict
     lods = {}
-    for theta in thetas:
-        lods[theta] = {}
+    for theta_order in theta_orders:
+        lods[theta_order] = {}
+        #print '{}\n'.format(theta_order)
     #read lods
-    lods_files = glob.glob('{0}/heatmap/{0}.*.lods'.format(env.output))
+    lods_files = glob.glob('{0}/heatmap/{0}.*.{1}s'.format(env.output, type.lower()))
     for file in lods_files:
         with open(file, 'r') as f:
             for line in f:
-                gene, chrId, start, end, theta, lod = line.strip().split()
-                lods[float(theta)][gene] = [float(lod), gene, chrId, start, end]
+                if type == 'Lod':
+                    gene, chrId, start, end, theta, lod = line.strip().split()
+                    if int(round(float(theta)/theta_inc)) >= colNum:
+                        continue
+                    lods[int(round(float(theta)/theta_inc))][gene] = [round(float(lod),3), gene, chrId, start, end]
+                elif type == 'Hlod':
+                    gene, chrId, start, end, a, theta, lod = line.strip().split()
+                    if int(round(float(theta)/theta_inc)) >= colNum:
+                        continue
+                    lods[int(round(float(theta)/theta_inc))][gene] = ['{}<br>&#945;={}'.format(round(float(lod),3), round(float(a),3)), gene, chrId, start, end]
+                else:
+                    env.error('Wrong type of LOD')
+                
     #collect result
-    res = {}
-    for theta in thetas:
+    res = np.empty((len(theta_orders), limit), dtype=list)
+    for theta_order in theta_orders:
         i=0
-        for gene in sorted(lods[theta].keys(), key=lambda x: lods[theta][x][0], reverse=True):
-            res[theta,i] = lods[theta][gene]
+        for gene in sorted(lods[theta_order].keys(), key=lambda x: lods[theta_order][x][0], reverse=True):
             if i >= limit:
                 break     
+            res[theta_order][i] = lods[theta_order][gene]
             i += 1
+    #print res
     #write lods table
     lods_res = ''
-    for i in range(limit):
-        lods_res += '<tr></tr>'.format(''.join('<td rowspan="2">{}</td><td>{}</td>'.format(res[theta,i][0],res[theta,i][1]) for theta in thetas))
-        lods_res += '<tr></tr>'.format(''.join('<td>{}:{}-{}</td>'.format(res[theta,i][2],res[theta,i][3],res[theta,i][4]) for theta in thetas))
+    for i in range(min(limit, len(lods[0].keys()))):
+        lods_res += r'<tr>{}</tr>'.format(''.join(r'<td rowspan="2">{}</td><td>{}</td>'.format(res[theta_order][i][0],res[theta_order][i][1]) for theta_order in theta_orders))
+        lods_res += r'<tr>{}</tr>'.format(''.join(r'<td>{}:{}-{}</td>'.format(res[theta_order][i][2],res[theta_order][i][3],res[theta_order][i][4]) for theta_order in theta_orders))
     lods_tbl = table.format(lods_header + lods_res)
-    template.format(lods_tbl, lods_tbl, lods_tbl, lods_tbl)
+    return lods_tbl
     

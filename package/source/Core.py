@@ -738,9 +738,9 @@ def main(args):
     '''the main encoder function'''
     checkParams(args)
     # FIXME: add Di's resources & MAC version resource
-    downloadResources([('http://tigerwang.org/uploads/genemap.txt', env.resource_dir),
-                       ('http://tigerwang.org/uploads/transpose.pl', env.resource_bin),
-                       ('http://tigerwang.org/uploads/runMlink.pl', env.resource_bin)])
+    #downloadResources([('http://tigerwang.org/uploads/genemap.txt', env.resource_dir),
+    #                   ('http://tigerwang.org/uploads/transpose.pl', env.resource_bin),
+    #                   ('http://tigerwang.org/uploads/runMlink.pl', env.resource_bin)])
     cache = Cache(env.cache_dir, env.output)
     # STEP 1: write encoded data to TPED format
     if not args.vanilla and cache.check():
@@ -834,8 +834,8 @@ def main(args):
         format_linkage(tpeds, env.outputfam, args.prevalence, args.wild_pen, args.muta_pen, fmt, args.inherit_mode, args.theta_max, args.theta_inc)
     if args.runner:
         env.log('Running [{}] now ...'.format(args.runner))
-        run_linkage(args.runner, args.blueprint)
-        html(args.theta_inc, args.theta_max, args.output_limit)
+        run_linkage(args.runner, args.blueprint, args.theta_inc, args.theta_max)
+    html(args.theta_inc, args.theta_max, args.output_limit)
 
     #if 'plink' in args.format:
     #    env.log('Saving data to directory [PLINK] ...')
