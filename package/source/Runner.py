@@ -1,8 +1,7 @@
 #!/usr/bin/python
 # Di Zhang diz@bcm.edu
 #
-
-from SEQLinco.Utils import *
+from SEQLinkage.Utils import *
 from collections import deque, defaultdict
 from multiprocessing import Queue, Process, cpu_count
 from os.path import splitext, basename, isdir, isfile
@@ -34,12 +33,12 @@ def parmap(f, X, nprocs = cpu_count()):
 
 #formatters
 #the handler, called from main, can call specific formmater.
-def format_linkage(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, theta_max, theta_inc):
+def format(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, theta_max, theta_inc):
     #pool = Pool(env.jobs)
     if out_format == 'plink':
         parmap(lambda x: format_plink(x, tfam), tpeds, env.jobs)
-    elif out_format == 'mlink':
-        parmap(lambda x: format_mlink(x, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc), tpeds, env.jobs)
+    elif out_format == 'linkage':
+        parmap(lambda x: format_linkage(x, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc), tpeds, env.jobs)
 
 #plink format, ped and map 
 def format_plink(tped, tfam):
@@ -61,17 +60,17 @@ def format_plink(tped, tfam):
     tped_fh.close()
     tfam_fh.close()
 
-#mlink format, .pre and .loc
+#linkage format, .pre and .loc
 #per locus, per family based
 #because the haplotype patterns are different from family to family.
 #You can analyze them all together
-def format_mlink(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc):
-    out_base = '{}/MLINK/{}'.format(env.output, splitext(basename(tped))[0])
+def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc):
+    out_base = '{}/LINKAGE/{}'.format(env.output, splitext(basename(tped))[0])
     try:
         rmtree(out_base)
     except:
         pass
-    env.log("Start converting to mlink format for {} ...\n".format(basename(out_base)), flush=True)
+    env.log("Start converting to LINKAGE format for {} ...\n".format(basename(out_base)), flush=True)
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
         fams = parse_tfam(tfam_fh)
         #parse per family per locus AF file
@@ -136,7 +135,7 @@ def format_mlink(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, 
                 os.rmdir(workdir)
     tped_fh.close()
     tfam_fh.close()
-    env.log("Finished mlink format for {}.\n".format(out_base), flush=True)
+    env.log("Finished LINKAGE format for {}.\n".format(out_base), flush=True)
   
 #parse tfam file, store families into the Pedigree class                
 def parse_tfam(fh):
@@ -213,18 +212,17 @@ class cd:
     def __exit__(self, etype, value, traceback):
         os.chdir(self.savedPath)
 
-def run_linkage(runner, blueprint, theta_inc, theta_max):
-    #if 'mlink' not in env.formats:
-    #    formatMlink()
+def run_linkage(blueprint, theta_inc, theta_max):
+    #if 'linkage' not in env.formats:
+    #    formatLinkage()
     #chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
-    #cmds = ['runMlink.pl MLINK/{}.{} {} {}'.format(env.output, chrs[i], env.resource_dir, blueprint) for i in range(25)]
+    #cmds = ['runLinkage.pl LINKAGE/{}.{} {} {}'.format(env.output, chrs[i], env.resource_dir, blueprint) for i in range(25)]
     #runCommands(cmds, max(min(env.jobs, cmds), 1))
-    if runner == 'mlink':
-        workdirs = glob.glob('{0}/MLINK/{0}.chr*'.format(env.output))
-        parmap(lambda x: run_mlink(x, blueprint, theta_inc, theta_max) , workdirs, env.jobs)
+    workdirs = glob.glob('{0}/LINKAGE/{0}.chr*'.format(env.output))
+    parmap(lambda x: linkage_worker(x, blueprint, theta_inc, theta_max) , workdirs, env.jobs)
     
-def run_mlink(workdir, blueprint, theta_inc, theta_max):
-    env.log("Start running mlink for {} ...".format(workdir), flush=True)
+def linkage_worker(workdir, blueprint, theta_inc, theta_max):
+    env.log("Start running LINKAGE for {} ...".format(workdir), flush=True)
     #hash genes into genemap
     genemap = {}
     with open(blueprint) as f:
@@ -256,7 +254,7 @@ def run_mlink(workdir, blueprint, theta_inc, theta_max):
                     runCommand('unknown')
                     runCommand('mlink')
                     copyfile('outfile.dat', '{}.out'.format(unit))        
-                    #clean mlink tmp files
+                    #clean linkage tmp files
                     for f in set(glob.glob('*.dat') + glob.glob('ped*') + ['names.tmp']):
                         os.remove(f)
                     #collect lod scores of different thelta for the fam
@@ -278,7 +276,7 @@ def run_mlink(workdir, blueprint, theta_inc, theta_max):
     hlods_fh.close()
     heatmap('{}/heatmap/{}.lods'.format(env.output, basename(workdir)), theta_inc, theta_max)
     heatmap('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)), theta_inc, theta_max)
-    env.log("Finished running mlink for {}.".format(workdir), flush=True)
+    env.log("Finished running LINKAGE for {}.".format(workdir), flush=True)
     
 def heatmap(file, theta_inc, theta_max):
     env.log("Start ploting heatmap for {} ...\n".format(file), flush=True)

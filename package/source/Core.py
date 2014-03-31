@@ -2,8 +2,8 @@
 # Copyright (c) 2013, Gao Wang <gaow@bcm.edu>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 from __future__ import print_function
-from SEQLinco.Utils import *
-from SEQLinco.Runner import *
+from SEQLinkage.Utils import *
+from SEQLinkage.Runner import *
 from multiprocessing import Process, Queue
 from collections import Counter, OrderedDict, defaultdict
 import itertools
@@ -42,9 +42,6 @@ def checkSamples(samp1, samp2):
     if a_not_b:
         env.log('{:,d} samples in VCF file will be ignored due to absence in FAM file'.format(len(a_not_b)))
     return a_not_b, b_not_a
-
-def loadMap(maps):
-    return {}
 
 class Cache:
     def __init__(self, cache_dir, cache_name):
@@ -347,7 +344,7 @@ class RegionExtractor:
     genotype list'''
     def __init__(self, filename, build = env.build, chr_prefix = None, allele_freq_info = None):
         self.vcf = cstatgen.VCFstream(filename)
-        self.chrom = self.startpos = self.endpos = self.name = self.distance = None
+        self.chrom = self.startpos = self.endpos = self.name = None
         self.chr_prefix = chr_prefix
         # name of allele frequency meta info
         self.af_info = allele_freq_info
@@ -402,7 +399,7 @@ class RegionExtractor:
             
 
     def getRegion(self, region):
-        self.chrom, self.startpos, self.endpos, self.name, self.distance = region
+        self.chrom, self.startpos, self.endpos, self.name = region[:4]
         self.startpos = int(self.startpos)
         self.endpos = int(self.endpos)
         if self.chrom in ['X','23']:
@@ -592,7 +589,7 @@ class MarkerMaker:
 
 class LinkageWriter:
     def __init__(self, num_missing_append = 0):
-        self.chrom = self.prev_chrom = self.name = self.distance = None
+        self.chrom = self.prev_chrom = self.name = self.distance = self.distance_avg = self.distance_m = self.distance_f = None
         self.reset()
         self.missings = ["0", "0"]
         self.num_missing = num_missing_append
@@ -673,7 +670,8 @@ class LinkageWriter:
             
     def getRegion(self, region):
         self.chrom = region[0]
-        self.name, self.distance = region[3:]
+        self.name, self.distance_avg, self.distance_m, self.distance_f = region[3:]
+        self.distance = ";".join([self.distance_avg, self.distance_m, self.distance_f])
 
 
 class EncoderWorker(Process):
@@ -737,10 +735,8 @@ class EncoderWorker(Process):
 def main(args):
     '''the main encoder function'''
     checkParams(args)
-    # FIXME: add Di's resources & MAC version resource
-    #downloadResources([('http://tigerwang.org/uploads/genemap.txt', env.resource_dir),
-    #                   ('http://tigerwang.org/uploads/transpose.pl', env.resource_bin),
-    #                   ('http://tigerwang.org/uploads/runMlink.pl', env.resource_bin)])
+    # FIXME: add FASTLINK resources
+    downloadResources([('http://tigerwang.org/uploads/genemap.txt', env.resource_dir)])
     cache = Cache(env.cache_dir, env.output)
     # STEP 1: write encoded data to TPED format
     if not args.vanilla and cache.check():
@@ -783,7 +779,7 @@ def main(args):
             jobs = [EncoderWorker(
                 queue, len(regions), deepcopy(data),
                 RegionExtractor(args.vcf, chr_prefix = args.chr_prefix, allele_freq_info = args.freq),
-                MarkerMaker(args.size, args.maf_cutoff),
+                MarkerMaker(args.bin, args.maf_cutoff),
                 LinkageWriter(len(samples_not_vcf))
                 ) for i in range(env.jobs)]
             for j in jobs:
@@ -831,11 +827,13 @@ def main(args):
     tpeds = [os.path.join(env.cache_dir, item) for item in os.listdir(env.cache_dir) if item.startswith(env.output) and item.endswith('.tped')]
     for fmt in args.format:
         env.log('Saving data to directory [{}] ...'.format(fmt.upper()))
-        format_linkage(tpeds, env.outputfam, args.prevalence, args.wild_pen, args.muta_pen, fmt, args.inherit_mode, args.theta_max, args.theta_inc)
-    if args.runner:
-        env.log('Running [{}] now ...'.format(args.runner))
-        run_linkage(args.runner, args.blueprint, args.theta_inc, args.theta_max)
-    html(args.theta_inc, args.theta_max, args.output_limit)
+        format(tpeds, env.outputfam, args.prevalence, args.wild_pen, args.muta_pen, fmt, args.inherit_mode, args.theta_max, args.theta_inc)
+    if env.runner:
+        env.log('Running LINKAGE now ...')
+        run_linkage(args.blueprint, args.theta_inc, args.theta_max)
+        html(args.theta_inc, args.theta_max, args.output_limit)
+    else:
+        env.log('To perform linkage analysis, please specify all options below:\n--prevalence/--moi/--wild-pen/--muta-pen')
 
     #if 'plink' in args.format:
     #    env.log('Saving data to directory [PLINK] ...')

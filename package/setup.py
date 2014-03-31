@@ -43,14 +43,14 @@ except ImportError:
 
 from source import VERSION
 
-NAME = "SEQLinco"
+NAME = "SEQLinkage"
 
 setup(name = NAME,
     version = VERSION,
     description = "A novel approach to use sequence data for linkage analysis",
     author = "Gao Wang",
     packages = [NAME],
-    scripts = ['source/slinco'],
+    scripts = ['source/seqlink'],
     package_dir = {NAME:'source'},
     cmdclass = {'build_py': build_py }
 )

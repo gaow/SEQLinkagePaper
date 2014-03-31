@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Copyright (c) 2013, Gao Wang <gaow@bcm.edu>
+# Copyright (c) 2013 - 2014, Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 
 import sys, os, subprocess, shutil, glob, shlex, urlparse, re, hashlib, tarfile, tempfile
@@ -20,8 +20,8 @@ class Environment:
     def __init__(self):
         self.__width_cache = 1
         # About the program 
-        self.proj = "SEQLinco"
-        self.prog = 'slinco'
+        self.proj = "SEQLinkage"
+        self.prog = 'seqlink'
         self.version = VERSION 
         # Runtime support
         self.resource_dir = os.path.expanduser('~/.{}'.format(self.proj))
@@ -39,10 +39,7 @@ class Environment:
         self.output = 'LINKAGE'
         self.outputfam = os.path.join(self.cache_dir, '{}.tfam'.format(self.output))
         self.tmp_log = os.path.join(self.tmp_dir, self.output)
-        self.formats = {
-            'plink':['.ped','.map'],
-            'mlink':['.pre', '.loc']
-            }
+        self.runner = False
         # Multiprocessing counters
         self.batch = 50
         self.lock = Lock()
@@ -376,11 +373,11 @@ def checkParams(args):
     env.log('{} trait detected in [{}]'.format(env.trait.capitalize(), args.tfam))
     if not args.blueprint:
         args.blueprint = os.path.join(env.resource_dir, 'genemap.txt')
-    # pop plink/mega2 format to first
     args.format = [x.lower() for x in set(args.format)]
-    for item in ['mega2', 'plink']:
-        if item in args.format:
-            args.format.insert(0, args.format.pop(args.format.index(item)))
+    if not None in [args.inherit_mode, args.prevalence, args.wild_pen, args.muta_pen]:
+        env.runner = True
+        if "linkage" not in args.format:
+            args.format.append('linkage')
     return True
 
 ###
