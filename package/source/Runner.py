@@ -76,7 +76,7 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
         af = defaultdict(lambda: [])
         #try to open the file for allele frequencies, otherwise use the defaut value
         try:
-            with open(os.path.join(env.tmp_dir, 'CACHE', basename(out_base) + '.freq')) as af_fh:
+            with open(os.path.join(env.tmp_cache, basename(out_base) + '.freq')) as af_fh:
                 for line in af_fh:
                     s = line.strip().split()
                     af[(s[0],s[1])] = s[2:]
@@ -225,7 +225,7 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max):
                 chrID, start, end, gene = line.strip().split()[:4]
             genemap[gene] = [chrID, int(start), int(end)]
     else:
-        tped = os.path.join(env.tmp_dir, basename(workdir))
+        tped = os.path.join(env.tmp_cache, basename(workdir) + '.tped')
         with open(tped) as f:
             for line in f.readlines():
                 items = line.strip().split()[:4]
