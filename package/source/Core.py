@@ -879,7 +879,7 @@ def main(args):
     if args.run_linkage:
         cache.setID('2')
         env.log('Running LINKAGE now ...')
-        run_linkage(args.blueprint, args.theta_inc, args.theta_max)
+        run_linkage(args.theta_inc, args.theta_max)
         html(args.theta_inc, args.theta_max, args.output_limit)
 
     #if 'plink' in args.format:
