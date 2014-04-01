@@ -791,8 +791,12 @@ def main(args):
                       'Samples have to be in families, and present in both TFAM and VCF files.', exit = True)
         rewriteFamfile(env.outputfam, data.tfam.samples, data.samples.keys() + samples_not_vcf)
         # load blueprint
-        with open(args.blueprint, 'r') as f:
-            regions = [x.strip().split() for x in f.readlines()]
+        try:
+            with open(args.blueprint, 'r') as f:
+                regions = [x.strip().split() for x in f.readlines()]
+        except OSError:
+            env.error("Cannot load regional marker blueprint [{}]. "\
+                      "Single locus analyses will be performed instead!".format(args.blueprint))
         env.log('{:,d} families with a total of {:,d} samples will be scanned for {:,d} pre-defined units'.\
                 format(len(data.families), len(data.samples), len(regions)))
         env.jobs = max(min(args.jobs, len(regions)), 1)

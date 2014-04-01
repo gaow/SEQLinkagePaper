@@ -38,7 +38,7 @@ class Environment:
         # Input & output options
         self.output = 'LINKAGE'
         self.outputfam = os.path.join(self.cache_dir, '{}.tfam'.format(self.output))
-        self.tmp_log = os.path.join(self.tmp_dir, self.output)
+        self.tmp_log = os.path.join(self.tmp_dir, self.output + ".STDOUT")
         # Multiprocessing counters
         self.batch = 50
         self.lock = Lock()
