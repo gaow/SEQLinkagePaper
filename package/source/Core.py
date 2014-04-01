@@ -7,6 +7,7 @@ from SEQLinkage.Runner import *
 from multiprocessing import Process, Queue
 from collections import Counter, OrderedDict, defaultdict
 import itertools
+from zipfile import ZipFile
 from copy import deepcopy
 import sys, faulthandler
 
@@ -44,42 +45,61 @@ def checkSamples(samp1, samp2):
     return a_not_b, b_not_a
 
 class Cache:
-    def __init__(self, cache_dir, cache_name):
+    def __init__(self, cache_dir, cache_name, params):
         self.cache_dir = cache_dir
         self.cache_name = os.path.join(cache_dir, cache_name + '.cache')
-        self.cache_info = cache_info = os.path.join(cache_dir, '.info.' + cache_name)
+        self.cache_info = os.path.join(cache_dir, '.info.' + cache_name)
+        self.param_info = os.path.join(cache_dir, '.conf.' + cache_name)
         mkpath(cache_dir)
+        self.id = '' 
+        self.params = params
+        self.pchecklist = {'.1': ['bin'],
+                           '.2': ['prevalence', 'inherit_mode', 'wild_pen',
+                                  'muta_pen', 'theta_max', 'theta_inc']}
 
+    def setID(self, ID):
+        self.id = "." + str(ID)
+        
     def check(self):
-        if not os.path.isfile(self.cache_info):
+        if not os.path.isfile(self.cache_info + self.id):
             return False
-        with open(self.cache_info, 'r') as f:
+        with open(self.cache_info + self.id, 'r') as f:
             for item in f.readlines():
                 name, key = item.split()
                 if not os.path.isfile(name) or key != calculateFileMD5(name):
                     return False
+        params = {}
+        with open(self.param_info + self.id, 'r') as f:
+            for item in f.readlines():
+                name, key = item.split()
+                params[key] = name
+        for item in self.pchecklist[self.id]:
+            if params[item] != str(self.params[item]):
+                return False
         return True
 
     def load(self):
-        with tarfile.open(self.cache_name) as f:
+        with ZipFile(self.cache_name) as f:
             f.extractall(self.cache_dir)        
 
-    def write(self, pres = [], exts = [], files = [], otherfiles = []):
+    def write(self, pres = [], exts = [], files = [], otherfiles = [], mode = 'w'):
         '''Add files to cache'''
         if not self.check():
-            with tarfile.open(self.cache_name, 'w:bz2') as f:
+            with ZipFile(self.cache_name, mode) as f:
                 for item in os.listdir(self.cache_dir):
                     if ((any([item.endswith(x) for x in exts]) or len(exts) == 0) \
                         and (any([item.startswith(x) for x in pres]) or len(pres) == 0)) \
                       or item in files:
-                        f.add(os.path.join(self.cache_dir, item), arcname=item)
+                        f.write(os.path.join(self.cache_dir, item), arcname=item)
             otherfiles.append(self.cache_name)
             signatures = ['{}\t{}'.format(x, calculateFileMD5(x)) for x in otherfiles]
-            with open(self.cache_info, 'w') as f:
+            with open(self.cache_info + self.id, mode) as f:
                 f.write('\n'.join(signatures))
+            with open(self.param_info + self.id, mode) as f:
+                f.write('\n'.join(["{}\t{}".format(self.params[item], item) for item in self.pchecklist[self.id]]))
 
     def clear(self, pres = [], exts = []):
-        for fl in [self.cache_info, self.cache_name]:
+        for fl in glob.glob(self.cache_info + "*") + [self.cache_name]:
             if os.path.isfile(fl):
                 os.remove(fl)
         #
@@ -735,9 +755,15 @@ class EncoderWorker(Process):
 def main(args):
     '''the main encoder function'''
     checkParams(args)
-    # FIXME: add FASTLINK resources
-    downloadResources([('http://tigerwang.org/uploads/genemap.txt', env.resource_dir)])
-    cache = Cache(env.cache_dir, env.output)
+    downloadResources([('http://tigerwang.org/uploads/genemap.txt', env.resource_dir),
+                       ('http://tigerwang.org/uploads/lodscore', env.resource_bin),
+                       ('http://tigerwang.org/uploads/linkmap', env.resource_bin),
+                       ('http://tigerwang.org/uploads/mlink', env.resource_bin),
+                       ('http://tigerwang.org/uploads/unknown', env.resource_bin),
+                       ('http://tigerwang.org/uploads/makeped', env.resource_bin),
+                       ('http://tigerwang.org/uploads/pedcheck', env.resource_bin)])
+    cache = Cache(env.cache_dir, env.output, vars(args))
+    cache.setID('1')
     # STEP 1: write encoded data to TPED format
     if not args.vanilla and cache.check():
         env.log('Loading data from archive ...')
@@ -829,6 +855,7 @@ def main(args):
         env.log('Saving data to directory [{}] ...'.format(fmt.upper()))
         format(tpeds, env.outputfam, args.prevalence, args.wild_pen, args.muta_pen, fmt, args.inherit_mode, args.theta_max, args.theta_inc)
     if args.run_linkage:
+        cache.setID('2')
         env.log('Running LINKAGE now ...')
         run_linkage(args.blueprint, args.theta_inc, args.theta_max)
         html(args.theta_inc, args.theta_max, args.output_limit)

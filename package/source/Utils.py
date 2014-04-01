@@ -2,7 +2,7 @@
 # Copyright (c) 2013 - 2014, Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 
-import sys, os, subprocess, shutil, glob, shlex, urlparse, re, hashlib, tarfile, tempfile
+import sys, os, subprocess, shutil, glob, shlex, urlparse, re, hashlib, tempfile
 from cStringIO import StringIO
 from contextlib import contextmanager
 from multiprocessing import Pool, Process, Queue, Lock, Value
