@@ -28,6 +28,7 @@ class Environment:
         self.resource_bin = os.path.join(self.resource_dir, 'bin')
         self.cache_dir = os.path.join(os.getcwd(), 'cache')
         self.tmp_dir = self.__mktmpdir()
+        self.tmp_cache = os.path.join(self.tmp_dir, 'CACHE')
         self.path = {'PATH':self.resource_bin}
         self.debug = False
         # File contents 
@@ -37,7 +38,6 @@ class Environment:
         self.trait = 'binary'
         # Input & output options
         self.output = 'LINKAGE'
-        self.outputfam = os.path.join(self.cache_dir, '{}.tfam'.format(self.output))
         self.tmp_log = os.path.join(self.tmp_dir, self.output)
         # Multiprocessing counters
         self.batch = 50
@@ -58,7 +58,9 @@ class Environment:
         for fn in os.listdir(tempfile.gettempdir()):
             if pattern.match(fn):
                 remove_tree(os.path.join(tempfile.gettempdir(), fn))
-        return tempfile.mkdtemp(prefix='{}_tmp_'.format(self.proj))
+        tmp_dir = tempfile.mkdtemp(prefix='{}_tmp_'.format(self.proj))
+        mkpath(os.path.join(tmp_dir, 'CACHE'))
+        return tmp_dir
             
     def error(self, msg = None, show_help = False, exit = False):
         if msg is None:
@@ -263,6 +265,12 @@ def calculateFileMD5(filename):
         sys.exit('Failed to read {}: {}'.format(filename, e))
     return md5.hexdigest()
  
+def zipdir(path, zipfile, arcroot = '/'):
+    path = os.path.normpath(path)
+    for root, dirs, files in os.walk(path):
+        for f in files:
+            zipfile.write(os.path.join(root, f), arcname = os.path.join(arcroot, root[len(path) + 1:], f))
+
 def removeFiles(dest, exclude = [], hidden = False):
     if os.path.isdir(dest):
         for item in os.listdir(dest):
@@ -366,7 +374,6 @@ def checkParams(args):
             env.error("Cannot find file [{}]!".format(item), exit = True)
     if args.output:
         env.output = os.path.split(args.output)[-1]
-        env.outputfam = os.path.join(env.cache_dir, '{}.tfam'.format(env.output))
         env.tmp_log = os.path.join(env.tmp_dir, env.output + ".STDOUT")
     #
     if len([x for x in set(getColumn(args.tfam, 6)) if x.lower() not in env.ped_missing]) > 2:

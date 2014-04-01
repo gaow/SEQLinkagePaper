@@ -51,52 +51,67 @@ class Cache:
         self.cache_info = os.path.join(cache_dir, '.info.' + cache_name)
         self.param_info = os.path.join(cache_dir, '.conf.' + cache_name)
         mkpath(cache_dir)
-        self.id = '' 
+        self.id = '.' 
         self.params = params
-        self.pchecklist = {'.1': ['bin'],
-                           '.2': ['prevalence', 'inherit_mode', 'wild_pen',
-                                  'muta_pen', 'theta_max', 'theta_inc']}
+        self.infofiles = [params['vcf'], params['tfam'], params['blueprint']] if params['blueprint'] else [params['vcf'], params['tfam']]
+        self.infofiles.append(self.cache_name)
+        self.pchecklist = {'.vcf': ['bin'],
+                           '.linkage': ['prevalence', 'inherit_mode', 'wild_pen',
+                                        'muta_pen', 'theta_max', 'theta_inc'],
+                           '.analysis': ['prevalence', 'inherit_mode', 'wild_pen',
+                                        'muta_pen', 'theta_max', 'theta_inc']}
 
     def setID(self, ID):
         self.id = "." + str(ID)
         
     def check(self):
-        if not os.path.isfile(self.cache_info + self.id):
+        if not os.path.isfile(self.cache_info) or not os.path.isfile(self.param_info + self.id):
             return False
-        with open(self.cache_info + self.id, 'r') as f:
-            for item in f.readlines():
-                name, key = item.split()
-                if not os.path.isfile(name) or key != calculateFileMD5(name):
-                    return False
+        with open(self.cache_info, 'r') as f:
+            lines = [item.strip().split() for item in f.readlines()]
+        for line in lines:
+            if not os.path.isfile(line[0]) or line[1] != calculateFileMD5(line[0]):
+                return False
         params = {}
         with open(self.param_info + self.id, 'r') as f:
-            for item in f.readlines():
-                name, key = item.split()
-                params[key] = name
+            lines = [item.strip().split() for item in f.readlines()]
+        for line in lines:
+            params[line[0]] = line[1]
         for item in self.pchecklist[self.id]:
             if params[item] != str(self.params[item]):
                 return False
         return True
 
-    def load(self):
+    def load(self, target_dir = None, names = None):
+        if target_dir is None:
+            target_dir = self.cache_dir
         with ZipFile(self.cache_name) as f:
-            f.extractall(self.cache_dir)        
+            if names is None:
+                f.extractall(target_dir)
+            else:
+                for item in f.namelist():
+                    if any([item.startswith(x) for x in names]):
+                        f.extract(item, target_dir)
 
-    def write(self, pres = [], exts = [], files = [], otherfiles = [], mode = 'w'):
+    def write(self, source_dir = None, arcroot = '/', pres = [], exts = [],
+              files = [], mode = 'w'):
         '''Add files to cache'''
-        if not self.check():
-            with ZipFile(self.cache_name, mode) as f:
-                for item in os.listdir(self.cache_dir):
+        if source_dir is None:
+            source_dir = self.cache_dir
+        with ZipFile(self.cache_name, mode) as f:
+            if source_dir != self.cache_dir:
+                zipdir(source_dir, f, arcroot = arcroot)
+            else:
+                for item in os.listdir(source_dir):
                     if ((any([item.endswith(x) for x in exts]) or len(exts) == 0) \
                         and (any([item.startswith(x) for x in pres]) or len(pres) == 0)) \
-                      or item in files:
-                        f.write(os.path.join(self.cache_dir, item), arcname=item)
-            otherfiles.append(self.cache_name)
-            signatures = ['{}\t{}'.format(x, calculateFileMD5(x)) for x in otherfiles if os.path.isfile(x)]
-            with open(self.cache_info + self.id, mode) as f:
-                f.write('\n'.join(signatures))
-            with open(self.param_info + self.id, mode) as f:
-                f.write('\n'.join(["{}\t{}".format(self.params[item], item) for item in self.pchecklist[self.id]]))
+                        or item in files:
+                        f.write(os.path.join(source_dir, item), arcname=os.path.join(arcroot, item))
+        signatures = ['{}\t{}'.format(x, calculateFileMD5(x)) for x in self.infofiles if os.path.isfile(x)]
+        with open(self.cache_info, 'w') as f:
+            f.write('\n'.join(signatures))
+        with open(self.param_info + self.id, 'w') as f:
+            f.write('\n'.join(["{}\t{}".format(item, self.params[item]) for item in self.pchecklist[self.id]]))
 
     def clear(self, pres = [], exts = []):
         for fl in glob.glob(self.cache_info + "*") + [self.cache_name]:
@@ -689,12 +704,12 @@ class LinkageWriter:
     def commit(self):
         if self.tped:
             with env.lock:
-                with open(os.path.join(env.cache_dir, '{}.chr{}.tped'.format(env.output, self.prev_chrom)),
+                with open(os.path.join(env.tmp_cache, '{}.chr{}.tped'.format(env.output, self.prev_chrom)),
                           'a') as f:
                     f.write(self.tped)
         if self.freq:
             with env.lock:
-                with open(os.path.join(env.cache_dir, '{}.chr{}.freq'.format(env.output, self.prev_chrom)),
+                with open(os.path.join(env.tmp_cache, '{}.chr{}.freq'.format(env.output, self.prev_chrom)),
                           'a') as f:
                     f.write(self.freq)
         self.reset()
@@ -780,15 +795,15 @@ def main(args):
                        ('http://tigerwang.org/uploads/makeped', env.resource_bin),
                        ('http://tigerwang.org/uploads/pedcheck', env.resource_bin)])
     cache = Cache(env.cache_dir, env.output, vars(args))
-    cache.setID('1')
+    cache.setID('vcf')
     # STEP 1: write encoded data to TPED format
     if not args.vanilla and cache.check():
-        env.log('Loading data from archive ...')
-        cache.load()
+        env.log('Loading cache data from archive ...')
+        cache.load(target_dir = env.tmp_dir, names = ['CACHE'])
     else:
         # load VCF file header
         checkVCFBundle(args.vcf)
-        cache.clear(pres = [env.output], exts = [".tped", ".freq"])
+        cache.clear()
         try:
             vs = cstatgen.VCFstream(args.vcf)
         except Exception as e:
@@ -806,15 +821,19 @@ def main(args):
         if len(data.samples) == 0:
             env.error('No valid sample to process. ' \
                       'Samples have to be in families, and present in both TFAM and VCF files.', exit = True)
-        rewriteFamfile(env.outputfam, data.tfam.samples, data.samples.keys() + samples_not_vcf)
-        # load blueprint
-        try:
-            with open(args.blueprint, 'r') as f:
-                regions = [x.strip().split() for x in f.readlines()]
-        except IOError:
-            env.error("Cannot load regional marker blueprint [{}]. "\
-                      "Single locus analyses will be performed instead!".format(args.blueprint))
-            regions = [(x[0], x[1], x[1], "{}:{}".format(x[0], x[1]), '.', '.', '.') for x in vs.GetGenomeCoordinates()]
+        rewriteFamfile(os.path.join(env.tmp_cache, '{}.tfam'.format(env.output)),
+                       data.tfam.samples, data.samples.keys() + samples_not_vcf)
+        if args.single_markers:
+            regions = [(x[0], x[1], x[1], "{}:{}".format(x[0], x[1]), '.', '.', '.')
+                       for x in vs.GetGenomeCoordinates()]
+            args.blueprint = None
+        else:
+            # load blueprint
+            try:
+                with open(args.blueprint, 'r') as f:
+                    regions = [x.strip().split() for x in f.readlines()]
+            except IOError:
+                env.error("Cannot load regional marker blueprint [{}]. ".format(args.blueprint), exit = True)
         env.log('{:,d} families with a total of {:,d} samples will be scanned for {:,d} pre-defined units'.\
                 format(len(data.families), len(data.samples), len(regions)))
         env.jobs = max(min(args.jobs, len(regions)), 1)
@@ -868,19 +887,37 @@ def main(args):
                 env.error("{:,d} or more super markers failed to be generated due to runtime errors!".\
                           format(fatal_errors))
             env.log('Archiving to directory [{}]'.format(env.cache_dir))
-            cache.write(pres = [env.output], exts = ['.tped', '.freq'], files = [env.outputfam],
-                        otherfiles = [args.vcf, args.tfam, args.blueprint])
+            cache.write(arcroot = 'CACHE', source_dir = env.tmp_cache)
     env.jobs = args.jobs
     # STEP 2: write to PLINK or mega2 format
-    tpeds = [os.path.join(env.cache_dir, item) for item in os.listdir(env.cache_dir) if item.startswith(env.output) and item.endswith('.tped')]
+    tpeds = [os.path.join(env.tmp_cache, item) for item in os.listdir(env.tmp_cache) if item.startswith(env.output) and item.endswith('.tped')]
     for fmt in args.format:
-        env.log('Saving data to directory [{}] ...'.format(fmt.upper()))
-        format(tpeds, env.outputfam, args.prevalence, args.wild_pen, args.muta_pen, fmt, args.inherit_mode, args.theta_max, args.theta_inc)
+        cache.setID(fmt)
+        if not args.vanilla and cache.check():
+            env.log('Loading {} data from archive ...'.format(fmt.upper()))
+            cache.load(target_dir = env.tmp_dir, names = [fmt.upper()])
+        else:
+            env.log('Generating {} format output ...'.format(fmt.upper()))
+            format(tpeds, os.path.join(env.tmp_cache, "{}.tfam".format(env.output)),
+                   args.prevalence, args.wild_pen, args.muta_pen, fmt,
+                   args.inherit_mode, args.theta_max, args.theta_inc)
+            cache.write(arcroot = fmt.upper(),
+                        source_dir = os.path.join(env.tmp_dir, fmt.upper()), mode = 'a')
+    mkpath(env.output)
     if args.run_linkage:
-        cache.setID('2')
-        env.log('Running LINKAGE now ...')
-        run_linkage(args.blueprint, args.theta_inc, args.theta_max)
+        cache.setID('analysis')
+        if not args.vanilla and cache.check():
+            env.log('Loading linkage analysis result from archive ...'.format(fmt.upper()))
+            cache.load(target_dir = env.output, names = ['heatmap'])
+        else:
+            env.log('Running LINKAGE now ...')
+            run_linkage(args.blueprint, args.theta_inc, args.theta_max)
+            cache.write(arcroot = 'heatmap', source_dir = os.path.join(env.output, 'heatmap'), mode = 'a') 
         html(args.theta_inc, args.theta_max, args.output_limit)
+    else:
+        env.log('Saving data to [{}] ...'.format(os.path.abspath(env.output)))
+        cache.load(target_dir = env.output, names = [fmt.upper() for fmt in args.format])
+
 
     #if 'plink' in args.format:
     #    env.log('Saving data to directory [PLINK] ...')

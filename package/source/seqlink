@@ -2,7 +2,7 @@
 # Copyright (c) 2013 - 2014, Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 
-from argparse import ArgumentParser, SUPPRESS
+from argparse import ArgumentParser, ArgumentTypeError, SUPPRESS
 from SEQLinkage.Utils import env, getColumn
 from SEQLinkage.Core import main
 
@@ -22,6 +22,11 @@ class Args:
         self.getRuntimeArguments(self.parser)
         self.parser.set_defaults(func=main)
 
+    def isalnum(self, string):
+        if not string.isalnum():
+            raise ArgumentTypeError("Illegal name [%]: must be alphanumerical string." % string)
+        return string
+
     def get(self):
         return self.parser.parse_args()
 
@@ -34,6 +39,9 @@ class Args:
         vargs.add_argument('-b', '--blueprint', metavar = 'FILE',
                            help='''Blueprint file that defines regional marker
         (format: "chr startpos endpos name avg.distance male.distance female.distance").''')
+        vargs.add_argument('--single-markers', action='store_true', dest = "single_markers",
+                           help='''Use single variant markers. This switch will overwrite
+        the "--blueprint" argument.''')
 
     def getIOArguments(self, parser):
         vargs = parser.add_argument_group('Input / output options')
@@ -45,7 +53,8 @@ class Args:
                            help='''MAF cutoff to define "common" variants to be excluded from recoding.''')
         vargs.add_argument('--chrom-prefix', metavar='STRING', dest = 'chr_prefix',
                            help='''Prefix to chromosome name in VCF file if applicable, e.g. "chr".''')
-        vargs.add_argument('-o', '--output', metavar='FILE', help='''Output file name prefix.''')
+        vargs.add_argument('-o', '--output', metavar='FILE', type = self.isalnum,
+                           help='''Output file name prefix.''')
         vargs.add_argument('-f', '--format', metavar = 'FORMAT', nargs='+',
                            choices = ["LINKAGE", "MERLIN", "MEGA2", "PLINK"], default=['LINKAGE'],
                            help='''Output format. Default to LINKAGE.''')

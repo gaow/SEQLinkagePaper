@@ -232,7 +232,7 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max):
                 chrID = items[0]
                 gene = items[1]
                 pos = items[3]
-                genemap[gene] = [chrID, int(pos), int(pos+1)]
+                genemap[gene] = [chrID, int(pos), int(pos)+1]
     mkpath('{}/heatmap'.format(env.output))
     lods_fh = open('{}/heatmap/{}.lods'.format(env.output, basename(workdir)), 'w')
     hlods_fh = open('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)), 'w')
