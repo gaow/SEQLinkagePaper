@@ -211,22 +211,28 @@ class cd:
     def __exit__(self, etype, value, traceback):
         os.chdir(self.savedPath)
 
-def run_linkage(theta_inc, theta_max):
+def run_linkage(blueprint, theta_inc, theta_max):
     workdirs = glob.glob('{0}/{1}/LINKAGE/{1}.chr*'.format(env.tmp_dir, env.output))
-    parmap(lambda x: linkage_worker(x, theta_inc, theta_max) , workdirs, env.jobs)
+    parmap(lambda x: linkage_worker(blueprint, x, theta_inc, theta_max) , workdirs, env.jobs)
     
-def linkage_worker(workdir, theta_inc, theta_max):
+def linkage_worker(blueprint, workdir, theta_inc, theta_max):
     env.log("Start running LINKAGE for {} ...".format(workdir), flush=True)
     #hash genes into genemap
-    tped = 'cache/{}.tped'.format(basename(workdir))
     genemap = {}
-    with open(tped) as f:
-        for line in f.readlines():
-            items = line.strip().split()[:4]
-            chrID = items[0]
-            gene = items[1]
-            pos = items[3]
-            genemap[gene] = [chrID, int(pos)]
+    if blueprint:
+        with open(blueprint) as f:
+            for line in f.readlines():
+                chrID, start, end, gene = line.strip().split()[:4]
+            genemap[gene] = [chrID, int(start), int(end)]
+    else:
+        tped = 'cache/{}.tped'.format(basename(workdir))
+        with open(tped) as f:
+            for line in f.readlines():
+                items = line.strip().split()[:4]
+                chrID = items[0]
+                gene = items[1]
+                pos = items[3]
+                genemap[gene] = [chrID, int(pos), int(pos+1)]
     mkpath('{}/heatmap'.format(env.output))
     lods_fh = open('{}/heatmap/{}.lods'.format(env.output, basename(workdir)), 'w')
     hlods_fh = open('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)), 'w')
