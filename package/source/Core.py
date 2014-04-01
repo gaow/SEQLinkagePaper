@@ -92,7 +92,7 @@ class Cache:
                       or item in files:
                         f.write(os.path.join(self.cache_dir, item), arcname=item)
             otherfiles.append(self.cache_name)
-            signatures = ['{}\t{}'.format(x, calculateFileMD5(x)) for x in otherfiles]
+            signatures = ['{}\t{}'.format(x, calculateFileMD5(x)) for x in otherfiles if os.path.isfile(x)]
             with open(self.cache_info + self.id, mode) as f:
                 f.write('\n'.join(signatures))
             with open(self.param_info + self.id, mode) as f:
@@ -421,7 +421,7 @@ class RegionExtractor:
     def getRegion(self, region):
         self.chrom, self.startpos, self.endpos, self.name = region[:4]
         self.startpos = int(self.startpos)
-        self.endpos = int(self.endpos)
+        self.endpos = int(self.endpos) + 1
         if self.chrom in ['X','23']:
             if self.xchecker.check(self.startpos) or self.xchecker.check(self.endpos): 
                 self.chrom = 'XY'
@@ -454,12 +454,15 @@ class MarkerMaker:
             # and computer founder MAFS
             self.__Haplotype(data, haplotypes, mafs, varnames)
             if len(varnames):
-                # calculate LD clusters using founder haplotypes
-                clusters = self.__ClusterByLD(data, haplotypes, varnames)
-                # recoding the genotype of the region
-                self.__CodeHaplotypes(data, haplotypes, mafs, varnames, clusters)
+                if not any ([len(varnames[x]) - 1 for x in varnames]):
+                    # all families have only one variant
+                    self.__AssignSNVHaplotypes(data, haplotypes, mafs, varnames)
+                else:
+                    # calculate LD clusters using founder haplotypes
+                    clusters = self.__ClusterByLD(data, haplotypes, varnames)
+                    # recoding the genotype of the region
+                    self.__CodeHaplotypes(data, haplotypes, mafs, varnames, clusters)
         except Exception as e:
-            raise
             return -1
         self.__FormatHaplotypes(data)
         return 0
@@ -594,7 +597,21 @@ class MarkerMaker:
         if env.debug:
             with env.lock:
                 print("marker freqs = ", data.maf, "\n", file = sys.stderr)
+
+                
+    def __AssignSNVHaplotypes(self, data, haplotypes, mafs, varnames):
+        for item in haplotypes:
+            # each person's haplotype
+            token = ''
+            for idx, line in enumerate(haplotypes[item]):
+                if not idx % 2:
+                    token = line[2][1] if line[2][0].isupper() else line[2][0]
+                else:
+                    data[line[1]] = (token, line[2][1] if line[2][0].isupper() else line[2][0]) 
+            # get maf
+            data.maf[item] = [(1 - mafs[varnames[item][0]], mafs[varnames[item][0]])]
     
+
     def __FormatHaplotypes(self, data):
         # Reformat sample genotypes 
         for person in data:
@@ -794,9 +811,10 @@ def main(args):
         try:
             with open(args.blueprint, 'r') as f:
                 regions = [x.strip().split() for x in f.readlines()]
-        except OSError:
+        except IOError:
             env.error("Cannot load regional marker blueprint [{}]. "\
                       "Single locus analyses will be performed instead!".format(args.blueprint))
+            regions = [(x[0], x[1], x[1], "{}:{}".format(x[0], x[1]), '.', '.', '.') for x in vs.GetGenomeCoordinates()]
         env.log('{:,d} families with a total of {:,d} samples will be scanned for {:,d} pre-defined units'.\
                 format(len(data.families), len(data.samples), len(regions)))
         env.jobs = max(min(args.jobs, len(regions)), 1)
@@ -809,7 +827,7 @@ def main(args):
             jobs = [EncoderWorker(
                 queue, len(regions), deepcopy(data),
                 RegionExtractor(args.vcf, chr_prefix = args.chr_prefix, allele_freq_info = args.freq),
-                MarkerMaker(args.bin, args.maf_cutoff),
+                MarkerMaker(args.bin, maf_cutoff = args.maf_cutoff),
                 LinkageWriter(len(samples_not_vcf))
                 ) for i in range(env.jobs)]
             for j in jobs:
