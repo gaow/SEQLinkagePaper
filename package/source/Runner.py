@@ -41,7 +41,7 @@ def format(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, thet
 
 #plink format, ped and map 
 def format_plink(tped, tfam):
-    out_base = '{}/{}/PLINK/{}'.format(env.tmp_dir,env.output, splitext(basename(tped))[0])
+    out_base = '{}/PLINK/{}'.format(env.tmp_dir, splitext(basename(tped))[0])
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
         geno = []
         with open(out_base + '.map', 'w') as m:
@@ -64,7 +64,7 @@ def format_plink(tped, tfam):
 #because the haplotype patterns are different from family to family.
 #You can analyze them all together
 def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc):
-    out_base = '{}/{}/LINKAGE/{}'.format(env.tmp_dir, env.output, splitext(basename(tped))[0])
+    out_base = '{}/LINKAGE/{}'.format(env.tmp_dir, splitext(basename(tped))[0])
     try:
         rmtree(out_base)
     except:
@@ -76,7 +76,7 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
         af = defaultdict(lambda: [])
         #try to open the file for allele frequencies, otherwise use the defaut value
         try:
-            with open('cache/{}.freq'.format(basename(out_base))) as af_fh:
+            with open(os.path.join(env.tmp_dir, 'CACHE', basename(out_base) + '.freq')) as af_fh:
                 for line in af_fh:
                     s = line.strip().split()
                     af[(s[0],s[1])] = s[2:]
@@ -212,7 +212,7 @@ class cd:
         os.chdir(self.savedPath)
 
 def run_linkage(blueprint, theta_inc, theta_max):
-    workdirs = glob.glob('{0}/{1}/LINKAGE/{1}.chr*'.format(env.tmp_dir, env.output))
+    workdirs = glob.glob('{}/LINKAGE/{}.chr*'.format(env.tmp_dir, env.output))
     parmap(lambda x: linkage_worker(blueprint, x, theta_inc, theta_max) , workdirs, env.jobs)
     
 def linkage_worker(blueprint, workdir, theta_inc, theta_max):
@@ -225,7 +225,7 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max):
                 chrID, start, end, gene = line.strip().split()[:4]
             genemap[gene] = [chrID, int(start), int(end)]
     else:
-        tped = 'cache/{}.tped'.format(basename(workdir))
+        tped = os.path.join(env.tmp_dir, basename(workdir))
         with open(tped) as f:
             for line in f.readlines():
                 items = line.strip().split()[:4]
@@ -338,7 +338,7 @@ def html(theta_inc, theta_max, limit):
     <div id="hlods_heatmap">{}</div></p>
     </body>
     </html>"""
-    with open('{}/index.html'.format(env.output), 'w') as f:
+    with open('{0}/{0}_Report.html'.format(env.output), 'w') as f:
         #t = Template(index)
         #c = Context({ "lods": lods_tbl })
         f.write(head + body.format(html_table('Lod', theta_inc, theta_max, limit), html_table('Hlod', theta_inc, theta_max, limit), html_img('lod'), html_img('hlod')))
