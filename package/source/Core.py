@@ -55,7 +55,7 @@ class Cache:
         self.params = params
         self.infofiles = [params['vcf'], params['tfam'], params['blueprint']] if params['blueprint'] else [params['vcf'], params['tfam']]
         self.infofiles.append(self.cache_name)
-        self.pchecklist = {'.vcf': ['bin'],
+        self.pchecklist = {'.vcf': ['bin', 'single_markers'],
                            '.linkage': ['prevalence', 'inherit_mode', 'wild_pen',
                                         'muta_pen', 'theta_max', 'theta_inc'],
                            '.analysis': ['prevalence', 'inherit_mode', 'wild_pen',
