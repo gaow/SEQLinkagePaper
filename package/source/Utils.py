@@ -38,7 +38,7 @@ class Environment:
         # Input & output options
         self.output = 'LINKAGE'
         self.outputfam = os.path.join(self.cache_dir, '{}.tfam'.format(self.output))
-        self.tmp_log = os.path.join(self.tmp_dir, self.output + ".STDOUT")
+        self.tmp_log = os.path.join(self.tmp_dir, self.output)
         # Multiprocessing counters
         self.batch = 50
         self.lock = Lock()
@@ -367,7 +367,7 @@ def checkParams(args):
     if args.output:
         env.output = os.path.split(args.output)[-1]
         env.outputfam = os.path.join(env.cache_dir, '{}.tfam'.format(env.output))
-        #env.tmp_log = os.path.join(env.tmp_dir, env.output)
+        env.tmp_log = os.path.join(env.tmp_dir, env.output + ".STDOUT")
     #
     if len([x for x in set(getColumn(args.tfam, 6)) if x.lower() not in env.ped_missing]) > 2:
         env.trait = 'quantitative'

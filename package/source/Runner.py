@@ -34,14 +34,13 @@ def parmap(f, X, nprocs = cpu_count()):
 #formatters
 #the handler, called from main, can call specific formmater.
 def format(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, theta_max, theta_inc):
-    #pool = Pool(env.jobs)
     if out_format == 'plink':
         parmap(lambda x: format_plink(x, tfam), tpeds, env.jobs)
     elif out_format == 'linkage':
         parmap(lambda x: format_linkage(x, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc), tpeds, env.jobs)
 
 #plink format, ped and map 
-def format_plink(tped, tfam):
+def format_plink(out_base, tped, tfam):
     out_base = '{}/{}/PLINK/{}'.format(env.tmp_dir,env.output, splitext(basename(tped))[0])
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
         geno = []
@@ -64,7 +63,7 @@ def format_plink(tped, tfam):
 #per locus, per family based
 #because the haplotype patterns are different from family to family.
 #You can analyze them all together
-def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc):
+def format_linkage(out_base, tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc):
     out_base = '{}/{}/LINKAGE/{}'.format(env.tmp_dir, env.output, splitext(basename(tped))[0])
     try:
         rmtree(out_base)
