@@ -248,8 +248,10 @@ def linkage_worker(workdir, blueprint, theta_inc, theta_max):
                 for unit in units:
                     copyfile('{}.LOC'.format(unit), 'datafile.dat')
                     copyfile('{}.PRE'.format(unit), 'pedfile.pre')
-                    subprocess.call(['makeped', 'pedfile.pre', 'pedfile.ped', 'n'], stdout=PNULL, stderr=PNULL)
-                    subprocess.call(['pedcheck', '-p', 'pedfile.ped', '-d', 'datafile.dat', '-c'], stdout=PNULL, stderr=PNULL)
+                    runCommand(['makeped', 'pedfile.pre', 'pedfile.ped', 'n'],
+                               show_stderr = False, return_zero = False)
+                    runCommand(['pedcheck', '-p', 'pedfile.ped', '-d', 'datafile.dat', '-c'],
+                               show_stderr = False, return_zero = False)
                     copyfile('zeroout.dat', 'pedfile.dat')
                     runCommand('unknown')
                     runCommand('mlink')

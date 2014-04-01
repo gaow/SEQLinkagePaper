@@ -139,13 +139,15 @@ def stdoutRedirect(to=os.devnull):
                                             # buffering and flags such as
                                             # CLOEXEC may be different
 
-def runCommand(cmd, instream = None, msg = '', upon_succ=None):
+def runCommand(cmd, instream = None, msg = '', upon_succ = None, show_stderr = True, return_zero = True):
     if isinstance(cmd, str):
         cmd = shlex.split(cmd)
+    popen_env = os.environ.copy()
+    popen_env.update(env.path)
     try:
         tc = subprocess.Popen(cmd, stdin = subprocess.PIPE,
                               stdout = subprocess.PIPE, stderr = subprocess.PIPE,
-                              env=env.path)
+                              env=popen_env)
         if instream:
             if sys.version_info.major == 3:
                 instream = instream.encode(sys.getdefaultencoding())
@@ -155,13 +157,13 @@ def runCommand(cmd, instream = None, msg = '', upon_succ=None):
         if sys.version_info.major == 3:
             out = out.decode(sys.getdefaultencoding())
             error = error.decode(sys.getdefaultencoding())
-        if tc.returncode < 0:
-            raise ValueError ("Command '{0}' was terminated by signal {1}".format(cmd, -tc.returncode))
-        elif tc.returncode > 0:
-            raise ValueError ("{0}".format(error))
-        else:
-            if error:
-                env.log(error)
+        if return_zero:
+            if tc.returncode < 0:
+                raise ValueError ("Command '{0}' was terminated by signal {1}".format(cmd, -tc.returncode))
+            elif tc.returncode > 0:
+                raise ValueError ("{0}".format(error))
+        if error and show_stderr:
+            env.log(error)
     except OSError as e:
         raise OSError ("Execution of command '{0}' failed: {1}".format(cmd, e))
     # everything is OK

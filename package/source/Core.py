@@ -756,8 +756,8 @@ def main(args):
     '''the main encoder function'''
     checkParams(args)
     downloadResources([('http://tigerwang.org/uploads/genemap.txt', env.resource_dir),
-                       ('http://tigerwang.org/uploads/lodscore', env.resource_bin),
-                       ('http://tigerwang.org/uploads/linkmap', env.resource_bin),
+                       # ('http://tigerwang.org/uploads/lodscore', env.resource_bin),
+                       # ('http://tigerwang.org/uploads/linkmap', env.resource_bin),
                        ('http://tigerwang.org/uploads/mlink', env.resource_bin),
                        ('http://tigerwang.org/uploads/unknown', env.resource_bin),
                        ('http://tigerwang.org/uploads/makeped', env.resource_bin),
