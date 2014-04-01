@@ -42,7 +42,7 @@ def format(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, thet
 
 #plink format, ped and map 
 def format_plink(tped, tfam):
-    out_base = '{}/PLINK/{}'.format(env.output, splitext(basename(tped))[0])
+    out_base = '{}/{}/PLINK/{}'.format(env.tmp_dir,env.output, splitext(basename(tped))[0])
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
         geno = []
         with open(out_base + '.map', 'w') as m:
@@ -65,7 +65,7 @@ def format_plink(tped, tfam):
 #because the haplotype patterns are different from family to family.
 #You can analyze them all together
 def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc):
-    out_base = '{}/LINKAGE/{}'.format(env.output, splitext(basename(tped))[0])
+    out_base = '{}/{}/LINKAGE/{}'.format(env.tmp_dir, env.output, splitext(basename(tped))[0])
     try:
         rmtree(out_base)
     except:
@@ -213,12 +213,7 @@ class cd:
         os.chdir(self.savedPath)
 
 def run_linkage(blueprint, theta_inc, theta_max):
-    #if 'linkage' not in env.formats:
-    #    formatLinkage()
-    #chrs = ['chr{}'.format(i+1) for i in range(22)] + ['chrX', 'chrY', 'chrXY']
-    #cmds = ['runLinkage.pl LINKAGE/{}.{} {} {}'.format(env.output, chrs[i], env.resource_dir, blueprint) for i in range(25)]
-    #runCommands(cmds, max(min(env.jobs, cmds), 1))
-    workdirs = glob.glob('{0}/LINKAGE/{0}.chr*'.format(env.output))
+    workdirs = glob.glob('{}/{0}/LINKAGE/{0}.chr*'.format(env.tmp_dir, env.output))
     parmap(lambda x: linkage_worker(x, blueprint, theta_inc, theta_max) , workdirs, env.jobs)
     
 def linkage_worker(workdir, blueprint, theta_inc, theta_max):
@@ -229,14 +224,9 @@ def linkage_worker(workdir, blueprint, theta_inc, theta_max):
         for line in f.readlines():
             chrID, start, end, gene = line.strip().split()[:4]
             genemap[gene] = [chrID, int(start), int(end)]
-    #This is a hack, should be simpler. Because some genes might have their suffix [\d+],
-    #We couldn't find GENENAME[\d+] in the genemap, we have to look up the original name,
-    #and when we sort them, suffixes if exist should be added properly.
-    PNULL = open(os.devnull, 'w')
     mkpath('{}/heatmap'.format(env.output))
     lods_fh = open('{}/heatmap/{}.lods'.format(env.output, basename(workdir)), 'w')
     hlods_fh = open('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)), 'w')
-    #for unitdir in sorted(filter(isdir, glob.glob(workdir + '/*')), key=lambda x: genemap[re.sub(r'^(\S+?)(?:\[\d+\])?$', r'\1', basename(x))] + [int(re.sub(r'^(?:\S+?)(?:\[(\d+)\])?$', r'\1', basename(x)) if re.search(r'\]$', x) else 0)]):
     genes = filter(lambda g: g in genemap, map(basename, glob.glob(workdir + '/*')))
     for gene in sorted(genes, key=lambda g: genemap[g]):
         lods = {}
