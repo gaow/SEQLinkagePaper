@@ -213,7 +213,10 @@ class cd:
         os.chdir(self.savedPath)
 
 def run_linkage(blueprint, theta_inc, theta_max):
-    rmtree(os.path.join(env.output, 'heatmap'))
+    try:
+        rmtree(os.path.join(env.output, 'heatmap'))
+    except OSError:
+        pass
     workdirs = glob.glob('{}/LINKAGE/{}.chr*'.format(env.tmp_dir, env.output))
     parmap(lambda x: linkage_worker(blueprint, x, theta_inc, theta_max) , workdirs, env.jobs)
     
