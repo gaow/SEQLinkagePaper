@@ -63,6 +63,8 @@ class Args:
         vargs = parser.add_argument_group('Runtime arguments')
         vargs.add_argument('-j', '--jobs', metavar='N', type = int, default = 2,
                            help='''Number of CPUs to use.''')
+        vargs.add_argument('--tempdir', metavar='PATH',
+                           help='''Temporary directory to use.''')
         vargs.add_argument('--vanilla', action='store_true',
                            help='''Encode data from scratch without loading cache.''')
         vargs.add_argument('--debug', action='store_true', help=SUPPRESS)

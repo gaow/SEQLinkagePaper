@@ -53,7 +53,7 @@ class Environment:
         self.mendelerror_counter = Value('i',0)
         self.recomb_counter = Value('i',0)
 
-    def __mktmpdir(self):
+    def __mktmpdir(self, where = None):
         class LockedTempDir(str):
             def __init__(self, path):
                 self = path
@@ -64,14 +64,24 @@ class Environment:
                     os.remove(os.path.join(self, '.lock'))
                 except:
                     pass
-        
+
+        if where in [None, 'None', '']:
+            where = tempfile.gettempdir()
+        if os.path.isdir(where) and ((not os.access(where, os.R_OK)) or (not os.access(where, os.W_OK))):
+            self.error('Cannot set temporary directory to directory {} because '.format(where) + \
+                       'it is not readable or writable.', exit = True)
         pattern = re.compile(r'{}_tmp_*(.*)'.format(self.proj))
-        for fn in os.listdir(tempfile.gettempdir()):
-            if pattern.match(fn) and not os.path.isfile(os.path.join(tempfile.gettempdir(), fn, '.lock')):
-                remove_tree(os.path.join(tempfile.gettempdir(), fn))
-        tmp = LockedTempDir(tempfile.mkdtemp(prefix='{}_tmp_'.format(self.proj)))
+        for fn in os.listdir(where):
+            if pattern.match(fn) and not os.path.isfile(os.path.join(where, fn, '.lock')):
+                remove_tree(os.path.join(where, fn))
+        tmp = LockedTempDir(tempfile.mkdtemp(prefix='{}_tmp_'.format(self.proj), dir = where))
         mkpath(os.path.join(tmp, 'CACHE'))
         return tmp
+
+    def ResetTempdir(self, path = None):
+        self.tmp_dir = self.__mktmpdir(path)
+        self.tmp_cache = os.path.join(self.tmp_dir, 'CACHE')
+        self.tmp_log = os.path.join(self.tmp_dir, "clog." + self.output)
             
     def error(self, msg = None, show_help = False, exit = False):
         if msg is None:
@@ -396,6 +406,8 @@ def checkParams(args):
         args.format.append('linkage')
     if None in [args.inherit_mode, args.prevalence, args.wild_pen, args.muta_pen] and "linkage" in args.format:
         env.error('To generate LINKAGE format or run LINKAGE analysis, please specify all options below:\n\t--prevalence, -K\n\t--moi\n\t--wild-pen, -W\n\t--muta-pen, -M', show_help = True, exit = True)
+    if args.tempdir is not None:
+        env.ResetTempdir(args.tempdir)
     return True
 
 ###
