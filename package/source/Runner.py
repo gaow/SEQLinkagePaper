@@ -109,7 +109,8 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                 #    env.log(set(filter(lambda x: x != '0', chain(*gs))))
                 gs_num = len(set(filter(lambda x: x != '0', chain(*gs))))
                 if gs_num >= 10:
-                    env.log('pattern number larger than 9 for unit {} in family {}, skipped'.format(s[1], fid))
+                    env.log('Pattern number larger than 9 for unit {} in family {}, skipped'.format(s[1], fid))
+                    rmtree(workdir)
                     continue
                 with open('{}/{}.PRE'.format(workdir, gno), 'w') as pre:
                     pre.write(''.join("{} {} {} {}\n".format(fid, fams[fid].print_member(pid), s[2*fams[fid].get_member_idx(pid) + 4], s[2*fams[fid].get_member_idx(pid) + 5]) for pid in ids))
@@ -126,14 +127,14 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                     loc.write("0 0\n")
                     loc.write("0.0\n")
                     loc.write("1 {} {}\n".format(theta_inc, theta_max))
-                if not os.listdir(workdir):
-                    env.log('empty dir [{}], deteled'.format(workdir))
-                    os.rmdir(workdir)
             if not os.listdir('{}/{}'.format(out_base, gene)):
                 env.log('empty dir [{}/{}], deteled'.format(out_base, gene))
-                os.rmdir(workdir)
+                os.rmdir(os.path.join(out_base, gene))
     tped_fh.close()
     tfam_fh.close()
+    if not os.listdir('{}'.format(out_base)):
+        env.log('empty dir [{}], deteled'.format(out_base))
+        os.rmdir(out_base)
     env.log("Finished LINKAGE format for {}.\n".format(out_base), flush=True)
   
 #parse tfam file, store families into the Pedigree class                
@@ -212,11 +213,12 @@ class cd:
         os.chdir(self.savedPath)
 
 def run_linkage(blueprint, theta_inc, theta_max):
+    rmtree(os.path.join(env.output, 'heatmap'))
     workdirs = glob.glob('{}/LINKAGE/{}.chr*'.format(env.tmp_dir, env.output))
     parmap(lambda x: linkage_worker(blueprint, x, theta_inc, theta_max) , workdirs, env.jobs)
     
 def linkage_worker(blueprint, workdir, theta_inc, theta_max):
-    env.log("Start running LINKAGE for {} ...".format(workdir), flush=True)
+    env.log("Start running LINKAGE for {} ...\n".format(workdir), flush=True)
     #hash genes into genemap
     genemap = {}
     if blueprint:
@@ -276,8 +278,32 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max):
     hlods_fh.close()
     heatmap('{}/heatmap/{}.lods'.format(env.output, basename(workdir)), theta_inc, theta_max)
     heatmap('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)), theta_inc, theta_max)
-    env.log("Finished running LINKAGE for {}.".format(workdir), flush=True)
+    env.log("Finished running LINKAGE for {}.\n".format(workdir), flush=True)
+
+
+def hinton(filename, max_weight=None, ax=None):
+    if ax is None:
+        ax = plt.gca()
+    matrix = np.random.rand(20, 20) - 0.5
+    if not max_weight:
+        max_weight = 2**np.ceil(np.log(np.abs(matrix).max())/np.log(2))
+    ax.patch.set_facecolor('gray')
+    ax.set_aspect('equal', 'box')
+    ax.xaxis.set_major_locator(plt.NullLocator())
+    ax.yaxis.set_major_locator(plt.NullLocator())
+    chrID = re.search(r'\.chr([0-9XY]+)\.', filename).group(1)
+    ax.set_title('Chromosome {}'.format(chrID))
+    for (x,y),w in np.ndenumerate(matrix):
+        color = 'white' if w > 0 else 'black'
+        size = np.sqrt(np.abs(w))
+        rect = plt.Rectangle([x - size / 2, y - size / 2], size, size,
+                             facecolor=color, edgecolor=color)
+        ax.add_patch(rect)
+    ax.autoscale_view()
+    ax.invert_yaxis()
+    plt.savefig(filename)
     
+        
 def heatmap(file, theta_inc, theta_max):
     env.log("Start ploting heatmap for {} ...\n".format(file), flush=True)
     lods = []
@@ -287,6 +313,10 @@ def heatmap(file, theta_inc, theta_max):
             if float(theta) >= theta_max:
                 continue
             lods.append(lod)
+        if max(lods) == min(lods):
+            env.log('Max equals Min for [{}], No real heatmap will be generated.'.format(file))
+            hinton('{}.png'.format(file))
+            return
         Num=int(round(theta_max/theta_inc))
         lods = np.array(map(float,lods)).reshape((-1,Num))
         chrID = re.search(r'\.chr([0-9XY]+)\.', file).group(1)
@@ -338,10 +368,12 @@ def html(theta_inc, theta_max, limit):
     <div id="hlods_heatmap">{}</div></p>
     </body>
     </html>"""
+    env.log('Generating Reports in html format ...')
     with open('{0}/{0}_Report.html'.format(env.output), 'w') as f:
         #t = Template(index)
         #c = Context({ "lods": lods_tbl })
         f.write(head + body.format(html_table('Lod', theta_inc, theta_max, limit), html_table('Hlod', theta_inc, theta_max, limit), html_img('lod'), html_img('hlod')))
+    env.log('Reports in html format generated.')
 
 def html_img(ltype):
     chrs = ['{}'.format(i+1) for i in range(22)] + ['X', 'Y']
