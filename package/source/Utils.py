@@ -54,13 +54,21 @@ class Environment:
         self.recomb_counter = Value('i',0)
 
     def __mktmpdir(self):
+        class LockedTempDir(str):
+            def __init__(self, path):
+                self = path
+                open(os.path.join(self, '.lock'), 'a').close()
+
+            def __del__(self):
+                os.remove(os.path.join(self, '.lock'))
+        
         pattern = re.compile(r'{}_tmp_*(.*)'.format(self.proj))
         for fn in os.listdir(tempfile.gettempdir()):
-            if pattern.match(fn):
+            if pattern.match(fn) and not os.path.isfile(os.path.join(tempfile.gettempdir(), fn, '.lock')):
                 remove_tree(os.path.join(tempfile.gettempdir(), fn))
-        tmp_dir = tempfile.mkdtemp(prefix='{}_tmp_'.format(self.proj))
-        mkpath(os.path.join(tmp_dir, 'CACHE'))
-        return tmp_dir
+        tmp = LockedTempDir(tempfile.mkdtemp(prefix='{}_tmp_'.format(self.proj)))
+        mkpath(os.path.join(tmp, 'CACHE'))
+        return tmp
             
     def error(self, msg = None, show_help = False, exit = False):
         if msg is None:
@@ -108,6 +116,7 @@ class StdoutCapturer(list):
         self._stdout = sys.stdout
         sys.stdout = self._stringio = StringIO()
         return self
+
     def __exit__(self, *args):
         self.extend(self._stringio.getvalue().splitlines())
         sys.stdout = self._stdout
