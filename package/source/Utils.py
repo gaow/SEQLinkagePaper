@@ -87,10 +87,8 @@ class Environment:
         sys.stderr.write(start + "\033[1;40;33mERROR: {}\033[0m\n".format(msg) + end)
         if show_help:
             self.log("Type '{} -h' for help message".format(env.prog))
-            remove_tree(self.tmp_dir)
             sys.exit()
         if exit:
-            remove_tree(self.tmp_dir)
             sys.exit()
         
     def log(self, msg = None, flush=False):
