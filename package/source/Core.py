@@ -810,7 +810,7 @@ def main(args):
             env.error("{}".format(e), exit = True)
         samples_vcf = vs.GetSampleNames()
         if len(samples_vcf) == 0:
-            env.error("Fail to extract samples from [{}]".format(vcf), exit = True)
+            env.error("Fail to extract samples from [{}]".format(args.vcf), exit = True)
         env.log('{:,d} samples found in [{}]'.format(len(samples_vcf), args.vcf))
         samples_not_vcf = checkSamples(samples_vcf, getColumn(args.tfam, 2))[1]
         # load sample info 
@@ -913,25 +913,8 @@ def main(args):
             env.log('Running LINKAGE now ...')
             run_linkage(args.blueprint, args.theta_inc, args.theta_max)
             cache.write(arcroot = 'heatmap', source_dir = os.path.join(env.output, 'heatmap'), mode = 'a') 
-        html(args.theta_inc, args.theta_max, args.output_limit)
+        if args.output_limit > 0:
+            html(args.theta_inc, args.theta_max, args.output_limit)
     else:
         env.log('Saving data to [{}] ...'.format(os.path.abspath(env.output)))
         cache.load(target_dir = env.output, names = [fmt.upper() for fmt in args.format])
-
-
-    #if 'plink' in args.format:
-    #    env.log('Saving data to directory [PLINK] ...')
-    #    formatPlink(tpeds, [env.outputfam] * len(tpeds), 'PLINK')
-    #if 'mega2' in args.format:
-    #    env.log('Saving data to directory [MEGA2] ...')
-    #    formatMega2('MEGA2/{}*'.format(env.output))
-    #if 'mlink' in args.format:
-    #    env.log('Saving data to directory [MLINK] ...')
-    #    format_linkage(tpeds, [env.outputfam] * len(tpeds), 'MLINK')
-    #runMlink(args.blueprint)
-    #plotMlink()
-    #please implement this section
-    # STEP final: clean up unwanted files
-    #for item in args.format:
-    #    removeFiles(item.upper(), exclude = env.formats[item])
-    #removeFiles(env.cache_dir, exclude = ['.cache'])

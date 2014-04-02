@@ -29,7 +29,7 @@ class Environment:
         self.cache_dir = os.path.join(os.getcwd(), 'cache')
         self.tmp_dir = self.__mktmpdir()
         self.tmp_cache = os.path.join(self.tmp_dir, 'CACHE')
-        self.path = {'PATH':self.resource_bin}
+        self.path = {'PATH':"{}:{}".format(self.resource_bin, os.environ["PATH"])}
         self.debug = False
         # File contents 
         self.build = 'hg19'
@@ -38,7 +38,7 @@ class Environment:
         self.trait = 'binary'
         # Input & output options
         self.output = 'LINKAGE'
-        self.tmp_log = os.path.join(self.tmp_dir, self.output)
+        self.tmp_log = os.path.join(self.tmp_dir, "clog." + self.output)
         # Multiprocessing counters
         self.batch = 50
         self.lock = Lock()
@@ -60,7 +60,10 @@ class Environment:
                 open(os.path.join(self, '.lock'), 'a').close()
 
             def __del__(self):
-                os.remove(os.path.join(self, '.lock'))
+                try:
+                    os.remove(os.path.join(self, '.lock'))
+                except:
+                    pass
         
         pattern = re.compile(r'{}_tmp_*(.*)'.format(self.proj))
         for fn in os.listdir(tempfile.gettempdir()):
@@ -401,15 +404,20 @@ def checkParams(args):
 # Run External tools
 ###
 
-def indexVCF(vcf):
+def indexVCF(vcf, verbose = True):
     if not vcf.endswith(".gz"):
         if os.path.exists(vcf + ".gz"):
-            env.error("Cannot compress [{0}] because [{0}.gz] exists!".format(vcf), exit = True)
-        env.log("Compressing file [{0}] to [{0}.gz] ...".format(vcf))
+            if verbose:
+                env.error("Cannot compress [{0}] because [{0}.gz] exists!".format(vcf), exit = True)
+            else:
+                sys.exit()
+        if verbose:
+            env.log("Compressing file [{0}] to [{0}.gz] ...".format(vcf))
         runCommand('bgzip {0}'.format(vcf))
         vcf += ".gz"
     if not os.path.isfile(vcf + '.tbi') or os.path.getmtime(vcf) > os.path.getmtime(vcf + '.tbi'):
-        env.log("Generating index file for [{}] ...".format(vcf))
+        if verbose:
+            env.log("Generating index file for [{}] ...".format(vcf))
         runCommand('tabix -p vcf -f {}'.format(vcf))
     return vcf
     
