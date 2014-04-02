@@ -223,7 +223,7 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max):
         with open(blueprint) as f:
             for line in f.readlines():
                 chrID, start, end, gene = line.strip().split()[:4]
-            genemap[gene] = [chrID, int(start), int(end)]
+                genemap[gene] = [chrID, int(start), int(end)]
     else:
         tped = os.path.join(env.tmp_cache, basename(workdir) + '.tped')
         with open(tped) as f:
