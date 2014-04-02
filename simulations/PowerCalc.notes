@@ -1,0 +1,16 @@
+###
+# Power analyses for SEQLinkage
+###
+#!!! Wed Apr  2 10:45:41 CDT 2014
+# Alright, let's rock and roll!
+#! Basics
+# We simulate and analyze two autosomal recessive genes GJB2 and SLC26A4 and two autosomal dominant genes MYO7A and MYH9. The program takes two genes source data as input.
+# As we call @@seqlink@@ from inside of the program multiple times we'd like to speed up the execution by using ramdisk of 800MB. 
+sudo mkdir -p /ramcache
+sudo mount -t tmpfs ramfs -o size=800m /ramcache
+cd /ramcache
+ln -s ~/SVN/SEQLinco/simulations/LinkagePowerCalc.py pcal.py
+#! Example command
+python pcal.py -g GJB2.tsv MYO7A.tsv -r 100 --sample-size 20 \
+       --blueprint blueprint.txt --vanilla \
+       --run-linkage -K 0.01 --moi AD -W 0 -M 1 --tempdir /ramcache 
