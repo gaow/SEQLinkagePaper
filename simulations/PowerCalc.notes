@@ -42,6 +42,37 @@ with open(name, 'w') as f:
 #}
 # Use command below to run the generated script:
 cat pcal.sh | gw-parallel -j7
+#! Power calculation result database
+cat CHPResult.csv.* > CHPResult.csv
+cat SNVResult.csv.* > SNVResult.csv
+./pcal.py --print-header | wsqlite PowerCalc -i CHPResult.csv --as CHP --header - -d"," 
+./pcal.py --print-header | wsqlite PowerCalc -i SNVResult.csv --as SNV --header - -d","
+# Now the power calculation results are in the database
+wsqlite PowerCalc -s
+wsqlite PowerCalc -s CHP
+wsqlite PowerCalc -s SNV
+# Let's have a rough feeling on power comparison between the methods
+#{bash
+for i in recessive dominant compound_recessive compound_dominant; do
+    echo $i
+    wsqlite PowerCalc "select avg(plod1) from CHP where moi = '$i'"
+    wsqlite PowerCalc "select avg(plod1) from SNV where moi = '$i'"
+done
+#}
+#{out
+recessive
+0.727776074443
+0.746848342238
+dominant
+0.528512396694
+0.656528925619
+compound_recessive
+0.731162035468
+0.438850488354
+compound_dominant
+0.527520661156
+0.521157024793
+#}
 #{-------
 tigernotes doc PowerCalc.notes --lite --no_section_number --font_size 12
 #}-------
