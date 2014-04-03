@@ -42,37 +42,58 @@ with open(name, 'w') as f:
 #}
 # Use command below to run the generated script:
 cat pcal.sh | gw-parallel -j7
-#! Power calculation result database
+#! Power calculation result 
+# Consolidate all result data into database @@PowerCalc@@
 cat CHPResult.csv.* > CHPResult.csv
 cat SNVResult.csv.* > SNVResult.csv
 ./pcal.py --print-header | wsqlite PowerCalc -i CHPResult.csv --as CHP --header - -d"," 
 ./pcal.py --print-header | wsqlite PowerCalc -i SNVResult.csv --as SNV --header - -d","
-# Now the power calculation results are in the database
+# To view attributes of the database
 wsqlite PowerCalc -s
 wsqlite PowerCalc -s CHP
 wsqlite PowerCalc -s SNV
-# Let's have a rough feeling on power comparison between the methods
+# All output data and results are backed up to @@0402.tar.gz@@ for future reference. Now let's have a rough feeling on power comparison between the methods
 #{bash
 for i in recessive dominant compound_recessive compound_dominant; do
-    echo $i
-    wsqlite PowerCalc "select avg(plod1) from CHP where moi = '$i'"
-    wsqlite PowerCalc "select avg(plod1) from SNV where moi = '$i'"
+    for j in 1 2; do
+        echo $i Gene$j
+        echo CHP=`wsqlite PowerCalc "select avg(plod$j) from CHP where moi = '$i'"` \
+        SNV=`wsqlite PowerCalc "select avg(plod$j) from SNV where moi = '$i'"`
+    done
 done
 #}
 #{out
-recessive
-0.727776074443
-0.746848342238
-dominant
-0.528512396694
-0.656528925619
-compound_recessive
-0.731162035468
-0.438850488354
-compound_dominant
-0.527520661156
-0.521157024793
+recessive Gene1
+CHP=0.727776074443 SNV=0.746848342238
+recessive Gene2
+CHP=0.729023265841 SNV=0.731563345514
+dominant Gene1
+CHP=0.528512396694 SNV=0.656528925619
+dominant Gene2
+CHP=0.619426496368 SNV=0.712562818265
+compound_recessive Gene1
+CHP=0.731162035468 SNV=0.438850488354
+compound_recessive Gene2
+CHP=0.727493032963 SNV=0.519363628251
+compound_dominant Gene1
+CHP=0.527520661156 SNV=0.521157024793
+compound_dominant Gene2
+CHP=0.617768595041 SNV=0.621983471074
 #}
+# Although many power values are still low at sample size 55 (meaning I need to increase sample size) and are based on small replicates (I'll increase replicates) we do observe what we expect: no power difference for recessive, slight power loss for dominant (since creating many patterns instead of using one alternative original SNV introduces noise and lowers LOD score as observed by Di), and significant power gain for compound recessive. We observed no power gain for so-called compound dominant which is counter intuitive but after more careful thinking with LOD calculations under such scenario we see this is expected: in such cases phenotype information would play a role. See variant 5 and variant 6 of the Version 0 of Supplemental figure S1. 
+# After discussion with Di we decide to add another moi, the "dominant epistatic". But before that I need to create plots in order to decide how to adjust sample size parameters.
+#!!! Thu Apr  3 14:51:32 CDT 2014 | A sleepy afternoon with voltaren all over my hands ...
+#! Power plot
+# Script see @@PowerContour.py@@ under this folder. Resulting graph below:
+#!! R
+#* PowerFigs/recessive_gene1.pdf 0.45; PowerFigs/recessive_gene2.pdf 0.45
+#!! CR
+#* PowerFigs/compound_recessive_gene1.pdf 0.45; PowerFigs/compound_recessive_gene2.pdf 0.45
+#!! D
+#* PowerFigs/dominant_gene1.pdf 0.45; PowerFigs/dominant_gene2.pdf 0.45
+#!! CD
+#* PowerFigs/compound_dominant_gene1.pdf 0.45; PowerFigs/compound_dominant_gene2.pdf 0.45
 #{-------
 tigernotes doc PowerCalc.notes --lite --no_section_number --font_size 12
 #}-------
+
