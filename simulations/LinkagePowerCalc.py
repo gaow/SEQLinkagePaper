@@ -13,13 +13,13 @@ from SEQLinkage.Utils import indexVCF, getColumn
 OFF_PROP_2more = {2: 0.6314, 3: 0.2556, '4_more': 0.1130}
 OFF_PROP_2and3 = {2: 0.7118, 3: 0.2882}
 OFF_PROP_3more = {3:0.6934, '4_more':0.3066}
+GENEMAP = {'11':'MYO7A', '13':'GJB2', '7':'SLC26A4', '22':'MYH9'}
 
 def arguments(parser):
     parser.add_argument('-g', '--genes',
                         type=str,
                         metavar='FILE',
                         nargs=2,
-                        required=True,
                         help='''Specify input gene file names (gene1 gene2)
                         ''')
     parser.add_argument('-n', '--offspring',
@@ -52,7 +52,7 @@ def arguments(parser):
                         metavar='INT',
                         default=1,
                         help='''Specify desired number of replicates''')
-    parser.add_argument('-o', '--output-file',
+    parser.add_argument('--ofile',
                         dest = 'outfile',
                         type=str,
                         default='simulation',
@@ -74,6 +74,10 @@ def arguments(parser):
                         action='store_true',
                         dest = 'sim_only',
                         help='''Simulation only''')
+    parser.add_argument('--print-header',
+                        action='store_true',
+                        dest = 'print_header',
+                        help='''Print output table header and quit.''')
 
 
 
@@ -86,6 +90,10 @@ def main(args, unknown_args):
             os.system('/bin/rm -rf {}'.format(item))
     ## check user input
     checkInput(args)
+    ## print header
+    if args.print_header:
+        print("gene1,gene2,plod1,nlod1,phlod1,nhlod1,plod2,nlod2,phlod2,nhlod2,prop1,prop2,moi,fam_size,min_offspring,max_offspring")
+        sys.exit()
     ## set seed
     if not args.seed:
         args.seed = time.time()
@@ -121,12 +129,16 @@ def main(args, unknown_args):
                 pbar.update(i)
             continue
         # linkage analysis
-        os.system("seqlink --vcf {} --fam {} {} 2> /dev/null".format(vcf, fam, " ".join(unknown_args)))
+        os.system("seqlink --vcf {} --fam {} --output {} {} 2> /dev/null".\
+                  format(vcf, fam, args.outfile, " ".join(unknown_args)))
         res = {'lods':{}, 'hlods':{}}
         for score in ['lods', 'hlods']:
-            for fn in glob.glob('LINKAGE/heatmap/*.{}'.format(score)):
+            for fn in glob.glob('{}/heatmap/*.{}'.format(args.outfile, score)):
                 for marker, value in zip(getColumn(fn, 1), getColumn(fn, 6)):
                     value = float(value)
+                    # convert single SNV marker to gene marker
+                    if ":" in marker:
+                        marker = GENEMAP[marker.split(":")[0]]
                     if marker not in res[score]:
                         res[score][marker] = value
                     else:
@@ -144,17 +156,25 @@ def main(args, unknown_args):
                         counter[marker][score][1] += 1 
                     else:
                         counter[marker][score][1] += 1 
-                        
         if not args.debug:
             pbar.update(i)
     if not args.debug:
         pbar.finish()    
     # report power calculation
-    for marker in counter:
-        print("Power for {}: P(LOD) = {}; P(HLOD) = {}".\
-              format(marker, counter[marker]['lods'][0] / float(counter[marker]['lods'][1] + 1E-10),
-                     counter[marker]['hlods'][0] / float(counter[marker]['hlods'][1] + 1E-10)))
-    return
+    gs = [x.split('.')[0] for x in args.genes]
+    out = [gs[0], gs[1],
+           counter[gs[0]]['lods'][0] / float(counter[gs[0]]['lods'][1] + 1E-10) if gs[0] in counter else -9,
+           counter[gs[0]]['lods'][1] if gs[0] in counter else -9,
+           counter[gs[0]]['hlods'][0] / float(counter[gs[0]]['hlods'][1] + 1E-10) if gs[0] in counter else -9,
+           counter[gs[0]]['hlods'][1] if gs[0] in counter else -9,
+           counter[gs[1]]['lods'][0] / float(counter[gs[1]]['lods'][1] + 1E-10) if gs[1] in counter else -9,
+           counter[gs[1]]['lods'][1] if gs[1] in counter else -9,
+           counter[gs[1]]['hlods'][0] / float(counter[gs[1]]['hlods'][1] + 1E-10) if gs[1] in counter else -9,
+           counter[gs[1]]['hlods'][1] if gs[1] in counter else -9,
+           args.allelicheteroprop[0], args.allelicheteroprop[1], args.mode, args.samplesize,
+           args.offspring[0], args.offspring[1]]
+    print ','.join(map(str, out))
+    return 0
     
 
 def writeVCF(samples, sample_names, gene1, gene2, fileName):
@@ -198,9 +218,18 @@ def checkInput(args):
     '''
     validate user inputs and raise InputError in case of exception
     '''
+    if args.print_header:
+        return
     # minimum # offspring between [2,4], maximum # offspring between [3,10]
     if args.offspring[0] not in [2,3,4] or args.offspring[1] not in range(3,11) or args.offspring[0] > args.offspring[1]:
-        raise ValueError('Inappropriate input of argument "offspring"')
+        sys.exit('Inappropriate input of argument "offspring"')
+    if not args.genes:
+        sys.exit("Please specify input files!")
+    for item in args.genes:
+        if not os.path.isfile(item):
+            sys.exit('Cannot find file {}'.format(item)) 
+        if item.split('.')[0] not in GENEMAP.values():
+            sys.exit('Gene {} is not supported!'.format(item.split('.')[0]))
     return
 
 
@@ -371,7 +400,6 @@ def genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring):
     return aff, hapIdx
             
 
-
 def genMarkerHap(geneInfo):
     hap = [0] * len(geneInfo['maf'])
     for idx in geneInfo['nd_idx']:
@@ -428,7 +456,7 @@ if __name__ == '__main__':
     master_parser = argparse.ArgumentParser(
         description = '''Program to generate two generational family samples with two gene regions and perform power calculation with SEQLinkage program; All unknown args will be passed to seqlink program''',
         prog = 'seqlink-pc',
-        epilog = '''Biao Li (biaol@bcm.edu), Di Zhang and Gao Wang (c) 2014.'''
+        epilog = '''Biao Li (biaol@bcm.edu) and Gao Wang (c) 2014.'''
     )
     master_parser.add_argument('--version,', action='version', version='%(prog)s 0.1.0')
     arguments(master_parser)
