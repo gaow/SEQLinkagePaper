@@ -212,15 +212,15 @@ class cd:
     def __exit__(self, etype, value, traceback):
         os.chdir(self.savedPath)
 
-def run_linkage(blueprint, theta_inc, theta_max):
+def run_linkage(blueprint, theta_inc, theta_max, to_plot = True):
     try:
         rmtree(os.path.join(env.output, 'heatmap'))
     except OSError:
         pass
     workdirs = glob.glob('{}/LINKAGE/{}.chr*'.format(env.tmp_dir, env.output))
-    parmap(lambda x: linkage_worker(blueprint, x, theta_inc, theta_max) , workdirs, env.jobs)
+    parmap(lambda x: linkage_worker(blueprint, x, theta_inc, theta_max, to_plot) , workdirs, env.jobs)
     
-def linkage_worker(blueprint, workdir, theta_inc, theta_max):
+def linkage_worker(blueprint, workdir, theta_inc, theta_max, to_plot = True):
     env.log("Start running LINKAGE for {} ...\n".format(workdir), flush=True)
     #hash genes into genemap
     genemap = {}
@@ -279,8 +279,9 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max):
             hlods_fh.write('{} {} {} {} {}\n'.format(gene, ' '.join(map(str, genemap[gene])), a, theta, hlod_fun(lods[theta].values())(a)))
     lods_fh.close()
     hlods_fh.close()
-    heatmap('{}/heatmap/{}.lods'.format(env.output, basename(workdir)), theta_inc, theta_max)
-    heatmap('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)), theta_inc, theta_max)
+    if to_plot:
+        heatmap('{}/heatmap/{}.lods'.format(env.output, basename(workdir)), theta_inc, theta_max)
+        heatmap('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)), theta_inc, theta_max)
     env.log("Finished running LINKAGE for {}.\n".format(workdir), flush=True)
 
 
@@ -337,6 +338,8 @@ def hlod_fun(Li, sign=1):
     return _fun 
     
 def html(theta_inc, theta_max, limit):
+    if limit <= 0:
+        return
     head = """<html>
     <head>
     <title>Results for {}</title>""".format(env.output) + """
