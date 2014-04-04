@@ -22,30 +22,34 @@ def arguments(parser):
                         nargs=2,
                         help='''Specify input gene file names (gene1 gene2)
                         ''')
-    parser.add_argument('-n', '--offspring',
+    parser.add_argument('-s', '--offspring',
                         type=int,
                         metavar='INT',
                         nargs=2,
-                        default=[2,5],
-                        help='''Specify a range of allowed number of offspring each parent may produce, e.g. 2 5, allowed minimum number is between 2 and 4, maximum between 5 and 10. Default to "2 5"''')
+                        default=[3,8],
+                        help='''Specify a range of allowed number of offspring each parent may produce, allowed minimum number is between 2 and 4, maximum between 5 and 10. Default to "3 8"''')
     parser.add_argument('-m', '--mode',
                         type=str,
-                        default='dominant',
-                        choices=['recessive', 'dominant', 'compound_recessive', 'compound_dominant'],
-                        help='''Specify mode of inheritance of disease locus, e.g. recessive or dominant or compound_recessive or compound_dominant''')
-    parser.add_argument('-s', '--sample-size',
-                        dest = "samplesize",
+                        default='compound_recessive',
+                        choices=['recessive', 'dominant', 'compound_recessive'],
+                        help='''Specify mode of inheritance of disease locus. Compound recessive is the so-called compound heterozygosity.''')
+    parser.add_argument('-n', '--num-families',
+                        dest = "numfamilies",
                         type=int,
                         metavar='INT',
                         default=1,
-                        help='''Specify sample size, i.e., number of families''')
-    parser.add_argument('-a', '--props-allelic-heterogeneity',
-                        dest = "allelicheteroprop",
+                        help='''Specify number of families''')
+    parser.add_argument('-a', '--allelic-heterogenous',
+                        action='store_true',
+                        dest = 'allelichet'
+                        help='''Whether or not the causal variant for particular gene is different for different families.''')
+    parser.add_argument('-p', '--props-locus-heterogeneity',
+                        dest = "locusheterogenprop",
                         type=float,
                         metavar='FLOAT',
                         nargs=2,
                         default=[0.5,0.5],
-                        help='''Specify proportion of allelic heterogeneity between two genes in the sample (the two proportion should sum to 1.0), e.g. 0.5 0.5''')
+                        help='''Specify proportion of locus heterogeneity between two genes in the sample (the two proportion should sum to 1.0), e.g. 0.5 0.5''')
     parser.add_argument('-r', '--num-replicates',
                         dest = 'numreps',
                         type=int,
@@ -92,7 +96,7 @@ def main(args, unknown_args):
     checkInput(args)
     ## print header
     if args.print_header:
-        print("gene1,gene2,plod1,nlod1,phlod1,nhlod1,plod2,nlod2,phlod2,nhlod2,prop1,prop2,moi,fam_size,min_offspring,max_offspring")
+        print("gene1,gene2,plod1,nlod1,phlod1,nhlod1,plod2,nlod2,phlod2,nhlod2,prop1,prop2,moi,ahet,fam_size,min_offspring,max_offspring")
         sys.exit()
     ## set seed
     if not args.seed:
@@ -110,12 +114,16 @@ def main(args, unknown_args):
     if not args.debug:
         pbar = progressbar.ProgressBar(widgets=['Simulation [{}]'.format(args.seed), ' ', progressbar.Percentage(), ' ', progressbar.Bar(marker=progressbar.RotatingMarker()), ' ', progressbar.ETA(), ' '], maxval=int(args.numreps)).start()
     for i in xrange(1, args.numreps+1):
-        # per replicate
         samples = []
-        diseaseVariantIndices = [weightedRandomIdx(gene1['cumuProbs_dMaf']), weightedRandomIdx(gene2['cumuProbs_dMaf'])]
-        for j in xrange(args.samplesize):
+        if args.allelichet:
+            diseaseVariantIndices = None
+        else:
+            diseaseVariantIndices = [weightedRandomIdx(gene1['cumuProbs_dMaf']),
+                                     weightedRandomIdx(gene2['cumuProbs_dMaf'])]
+        for j in xrange(args.numfamilies):
             numOffspring = getNumOffspring(offNumProp)
-            pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.allelicheteroprop, diseaseVariantIndices, familyID=j+1)
+            pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.locusheterogenprop,
+                                  diseaseVariantIndices, familyID=j+1)
             samples.extend(pedInfo)
         # write *.fam file per sample for pedigree structure info only
         # write *.vcf file per sample for variant info
@@ -171,7 +179,7 @@ def main(args, unknown_args):
            counter[gs[1]]['lods'][1] if gs[1] in counter else -9,
            counter[gs[1]]['hlods'][0] / float(counter[gs[1]]['hlods'][1] + 1E-10) if gs[1] in counter else -9,
            counter[gs[1]]['hlods'][1] if gs[1] in counter else -9,
-           args.allelicheteroprop[0], args.allelicheteroprop[1], args.mode, args.samplesize,
+           args.locusheterogenprop[0], args.locusheterogenprop[1], args.mode, args.allelichet, args.numfamilies,
            args.offspring[0], args.offspring[1]]
     print ','.join(map(str, out))
     return 0
@@ -294,6 +302,9 @@ def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID):
     '''
     causalGeneIdx = 0 if random.random() < hetero[0] else 1
     markerGeneIdx = 1 if causalGeneIdx == 0 else 0
+    if dVarIndices is None:
+        dVarIndices = [weightedRandomIdx(genes[0]['cumuProbs_dMaf']),
+                       weightedRandomIdx(genes[1]['cumuProbs_dMaf'])]
     dVarIdx = dVarIndices[causalGeneIdx]
     #
     causalHaps, diseaseStatus = getCausalHaps(genes[causalGeneIdx], mode, numOffspring, dVarIdx)
@@ -336,22 +347,19 @@ def getMarkerHaps(geneInfo, numOffspring):
 
 def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx):
     '''
-    if mode in ['dominant', 'recessive'], use given dVarIdx as disease variant indices for simulating the first causal haplotype, otherwise re-generate such indices if mode in ['compound_dominant', 'compound_recessive']
     Allowed dominant parental haplotype patterns:
     +-/--, ++/--, +-/+-
     Allowed recessive parental haplotype patterns:
     +-/+-, ++/+-
     '''
     causalHaps = collections.OrderedDict({})
-    parentalHapCausality = [1,0,0,0] # 1 - causal; 0 - non-causal
+    parentalHapCausality = [0,0,0,0] # 1 - causal; 0 - non-causal
     parAff = [1,1] # 1 - unaffected; 2 - affected
-    if mode in ['compound_dominant', 'compound_recessive']:
-        # randomly choose another dVarIdx to use per family instead of using the provided one
-        dVarIdx = weightedRandomIdx(geneInfo['cumuProbs_dMaf'])
     while True:
         hap2, parentalHapCausality[1] = genCausalHap(geneInfo)
         hap4, parentalHapCausality[3] = genCausalHap(geneInfo)  
-        if mode in ['dominant', 'compound_dominant']:
+        if 'dominant' in mode:
+            # FIXME!!!
             hap1, parentalHapCausality[0] = genCausalHap(geneInfo, addCausalVars=[dVarIdx])
             hap3, parentalHapCausality[2] = genCausalHap(geneInfo)
             # up to two '+' are allowed
@@ -359,9 +367,13 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx):
                 continue
             parAff[0] = 2
             parAff[1] = 2 if sum(parentalHapCausality[2:]) > 0 else 1
-        elif mode in ['recessive', 'compound_recessive']:
+        elif 'recessive' in mode:
             hap1, parentalHapCausality[0] = genCausalHap(geneInfo, addCausalVars=[dVarIdx])
-            hap3, parentalHapCausality[2] = genCausalHap(geneInfo, addCausalVars=[dVarIdx])
+            if '_' in mode:
+                # compound recessive. randomly choose another dVarIdx to use for this family instead of using the provided one
+                hap3, parentalHapCausality[2] = genCausalHap(geneInfo, addCausalVars=[weightedRandomIdx(geneInfo['cumuProbs_dMaf'], avoid = dVarIdx)])
+            else:
+                hap3, parentalHapCausality[2] = genCausalHap(geneInfo, addCausalVars=[dVarIdx])
             # up to three '+' are allowed
             if parentalHapCausality.count(1) > 3:
                 continue
@@ -391,9 +403,9 @@ def genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring):
         hapIdx[idx] = [random.choice([0,1]), random.choice([2,3])]
         g = [parentalHapCausality[hapIdx[idx][0]], parentalHapCausality[hapIdx[idx][1]]]
         n = g.count(1)
-        if mode in ['dominant', 'compound_dominant']:
+        if 'dominant' in mode:
             aff[idx] = 2 if n > 0 else 1
-        elif mode in ['recessive', 'compound_recessive']:
+        elif 'recessive' in mode:
             aff[idx] = 2 if n == 2 else 1
         else:
             raise ValueError("Inappropriate argument value '--mode'")
@@ -442,15 +454,15 @@ def getNumOffspring(offNumProp):
     return nums[idx]
 
 
-def weightedRandomIdx(cumuProbs):
+def weightedRandomIdx(cumuProbs, avoid = None):
     '''
     return a weighted random choice 
     '''
-    randNum = random.random()
-    for idx, p in enumerate(cumuProbs):
-        if randNum < p:
-            return idx
-    
+    while True:
+        randNum = random.random()
+        for idx, p in enumerate(cumuProbs):
+            if randNum < p and idx != avoid:
+                return idx
 
 if __name__ == '__main__':
     master_parser = argparse.ArgumentParser(
