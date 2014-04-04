@@ -39,10 +39,10 @@ def arguments(parser):
                         metavar='INT',
                         default=1,
                         help='''Specify number of families''')
-    parser.add_argument('-a', '--allelic-heterogenous',
+    parser.add_argument('-a', '--allelic-heterogeneous',
                         action='store_true',
-                        dest = 'allelichet'
-                        help='''Whether or not the causal variant for particular gene is different for different families.''')
+                        dest = 'allelichet',
+                        help='''Whether or not the causal variant for a gene (within the same loci) is different for different families.''')
     parser.add_argument('-p', '--props-locus-heterogeneity',
                         dest = "locusheterogenprop",
                         type=float,
@@ -458,6 +458,8 @@ def weightedRandomIdx(cumuProbs, avoid = None):
     '''
     return a weighted random choice 
     '''
+    if len(cumuProbs) == 1:
+        avoid = None
     while True:
         randNum = random.random()
         for idx, p in enumerate(cumuProbs):

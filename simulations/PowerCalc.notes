@@ -20,7 +20,7 @@ python pcal.py -g MYH9.tsv MYO7A.tsv -m dominant -r 10 --sample-size 20 \
 # Script generator:
 #{python
 name = 'pcal.sh'
-rep = 1000
+rep = 500
 batch = 100000000
 count = 0
 gdict = {'recessive': 'SLC26A4.tsv GJB2.tsv', 'compound_recessive':'SLC26A4.tsv GJB2.tsv',
@@ -37,7 +37,7 @@ with open(name, 'w') as f:
                         f.write("./pcal.py --debug -s 3 8 -g {0} -m {1} -n {2} -p {3} {4} -r {5} "\
                                 "--ofile {9} {10} --blueprint blueprint.txt --vanilla {6} --jobs 1 "\
                                 "--run-linkage -K 0.01 -W 0 -M 1 --moi {7} --output-entries 0 "\
-                                "--tempdir /ramcache/tmp >> {8}.{9}\n".\
+                                "--tempdir /ramcache/tmp > {8}.{9}\n".\
                                 format(gdict[m], m, n, p, 1-p, rep, method, mdict[m],
                                        fdict[method], "RUN%s" % count, a))
                     if count % batch == 0:
