@@ -21,7 +21,7 @@ python pcal.py -g MYH9.tsv MYO7A.tsv -m dominant -r 10 --sample-size 20 \
 #{python
 name = 'pcal.sh'
 rep = 500
-batch = 100
+batch = 50
 count = 0
 gdict = {'recessive': 'SLC26A4.tsv GJB2.tsv', 'compound_recessive':'SLC26A4.tsv GJB2.tsv',
          'dominant':'MYO7A.tsv MYH9.tsv'}

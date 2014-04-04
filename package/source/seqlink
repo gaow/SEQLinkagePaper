@@ -12,7 +12,7 @@ class Args:
         description = '''{}, encode sequence data for linkage analysis'''.format(env.proj),
         prog = env.prog,
         fromfile_prefix_chars = '@',
-        epilog = '''Copyright (c) 2013 ~ 2014 Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu> GNU General Public License''')
+        epilog = '''Copyright (c) 2013 - 2014 Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu> GNU General Public License''')
         self.parser.add_argument('--version',
                                  action='version',
                                  version='%(prog)s version {0}'.format(env.version))
@@ -41,16 +41,16 @@ class Args:
         (format: "chr startpos endpos name avg.distance male.distance female.distance").''')
         vargs.add_argument('--single-markers', action='store_true', dest = "single_markers",
                            help='''Use single variant markers. This switch will overwrite
-        the "--blueprint" argument.''')
+        "--bin" and "--blueprint" arguments.''')
 
     def getIOArguments(self, parser):
         vargs = parser.add_argument_group('Input / output options')
         vargs.add_argument('--fam', metavar='FILE', required=True, dest = "tfam",
                            help='''Input pedigree and phenotype information in FAM format.''')
         vargs.add_argument('--vcf', metavar='FILE', required=True, help='''Input VCF file, bgzipped.''')
-        vargs.add_argument('--freq', metavar='FILE', help='''Info field name for allele frequency in VCF file.''')
+        vargs.add_argument('--freq', metavar='INFO', help='''Info field name for allele frequency in VCF file.''')
         vargs.add_argument('-c', '--maf-cutoff', metavar='P', type=float, dest = "maf_cutoff",
-                           help='''MAF cutoff to define "common" variants to be excluded from recoding.''')
+                           help='''MAF cutoff to define "common" variants to be excluded from analyses.''')
         vargs.add_argument('--chrom-prefix', metavar='STRING', dest = 'chr_prefix',
                            help='''Prefix to chromosome name in VCF file if applicable, e.g. "chr".''')
         vargs.add_argument('-o', '--output', metavar='FILE', type = self.isalnum,

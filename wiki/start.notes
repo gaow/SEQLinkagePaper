@@ -1,0 +1,37 @@
+# To be updated ...
+#{-----
+#[float right background=#f0f0f0 size=14 width=90]
+# [Download|@http://bioinformatics.org/seqlink/installation@]\\
+# [Documentation|@http://bioinformatics.org/seqlink/SEQLinkage.pdf@]\\
+# [Support|@http://bioinformatics.org/seqlink/support@]\\
+#[/float]
+###
+# About SEQLinkage
+###
+# SEQLinkge uses a novel approach to use sequence data for linkage analysis. This program implements a "combined haplotype pattern" method to re-encode sequence data for linkage analysis. The core concept is that instead of treating each variant a separate marker, we create ``regional markers'' for variants in specified genetic regions (e.g., genes) based on haplotype patterns within families, annotate the them with averaged genetic map distance, and perform linkage analysis on markers thus generated.
+
+###
+# Authors
+###
+# The method and software was developed by Gao Wang, Di Zhang and Suzanne M. Leal at [Baylor College of Medicine|@http://www.bcm.edu/@].
+###
+# Latest version
+###
+#[{{icons:download.png?64}}|@http://bioinformatics.org/seqlink/download@]
+# Please read [installation guide|@http://bioinformatics.org/seqlink/installation@] to install the package.
+###
+# Reference
+###
+# Gao T. Wang, Di Zhang, Biao Li, Hang Dai and Suzanne M. Leal, "A Novel Approach and Software to Use Sequence Data for Linkage Analysis"
+###
+# ChangeLog
+###
+#{list
+# ""2014.04.02"" First public release of SEQLinkage 1.0 alpha
+# ""2014.01.28"" Version 0.0.3, Move implementation of core methods from Python to C++
+## "i.e.", Mendelian error check, genetic haplotyping and combined haplotype pattern coding
+# ""2013.12.19"" Version 0.0.2, Replace variant tools backbone with tabix library
+# ""2013.11.25"" Version 0.0.1, First release on institutional internal website
+# ""2013.10.17"" First version completed for in-house data analyses
+#}
+#}-------
