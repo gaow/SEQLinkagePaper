@@ -179,7 +179,8 @@ def main(args, unknown_args):
            counter[gs[1]]['lods'][1] if gs[1] in counter else -9,
            counter[gs[1]]['hlods'][0] / float(counter[gs[1]]['hlods'][1] + 1E-10) if gs[1] in counter else -9,
            counter[gs[1]]['hlods'][1] if gs[1] in counter else -9,
-           args.locusheterogenprop[0], args.locusheterogenprop[1], args.mode, args.allelichet, args.numfamilies,
+           args.locusheterogenprop[0], args.locusheterogenprop[1], args.mode,
+           int(args.allelichet), args.numfamilies,
            args.offspring[0], args.offspring[1]]
     print ','.join(map(str, out))
     return 0

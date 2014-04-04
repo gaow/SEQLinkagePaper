@@ -21,30 +21,36 @@ python pcal.py -g MYH9.tsv MYO7A.tsv -m dominant -r 10 --sample-size 20 \
 #{python
 name = 'pcal.sh'
 rep = 500
-batch = 100000000
+batch = 100
 count = 0
 gdict = {'recessive': 'SLC26A4.tsv GJB2.tsv', 'compound_recessive':'SLC26A4.tsv GJB2.tsv',
          'dominant':'MYO7A.tsv MYH9.tsv'}
 mdict = {'recessive':'AR', 'compound_recessive':'AR', 'dominant':'AD'}
 fdict = {' ': 'CHPResult.csv', '--single-markers': 'SNVResult.csv'}
+folder = ''
 with open(name, 'w') as f:
     for m in ['recessive', 'dominant', 'compound_recessive']:
         for a in [' ', '-a']:
             for p in [i * 0.01 for i in range(0, 110, 10)]:
                 for n in range(5, 81, 1):
                     for method in [' ', '--single-markers']:
+                        if count % batch == 0:
+                            folder = 'B' + str(count / batch + 1) 
+                            mkdir = 'mkdir -p {};'.format(folder)
+                        else:
+                            mkdir = ''
                         count += 1
-                        f.write("./pcal.py --debug -s 3 8 -g {0} -m {1} -n {2} -p {3} {4} -r {5} "\
+                        f.write("{12}./pcal.py --debug -s 3 8 -g {0} -m {1} -n {2} -p {3} {4} -r {5} "\
                                 "--ofile {9} {10} --blueprint blueprint.txt --vanilla {6} --jobs 1 "\
                                 "--run-linkage -K 0.01 -W 0 -M 1 --moi {7} --output-entries 0 "\
-                                "--tempdir /ramcache/tmp > {8}.{9}\n".\
+                                "> {11}/{8}.{9}\n".\
                                 format(gdict[m], m, n, p, 1-p, rep, method, mdict[m],
-                                       fdict[method], "RUN%s" % count, a))
-                    if count % batch == 0:
-                        f.write("echo {}\n".format(count))
+                                       fdict[method], "RUN%s" % count, a, folder, mkdir))
 #}
-# Use command below to run the generated script:
-cat pcal.sh | gw-parallel -j7
+# Use command below to run the generated script on desktop:
+cat pcal.sh | gw-parallel -j 7
+# Or on cluster:
+cat pcal.sh | gw-qsub -s 50
 #! Power calculation result 
 # Consolidate all result data into database @@PowerCalc@@
 cat CHPResult.csv.* > CHPResult.csv
@@ -55,48 +61,34 @@ cat SNVResult.csv.* > SNVResult.csv
 wsqlite PowerCalc -s
 wsqlite PowerCalc -s CHP
 wsqlite PowerCalc -s SNV
-# All output data and results are backed up to @@0402.tar.gz@@ for future reference. Now let's have a rough feeling on power comparison between the methods
+# All output data and results are backed up to @@040*.tar.gz@@ for future reference. Now let's have a rough feeling on power comparison between the methods
 #{bash
-for i in recessive dominant compound_recessive compound_dominant; do
-    for j in 1 2; do
-        echo $i Gene$j
-        echo CHP=`wsqlite PowerCalc "select avg(plod$j) from CHP where moi = '$i'"` \
-        SNV=`wsqlite PowerCalc "select avg(plod$j) from SNV where moi = '$i'"`
+for k in 0 1; do
+    for i in recessive dominant compound_recessive; do
+        for j in 1 2; do
+            echo $i Gene$j, allelic heterogeneity $k
+            echo CHP=`wsqlite PowerCalc "select avg(plod$j) from CHP where moi = '$i' and ahet = $k"` \
+            SNV=`wsqlite PowerCalc "select avg(plod$j) from SNV where moi = '$i' and ahet = $k"`
+        done
     done
 done
 #}
+# Results below are based on data from @@0403.tar.gz@@:
 #{out
-recessive Gene1
-CHP=0.727776074443 SNV=0.746848342238
-recessive Gene2
-CHP=0.729023265841 SNV=0.731563345514
-dominant Gene1
-CHP=0.528512396694 SNV=0.656528925619
-dominant Gene2
-CHP=0.619426496368 SNV=0.712562818265
-compound_recessive Gene1
-CHP=0.731162035468 SNV=0.438850488354
-compound_recessive Gene2
-CHP=0.727493032963 SNV=0.519363628251
-compound_dominant Gene1
-CHP=0.527520661156 SNV=0.521157024793
-compound_dominant Gene2
-CHP=0.617768595041 SNV=0.621983471074
 #}
-# Although many power values are still low at sample size 55 (meaning I need to increase sample size) and are based on small replicates (I'll increase replicates) we do observe what we expect: no power difference for recessive, slight power loss for dominant (since creating many patterns instead of using one alternative original SNV introduces noise and lowers LOD score as observed by Di), and significant power gain for compound recessive. We observed no power gain for so-called compound dominant which is counter intuitive but after more careful thinking with LOD calculations under such scenario we see this is expected: in such cases phenotype information would play a role. See variant 5 and variant 6 of the Version 0 of Supplemental figure S1. 
-# After discussion with Di we decide to add another moi, the "dominant epistatic". But before that I need to create plots in order to decide how to adjust sample size parameters.
+# When there is no allelic heterogeneity the traditional SNV based method should be more powerful as it fits the underlying model better. Indeed SNV method is slightly more powerful for dominant mode (since creating many patterns instead of using one alternative original SNV introduces noise and lowers LOD score as observed by Di). However surprisingly there is little difference in power for recessive. When there is allelic heterogeneity there is significant power gain for compound recessive. We observed little power gain for dominant, as the improvement was offset by the use of multiple patterns than it might be necessary.
+# For compound recessive the CHP method is always more powerful than SNV method.
 #!!! Thu Apr  3 14:51:32 CDT 2014 | A sleepy afternoon with voltaren all over my hands ...
 #! Power plot
-# Script see @@PowerContour.py@@ under this folder. Resulting graph below:
-#!! R
-#* PowerFigs/recessive_gene1.pdf 0.5; PowerFigs/recessive_gene2.pdf 0.5
-#!! CR
-#* PowerFigs/compound_recessive_gene1.pdf 0.5; PowerFigs/compound_recessive_gene2.pdf 0.5
-#!! D
-#* PowerFigs/dominant_gene1.pdf 0.5; PowerFigs/dominant_gene2.pdf 0.5
-#!! CD
-#* PowerFigs/compound_dominant_gene1.pdf 0.5; PowerFigs/compound_dominant_gene2.pdf 0.5
+# Script see @@PowerContour.py@@ under this folder. Graphs below are based on data from @@0403.tar.gz@@:
+#!! Without allelic heterogeneity
+#* PowerFigs/a0_dominant_gene1.pdf 0.5; PowerFigs/a0_dominant_gene2.pdf 0.5
+#* PowerFigs/a0_recessive_gene1.pdf 0.5; PowerFigs/a0_recessive_gene2.pdf 0.5
+#* PowerFigs/a0_compound_recessive_gene1.pdf 0.5; PowerFigs/a0_compound_recessive_gene2.pdf 0.5
+#!! With allelic heterogeneity
+#* PowerFigs/a1_dominant_gene1.pdf 0.5; PowerFigs/a1_dominant_gene2.pdf 0.5
+#* PowerFigs/a1_recessive_gene1.pdf 0.5; PowerFigs/a1_recessive_gene2.pdf 0.5
+#* PowerFigs/a1_compound_recessive_gene1.pdf 0.5; PowerFigs/a1_compound_recessive_gene2.pdf 0.5
 #{-------
 tigernotes doc PowerCalc.notes --lite --no_section_number --font_size 12
 #}-------
-
