@@ -73,7 +73,10 @@ class Environment:
         pattern = re.compile(r'{}_tmp_*(.*)'.format(self.proj))
         for fn in os.listdir(where):
             if pattern.match(fn) and not os.path.isfile(os.path.join(where, fn, '.lock')):
-                remove_tree(os.path.join(where, fn))
+                try:
+                    remove_tree(os.path.join(where, fn))
+                except:
+                    pass
         tmp = LockedTempDir(tempfile.mkdtemp(prefix='{}_tmp_'.format(self.proj), dir = where))
         mkpath(os.path.join(tmp, 'CACHE'))
         return tmp
