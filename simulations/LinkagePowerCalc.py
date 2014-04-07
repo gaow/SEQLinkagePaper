@@ -118,8 +118,8 @@ def main(args, unknown_args):
         if args.allelichet:
             diseaseVariantIndices = None
         else:
-            diseaseVariantIndices = [weightedRandomIdx(gene1['cumuProbs_dMaf']),
-                                     weightedRandomIdx(gene2['cumuProbs_dMaf'])]
+            diseaseVariantIndices = [gene1['d_idx'][weightedRandomIdx(gene1['cumuProbs_dMaf'])],
+                                     gene2['d_idx'][weightedRandomIdx(gene2['cumuProbs_dMaf'])]]
         for j in xrange(args.numfamilies):
             numOffspring = getNumOffspring(offNumProp)
             pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.locusheterogenprop,
@@ -137,8 +137,9 @@ def main(args, unknown_args):
                 pbar.update(i)
             continue
         # linkage analysis
-        os.system("seqlink --vcf {} --fam {} --output {} {} 2> /dev/null".\
-                  format(vcf, fam, args.outfile, " ".join(unknown_args)))
+        cmd = "seqlink --vcf {} --fam {} --output {} {} 2> /dev/null".\
+                  format(vcf, fam, args.outfile, " ".join(unknown_args))
+        os.system(cmd)
         res = {'lods':{}, 'hlods':{}}
         for score in ['lods', 'hlods']:
             for fn in glob.glob('{}/heatmap/*.{}'.format(args.outfile, score)):
@@ -304,8 +305,8 @@ def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID):
     causalGeneIdx = 0 if random.random() < hetero[0] else 1
     markerGeneIdx = 1 if causalGeneIdx == 0 else 0
     if dVarIndices is None:
-        dVarIndices = [weightedRandomIdx(genes[0]['cumuProbs_dMaf']),
-                       weightedRandomIdx(genes[1]['cumuProbs_dMaf'])]
+        dVarIndices = [genes[0]['d_idx'][weightedRandomIdx(genes[0]['cumuProbs_dMaf'])],
+                       genes[1]['d_idx'][weightedRandomIdx(genes[1]['cumuProbs_dMaf'])]]
     dVarIdx = dVarIndices[causalGeneIdx]
     #
     causalHaps, diseaseStatus = getCausalHaps(genes[causalGeneIdx], mode, numOffspring, dVarIdx)
@@ -354,13 +355,12 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx):
     +-/+-, ++/+-
     '''
     causalHaps = collections.OrderedDict({})
-    parentalHapCausality = [0,0,0,0] # 1 - causal; 0 - non-causal
-    parAff = [1,1] # 1 - unaffected; 2 - affected
+    parentalHapCausality = [None,None,None,None] # 1 - causal; 0 - non-causal
+    parAff = [None,None] # 1 - unaffected; 2 - affected
     while True:
         hap2, parentalHapCausality[1] = genCausalHap(geneInfo)
         hap4, parentalHapCausality[3] = genCausalHap(geneInfo)  
         if 'dominant' in mode:
-            # FIXME!!!
             hap1, parentalHapCausality[0] = genCausalHap(geneInfo, addCausalVars=[dVarIdx])
             hap3, parentalHapCausality[2] = genCausalHap(geneInfo)
             # up to two '+' are allowed
@@ -372,7 +372,7 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx):
             hap1, parentalHapCausality[0] = genCausalHap(geneInfo, addCausalVars=[dVarIdx])
             if '_' in mode:
                 # compound recessive. randomly choose another dVarIdx to use for this family instead of using the provided one
-                hap3, parentalHapCausality[2] = genCausalHap(geneInfo, addCausalVars=[weightedRandomIdx(geneInfo['cumuProbs_dMaf'], avoid = dVarIdx)])
+                hap3, parentalHapCausality[2] = genCausalHap(geneInfo, addCausalVars=[geneInfo['d_idx'][weightedRandomIdx(geneInfo['cumuProbs_dMaf'], avoid = geneInfo['d_idx'].index(dVarIdx))]])
             else:
                 hap3, parentalHapCausality[2] = genCausalHap(geneInfo, addCausalVars=[dVarIdx])
             # up to three '+' are allowed
@@ -400,12 +400,13 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx):
         
 
 def genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring, haps, d_idx):
-    def check_recessive_causal():
-        if 2 in [x + y for i, (x, y) in enumerate(zip(haps[hapIdx[0]], haps[hapIdx[1]])) if i in d_idx]:
+    def check_recessive_causal(idx):
+        if 2 in [x + y for i, (x, y) in enumerate(zip(haps[hapIdx[idx][0]], haps[hapIdx[idx][1]]))
+                 if i in d_idx]:
             return 2
         else:
             return 1
-    #        
+    #
     hapIdx = [None] * numOffspring
     aff = [1] * numOffspring # 1 - unaffected; 2 - affected
     for idx in range(numOffspring):
@@ -418,7 +419,7 @@ def genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring, haps, d_i
             if '_' in mode:
                 aff[idx] = 2 if n == 2 else 1
             else:
-                aff[idx] = 1 if n == 1 else check_recessive_causal()
+                aff[idx] = 1 if n == 1 else check_recessive_causal(idx)
         else:
             raise ValueError("Inappropriate argument value '--mode'")
     return aff, hapIdx

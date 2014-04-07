@@ -13,7 +13,7 @@ ln -s ~/SVN/SEQLinco/simulations/LinkagePowerCalc.py pcal.py
 # I want to draw one figure with 4 panels. Each panel is one mode of inheritance, namely A&B are recessive and compound recessive using recessive genes; C&D are dominant and compound dominant using recessive genes. On each panel, the X-axis is sample size and Y-axis is allelic heterogeneity. Powers are contour plots of two colors, one color for new method, one for old method. The only parameter not scanned here is @@--offsprings@@. For now I set it in between 3 to 8. It can be varied for additional simulations in supplemental. In this figure only one of the gene pair will be reported and the complementary figure can be found in supplemental. 
 # Linkage analysis parameters are always @@-K 0.01 -W 0 -M 1@@. See @@seqlink -h@@ for details.
 #! Example command
-python pcal.py -g MYH9.tsv MYO7A.tsv -m dominant -r 10 --sample-size 20 \
+python pcal.py -g MYH9.tsv MYO7A.tsv -m dominant -r 10 -n 20 \
        --blueprint blueprint.txt --vanilla --tempdir /ramcache \
        --run-linkage -K 0.01 --moi AD -W 0 -M 1 --output-entries 0
 #! Power calculation script
