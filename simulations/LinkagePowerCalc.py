@@ -401,7 +401,7 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx):
 
 def genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring, haps, d_idx):
     def check_recessive_causal():
-        if 2 in [x + y for i, (x, y) in enumerate(zip(haps[hapIdx[0]], haps[hapIdx[1]])) if i in d_idx]
+        if 2 in [x + y for i, (x, y) in enumerate(zip(haps[hapIdx[0]], haps[hapIdx[1]])) if i in d_idx]:
             return 2
         else:
             return 1
