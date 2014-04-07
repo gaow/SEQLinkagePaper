@@ -67,6 +67,8 @@ class Environment:
 
         if where in [None, 'None', '']:
             where = tempfile.gettempdir()
+        else:
+            where = os.path.expanduser(where)
         if os.path.isdir(where) and ((not os.access(where, os.R_OK)) or (not os.access(where, os.W_OK))):
             self.error('Cannot set temporary directory to directory {} because '.format(where) + \
                        'it is not readable or writable.', exit = True)
@@ -300,7 +302,10 @@ def removeFiles(dest, exclude = [], hidden = False):
             if item.startswith('.') and hidden == False:
                 continue
             if os.path.splitext(item)[1] not in exclude:
-                os.remove(os.path.join(dest,item))
+                try:
+                    os.remove(os.path.join(dest,item))
+                except OSError:
+                    pass
 
 def copyFiles(pattern, dist, ignore_hidden = True):
     mkpath(dist)

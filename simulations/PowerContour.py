@@ -59,7 +59,8 @@ class Plotter:
             cs = plt.contour(data[t][0], data[t][1], data[t][2], self.bands + 1, colors = self.colormap[t],
                              alpha = self.transparency[t])
             plt.clabel(cs, inline=1, fontsize=12, fmt='%1.2f')
-        plt.title("Gene{}, {}\n".format(self.id, self.moi), fontsize = 20)
+        # plt.title("Gene{}, {}\n".format(self.id, self.moi), fontsize = 20)
+        plt.title("Gene{}\n".format(self.id, self.moi), fontsize = 20)
         plt.xlabel("Family size", fontsize = 20)
         plt.ylabel("Heterogeneity\n", fontsize = 20)
         plt.savefig(out, dpi = 500)

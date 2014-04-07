@@ -1,7 +1,8 @@
 ###
-#! SEQLinco: A novel approach to use sequence data for linkage analysis
+#! User Guide
 ###
-# This program implements a "combined haplotype pattern" method to re-encode sequence data for linkage analysis. The core concept is that instead of treating each variant a separate marker, we create ``super markers'' for variants in specified genetic regions (e.g., genes) based on haplotype patterns within families, annotate the them with averaged genetic map distance, and perform linkage analysis on markers thus generated.
+
+# This program implements a "combined haplotype pattern" (CHP) method to generate markers from sequence data for linkage analysis. The essential idea is that instead of treating each variant a separate marker, we create ``super markers'' for variants in specified genetic regions (e.g., genes) based on haplotype patterns within families. CHP method properly handles LD blocks and recombination events The, annotate the them with averaged genetic map distance, and perform linkage analysis on markers thus generated.
 ###
 # Latest version
 ###
@@ -96,3 +97,7 @@ slinco --vcf 1000g1.vcf.gz --tfam 1000g1.tfam -j8 --blueprint units.bpt
 tigernotes dokuwiki SEQLinco.notes -o encode-linkage --lite --showall
 scp encode-linkage.txt tigerwang@tigerwang.org:./html/data/pages/software
 #}-----
+
+###
+#! Linkage analysis examples
+###

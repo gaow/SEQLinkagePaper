@@ -382,7 +382,9 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx):
             parAff[1] = 2 if sum(parentalHapCausality[2:]) == 2 else 1
         else:
             pass
-        offspringAff, offHapIdx = genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring)
+        offspringAff, offHapIdx = genOffspringAffAndHapIdx(mode, parentalHapCausality,
+                                                           numOffspring, [hap1, hap2, hap3, hap4],
+                                                           geneInfo['d_idx'])
         if offspringAff.count(2) >= 2:
             # fill in parental and offspring causalHaps dict (1 - father; 2 - mother; 3,...,n - offspring)
             causalHaps[1], causalHaps[2] = [hap1, hap2], [hap3, hap4]
@@ -397,7 +399,13 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx):
     return causalHaps, aff
         
 
-def genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring):
+def genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring, haps, d_idx):
+    def check_recessive_causal():
+        if 2 in [x + y for i, (x, y) in enumerate(zip(haps[hapIdx[0]], haps[hapIdx[1]])) if i in d_idx]
+            return 2
+        else:
+            return 1
+    #        
     hapIdx = [None] * numOffspring
     aff = [1] * numOffspring # 1 - unaffected; 2 - affected
     for idx in range(numOffspring):
@@ -407,7 +415,10 @@ def genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring):
         if 'dominant' in mode:
             aff[idx] = 2 if n > 0 else 1
         elif 'recessive' in mode:
-            aff[idx] = 2 if n == 2 else 1
+            if '_' in mode:
+                aff[idx] = 2 if n == 2 else 1
+            else:
+                aff[idx] = 1 if n == 1 else check_recessive_causal()
         else:
             raise ValueError("Inappropriate argument value '--mode'")
     return aff, hapIdx

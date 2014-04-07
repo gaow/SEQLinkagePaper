@@ -115,13 +115,17 @@ class Cache:
 
     def clear(self, pres = [], exts = []):
         for fl in glob.glob(self.cache_info + "*") + [self.cache_name]:
-            if os.path.isfile(fl):
+            try:
                 os.remove(fl)
+            except OSError:
+                pass
         #
         for pre, ext in itertools.product(pres, exts): 
             for fl in glob.glob(os.path.join(self.cache_dir, pre) +  "*" + ext): 
-                if os.path.isfile(fl):
+                try:
                     os.remove(fl)
+                except OSError:
+                    pass
         
 
 class PseudoAutoRegion:
