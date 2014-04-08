@@ -1,0 +1,38 @@
+#PBS -o info/log
+#PBS -e info/err
+#PBS -N SLSimulation
+#PBS -t 5-81%50
+cd $PBS_O_WORKDIR
+mkdir -p info
+rm -rf info/*
+rep=500
+MOI=( 'recessive' 'dominant' 'compound_recessive' ) #MOI in simulation
+Mmap=( 'AR' 'AD' 'AR' ) #MOI in mlink
+Gmap=( 'SLC26A4.tsv GJB2.tsv' 'MYO7A.tsv MYH9.tsv' 'SLC26A4.tsv GJB2.tsv' ) #gene pairs
+Mtype=( ' ' '--single-marker' )
+Fmap=( 'CHPResult.csv' 'SNVResult.csv' ) #result
+N=$PBS_ARRAYID #family number
+count=0
+for m in $(seq 0 2)
+do
+	for a in ' ' '-a'
+	do
+		for pN in $(seq 0 10 100)
+		do
+			p=$(bc <<< "${pN}/100")
+			q=$(bc <<< "1 - ${p}")
+			for t in 0 1
+			do
+				mkdir -p FAM$N
+				./LinkagePowerCalc.py --debug -s 3 8 -g ${Gmap[$m]} \
+					  -m ${MOI[$m]} -n $N -p $p $q -r $rep \
+                      --ofile FAM${N}RUN$count $a --blueprint blueprint.txt \
+					  --vanilla ${Mtype[$t]} --jobs 1 \
+                      --run-linkage -K 0.01 -W 0 -M 1 --tempdir /mnt/ram --moi ${Mmap[$m]} --output-entries 0 \
+                      > FAM${N}/${Fmap[$t]}.RUN${N}.$count
+				count=$(bc <<< "$count + 1")
+			done
+		done
+	done
+done
+

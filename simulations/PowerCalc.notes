@@ -50,7 +50,12 @@ with open(name, 'w') as f:
 # Use command below to run the generated script on desktop:
 cat pcal.sh | gw-parallel -j 7
 # Or on cluster:
-cat pcal.sh | gw-qsub -s 50
+#{bash pbs
+file:///SubmitJobs.pbs
+#}
+#{bash makefile
+file:///Makefile
+#}
 #! Power calculation result 
 # Consolidate all result data into database @@PowerCalc@@
 cat CHPResult.csv.* > CHPResult.csv
