@@ -2,20 +2,21 @@
 # Copyright (c) 2013 - 2014, Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 
-from argparse import ArgumentParser, ArgumentTypeError, SUPPRESS
+from argparse import ArgumentParser, ArgumentTypeError, RawDescriptionHelpFormatter, SUPPRESS
+import platform
+from SEQLinkage import HOMEPAGE
 from SEQLinkage.Utils import env, getColumn
 from SEQLinkage.Core import main
 
 class Args:
     def __init__(self):
         self.parser = ArgumentParser(
-        description = '''{}, encode sequence data for linkage analysis'''.format(env.proj),
+        description = '''\t{}, linkage analysis using sequence data\n\t[{}]'''.\
+        format(env.proj, env.version),
+        formatter_class = RawDescriptionHelpFormatter, 
         prog = env.prog,
-        fromfile_prefix_chars = '@',
-        epilog = '''Copyright (c) 2013 - 2014 Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu> GNU General Public License''')
-        self.parser.add_argument('--version',
-                                 action='version',
-                                 version='%(prog)s version {0}'.format(env.version))
+        fromfile_prefix_chars = '@', add_help = False,
+        epilog = '''\tCopyright (c) 2013 - 2014 Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu>\n\tDistributed under GNU General Public License\n\tHome page: {}'''.format(HOMEPAGE))
         self.getEncoderArguments(self.parser)
         self.getIOArguments(self.parser)
         self.getLinkageArguments(self.parser)
@@ -31,7 +32,7 @@ class Args:
         return self.parser.parse_args()
 
     def getEncoderArguments(self, parser):
-        vargs = parser.add_argument_group('Encoder arguments')
+        vargs = parser.add_argument_group('Collapsed haplotype pattern method arguments')
         vargs.add_argument('--bin', metavar = "FLOAT", default = 0.8, type = float,
                            help='''Defines theme to collapse variants. Set to 0 for "complete collapsing",
         1 for "no collapsing", r2 value between 0 and 1 for "LD based collapsing" and other integer values for customized
@@ -53,20 +54,21 @@ class Args:
                            help='''MAF cutoff to define "common" variants to be excluded from analyses.''')
         vargs.add_argument('--chrom-prefix', metavar='STRING', dest = 'chr_prefix',
                            help='''Prefix to chromosome name in VCF file if applicable, e.g. "chr".''')
-        vargs.add_argument('-o', '--output', metavar='FILE', type = self.isalnum,
-                           help='''Output file name prefix.''')
+        vargs.add_argument('-o', '--output', metavar='Name', type = self.isalnum,
+                           help='''Output name prefix.''')
         vargs.add_argument('-f', '--format', metavar = 'FORMAT', nargs='+',
                            choices = ["LINKAGE", "MERLIN", "MEGA2", "PLINK"], default=['LINKAGE'],
                            help='''Output format. Default to LINKAGE.''')
         
     def getRuntimeArguments(self, parser):
         vargs = parser.add_argument_group('Runtime arguments')
+        vargs.add_argument("-h", "--help", action="help", help="Show help message and exit.")
         vargs.add_argument('-j', '--jobs', metavar='N', type = int, default = 2,
                            help='''Number of CPUs to use.''')
         vargs.add_argument('--tempdir', metavar='PATH',
                            help='''Temporary directory to use.''')
-        vargs.add_argument('--vanilla', action='store_true',
-                           help='''Encode data from scratch without loading cache.''')
+        vargs.add_argument('--cache', action='store_false', dest = 'vanilla',
+                           help='''Load cache data for analysis instead of starting afresh.''')
         vargs.add_argument('--debug', action='store_true', help=SUPPRESS)
 
     def getLinkageArguments(self, parser):
@@ -76,28 +78,22 @@ class Args:
         vargs.add_argument('--moi', metavar='STRING', dest = "inherit_mode",
                            # choices=['AD', 'AR', 'Xlinked', 'Y'],
                            choices=['AD', 'AR'],
-                           help='Mode of inheritance, AD/AR: autosome dominant/recessive.')
-        vargs.add_argument('-W', '--wild-pen', metavar='FLOAT', type=float, dest = "wild_pen",
+                           help='Mode of inheritance, AD/AR: autosomal dominant/recessive.')
+        vargs.add_argument('-W', '--wt-pen', metavar='FLOAT', type=float, dest = "wild_pen",
                            help='Penetrance for wild type.')
-        vargs.add_argument('-M', '--muta-pen', metavar='FLOAT', type=float, dest = "muta_pen",
+        vargs.add_argument('-M', '--mut-pen', metavar='FLOAT', type=float, dest = "muta_pen",
                            help='Penetrance for mutation.')
         vargs.add_argument('--theta-max', metavar='FLOAT', type=float, dest = "theta_max", default = 0.5,
                            help='Theta upper bound. Default to 0.5.')
         vargs.add_argument('--theta-inc', metavar='FLOAT', type=float, dest = "theta_inc", default = 0.05,
                            help='Theta increment. Default to 0.05.')
-        vargs.add_argument('--run-linkage', action='store_true', dest = "run_linkage",
+        if (platform.system() == 'Linux' and platform.architecture()[0] == '64bit'):
+            vargs.add_argument('--run-linkage', action='store_true', dest = "run_linkage",
                            help='''Perform Linkage analysis using FASTLINK program.''')
-        vargs.add_argument('--output-entries', metavar='N', type=int, dest = "output_limit", default = 10,
+            vargs.add_argument('--output-entries', metavar='N', type=int, dest = "output_limit", default = 10,
                            help='Write the highest N LOD/HLOD scores to output tables. Default to 10.')
         
 if __name__ == '__main__':
-    # check platform
-    import platform
-    system = platform.system()
-    arch = platform.architecture()[0]
-    if not ((system == 'Linux' and arch == '64bit') or system == 'Darwin'):
-        env.error("{} cannot be executed on {}-{} computers "\
-                  "(only 64bit Linux/Mac environment is supported)".format(env.prog, system, arch), exit = True)
     try:
         args = Args().get()
         args.func(args)

@@ -2,6 +2,7 @@
 # Copyright (c) 2013, Gao Wang <gaow@bcm.edu>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 from __future__ import print_function
+from SEQLinkage import HOMEPAGE
 from SEQLinkage.Utils import *
 from SEQLinkage.Runner import *
 from multiprocessing import Process, Queue
@@ -791,13 +792,11 @@ class EncoderWorker(Process):
 def main(args):
     '''the main encoder function'''
     checkParams(args)
-    downloadResources([('http://tigerwang.org/uploads/genemap.txt', env.resource_dir),
-                       # ('http://tigerwang.org/uploads/lodscore', env.resource_bin),
-                       # ('http://tigerwang.org/uploads/linkmap', env.resource_bin),
-                       ('http://tigerwang.org/uploads/mlink', env.resource_bin),
-                       ('http://tigerwang.org/uploads/unknown', env.resource_bin),
-                       ('http://tigerwang.org/uploads/makeped', env.resource_bin),
-                       ('http://tigerwang.org/uploads/pedcheck', env.resource_bin)])
+    downloadResources([('{}/uploads/genemap.txt'.format(HOMEPAGE), env.resource_dir),
+                       ('{}/uploads/mlink'.format(HOMEPAGE), env.resource_bin),
+                       ('{}/uploads/unknown'.format(HOMEPAGE), env.resource_bin),
+                       ('{}/uploads/makeped'.format(HOMEPAGE), env.resource_bin),
+                       ('{}/uploads/pedcheck'.format(HOMEPAGE), env.resource_bin)])
     cache = Cache(env.cache_dir, env.output, vars(args))
     cache.setID('vcf')
     # STEP 1: write encoded data to TPED format

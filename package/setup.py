@@ -11,13 +11,15 @@ for item in ['faulthandler', 'numpy', 'matplotlib', 'prettyplotlib']:
     except ImportError:
         sys.exit('Cannot build package: missing module "{}"!'.format(item))
 
+from source import VERSION, HOMEPAGE
+
 try:
     imp.find_module('cstatgen')
 except ImportError:
     from source.Utils import downloadURL
     from distutils.dir_util import remove_tree
     import tempfile
-    cstatgen_url = "http://tigerwang.org/uploads/cstatgen.tar.gz"
+    cstatgen_url = "{}/uploads/cstatgen.tar.gz".format(HOMEPAGE)
     download_dir = tempfile.gettempdir()
     pkg = os.path.join(download_dir, "cstatgen.tar.gz")
     pkg_dir = os.path.join(download_dir, "cstatgen")
@@ -41,7 +43,6 @@ try:
 except ImportError:
    from distutils.command.build_py import build_py
 
-from source import VERSION
 
 NAME = "SEQLinkage"
 

@@ -8,8 +8,7 @@
 ###
 # About SEQLinkage
 ###
-# SEQLinkge uses a novel approach to use sequence data for linkage analysis. This program implements a "combined haplotype pattern" method to re-encode sequence data for linkage analysis. The core concept is that instead of treating each variant a separate marker, we create ``regional markers'' for variants in specified genetic regions (e.g., genes) based on haplotype patterns within families, annotate the them with averaged genetic map distance, and perform linkage analysis on markers thus generated.
-
+# This program implements a "combined haplotype pattern" (CHP) method to generate markers from sequence data for linkage analysis. The core concept is that instead of treating each variant a separate marker, we create regional markers for variants in specified genetic regions (e.g. genes) based on haplotype patterns within families, and perform linkage analysis on markers thus generated. CHP method outperforms traditional single marker based approach for compound heterozygosity and allelic heterogeneity in genes. We recommend the use of CHP in conjunction with filtering based variant prioritization method in the analyses of sequence data of human pedigrees. 
 ###
 # Authors
 ###
@@ -27,11 +26,12 @@
 # ChangeLog
 ###
 #{list
-# ""2014.04.02"" First public release of SEQLinkage 1.0 alpha
-# ""2014.01.28"" Version 0.0.3, Move implementation of core methods from Python to C++
-## "i.e.", Mendelian error check, genetic haplotyping and combined haplotype pattern coding
-# ""2013.12.19"" Version 0.0.2, Replace variant tools backbone with tabix library
-# ""2013.11.25"" Version 0.0.1, First release on institutional internal website
+# ""2014.04.xx"" Version 1.0 alpha, first public release of SEQLinkage
+# ""2014.04.02"" Version 0.0.4, graphic summary and HTML output for linkage analysis results 
+# ""2014.01.28"" Version 0.0.3, move implementation of core algorithms from Python to C++
+## "i.e.", Mendelian error check, genetic haplotyping, LD blocks computation and combined haplotype pattern coding
+# ""2013.12.19"" Version 0.0.2, replace variant tools backbone with tabix library
+# ""2013.11.25"" Version 0.0.1, first release on institutional internal website
 # ""2013.10.17"" First version completed for in-house data analyses
 #}
 #}-------
