@@ -76,10 +76,8 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
             with open(os.path.join(env.tmp_cache, basename(out_base) + '.freq')) as af_fh:
                 for line in af_fh:
                     s = line.strip().split()
-                    freq = map(float, s[2:])
-                    if sum(freq) < 1e-6:
-                        freq = [1/float(len(freq))] * len(freq) 
-                    else:
+                    freq = map(lambda x: max(1e-3, x), map(float, s[2:]))
+                    freq = [x for x in freq if x > 1e-3 else 1e-3]
                         freq = np.array(map(float, s[2:]))/sum(map(float,s[2:]))
                     af[(s[0],s[1])] = map(str, freq)
         except IOError:
