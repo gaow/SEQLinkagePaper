@@ -77,8 +77,8 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                 for line in af_fh:
                     s = line.strip().split()
                     freq = map(float, s[2:])
-                    if sum(freq) < 1e6:
-                        freq = [1/len(freq)] * len(freq) 
+                    if sum(freq) < 1e-6:
+                        freq = [1/float(len(freq))] * len(freq) 
                     else:
                         freq = np.array(map(float, s[2:]))/sum(map(float,s[2:]))
                     af[(s[0],s[1])] = map(str, freq)
@@ -267,27 +267,27 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
                     copyfile('{}.PRE'.format(unit), 'pedfile.pre')
 
                     step1 = runCommand(['makeped', 'pedfile.pre', 'pedfile.ped', 'n'],
-                                       show_stderr = False, return_zero = False)
+                                       show_stderr = False)#, return_zero = False)
                     if step1[1]:
                         with env.makeped_counter.get_lock():
                             env.makeped_counter.value += 1
                         with env.lock:
                             errfile.write(step1[1])
                     step2 = runCommand(['pedcheck', '-p', 'pedfile.ped', '-d', 'datafile.dat', '-c'],
-                                       show_stderr = False, return_zero = False)
+                                       show_stderr = False)#, return_zero = False)
                     if step2[1]:
                         with env.pedcheck_counter.get_lock():
                             env.pedcheck_counter.value += 1
                         with env.lock:
                             errfile.write(step2[1])
                     copyfile('zeroout.dat', 'pedfile.dat')
-                    step3 = runCommand('unknown', show_stderr = False, return_zero = False)
+                    step3 = runCommand('unknown', show_stderr = False)#, return_zero = False)
                     if step3[1]:
                         with env.unknown_counter.get_lock():
                             env.unkown_counter.value += 1
                         with env.lock:
                             errfile.write(step3[1])
-                    step4 = runCommand('mlink', show_stderr = False, return_zero = False)
+                    step4 = runCommand('mlink', show_stderr = False)#, return_zero = False)
                     if step4[1]:
                         with env.mlink_counter.get_lock():
                             env.mlink_counter.value += 1
