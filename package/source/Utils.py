@@ -31,6 +31,7 @@ class Environment:
         self.tmp_cache = os.path.join(self.tmp_dir, 'CACHE')
         self.path = {'PATH':"{}:{}".format(self.resource_bin, os.environ["PATH"])}
         self.debug = False
+        self.quiet = False
         # File contents 
         self.build = 'hg19'
         self.delimiter = " "
@@ -107,7 +108,7 @@ class Environment:
             sys.exit()
         
     def log(self, msg = None, flush=False):
-        if self.debug:
+        if self.debug or self.quiet:
             return
         if msg is None:
             sys.stderr.write('\n')
@@ -166,7 +167,7 @@ def stdoutRedirect(to=os.devnull):
                                             # buffering and flags such as
                                             # CLOEXEC may be different
 
-def runCommand(cmd, instream = None, msg = '', upon_succ = None, show_stderr = True, return_zero = True):
+def runCommand(cmd, instream = None, msg = '', upon_succ = None, show_stderr = False, return_zero = True):
     if isinstance(cmd, str):
         cmd = shlex.split(cmd)
     popen_env = os.environ.copy()
@@ -197,7 +198,7 @@ def runCommand(cmd, instream = None, msg = '', upon_succ = None, show_stderr = T
     if upon_succ:
         # call the function (upon_succ) using others as parameters.
         upon_succ[0](*(upon_succ[1:]))
-    return out
+    return out, error
 
 class CMDWorker(Process):
     def __init__(self, queue):
@@ -395,6 +396,7 @@ def parseVCFline(line, exclude = []):
 def checkParams(args):
     '''set default arguments or make warnings'''
     env.debug = args.debug
+    env.quiet = args.quiet
     args.vcf = os.path.abspath(os.path.expanduser(args.vcf))
     args.tfam = os.path.abspath(os.path.expanduser(args.tfam))
     for item in [args.vcf, args.tfam]:
@@ -440,7 +442,7 @@ def indexVCF(vcf, verbose = True):
     return vcf
     
 def extractSamplenames(vcf):
-    samples = runCommand('tabix -H {}'.format(vcf)).strip().split('\n')[-1].split('\t')[9:]
+    samples = runCommand('tabix -H {}'.format(vcf))[0].strip().split('\n')[-1].split('\t')[9:]
     if not samples:
         env.error("Fail to extract samples from [{}]".format(vcf), exit = True)
     return samples

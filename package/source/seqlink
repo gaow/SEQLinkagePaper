@@ -69,6 +69,7 @@ class Args:
                            help='''Temporary directory to use.''')
         vargs.add_argument('--cache', action='store_false', dest = 'vanilla',
                            help='''Load cache data for analysis instead of starting afresh.''')
+        vargs.add_argument('-q', '--quiet', action='store_true', help='Disable the display of runtime MESSAGE.')
         vargs.add_argument('--debug', action='store_true', help=SUPPRESS)
 
     def getLinkageArguments(self, parser):
