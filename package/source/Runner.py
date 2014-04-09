@@ -76,10 +76,9 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
             with open(os.path.join(env.tmp_cache, basename(out_base) + '.freq')) as af_fh:
                 for line in af_fh:
                     s = line.strip().split()
-                    freq = map(lambda x: max(1e-3, x), map(float, s[2:]))
-                    freq = [x for x in freq if x > 1e-3 else 1e-3]
-                        freq = np.array(map(float, s[2:]))/sum(map(float,s[2:]))
-                    af[(s[0],s[1])] = map(str, freq)
+                    freq = map(lambda x: max(1e-3, float(x)), s[2:])
+                    relativefreq = np.array(freq)/sum(freq)
+                    af[(s[0],s[1])] = map(str, relativefreq)
         except IOError:
             env.error('freq info not properly read for [{}]'.format(basename(out_base)))
         #parse tped
