@@ -38,6 +38,7 @@ def format(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, thet
         parmap(lambda x: format_plink(x, tfam), tpeds, env.jobs)
     elif out_format == 'linkage':
         parmap(lambda x: format_linkage(x, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc), tpeds, env.jobs)
+    env.log('{} units - family pairs skipped because of too many alleles'.format(env.skipped_counter.value))
 
 #plink format, ped and map 
 def format_plink(tped, tfam):
@@ -65,11 +66,7 @@ def format_plink(tped, tfam):
 #You can analyze them all together
 def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc):
     out_base = '{}/LINKAGE/{}'.format(env.tmp_dir, splitext(basename(tped))[0])
-    try:
-        rmtree(out_base)
-    except:
-        pass
-    env.log("Start converting to LINKAGE format for {} ...\n".format(basename(out_base)), flush=True)
+    env.log("Start converting to LINKAGE format for {} ...".format(basename(out_base)), flush=True)
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
         fams = parse_tfam(tfam_fh)
         #parse per family per locus AF file
@@ -79,7 +76,12 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
             with open(os.path.join(env.tmp_cache, basename(out_base) + '.freq')) as af_fh:
                 for line in af_fh:
                     s = line.strip().split()
-                    af[(s[0],s[1])] = s[2:]
+                    freq = map(float, s[2:])
+                    if sum(freq) < 1e6:
+                        freq = [1/len(freq)] * len(freq) 
+                    else:
+                        freq = np.array(map(float, s[2:]))/sum(map(float,s[2:]))
+                    af[(s[0],s[1])] = map(str, freq)
         except IOError:
             env.error('freq info not properly read for [{}]'.format(basename(out_base)))
         #parse tped
@@ -95,11 +97,11 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                 gno = '0'
             for fid in fams:
                 workdir = '{}/{}/{}'.format(out_base, gene, fid)
-                mkpath(workdir)
+                os.system('mkdir -p {}'.format(workdir))
                 #env.error("fid {} num {}\n".format(fid, fams[fid].get_member_ids()))
                 fam_af = af[(fid, s[1])]
-                if not fam_af:
-                    continue
+                #if not fam_af:
+                #    continue
                     #env.error('no family-wise allele freq info for {} {} {}'.format(fid, s[1], fam_af))
                     #fam_af = ['0.1'] * gs_num
                 ids = fams[fid].get_sorted_ids()
@@ -109,9 +111,14 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                 #    env.log(set(filter(lambda x: x != '0', chain(*gs))))
                 gs_num = len(set(filter(lambda x: x != '0', chain(*gs))))
                 if gs_num >= 10:
-                    env.log('Pattern number larger than 9 for unit {} in family {}, skipped'.format(s[1], fid))
-                    rmtree(workdir)
+                    env.log('Pattern number larger than 9 for unit {} in family {}, skipped'.format(s[1], fid), flush=True)
+                    with env.skipped_counter.get_lock():
+                        env.skipped_counter.value += 1
+                    if not os.listdir(workdir):
+                        os.rmdir(workdir)
                     continue
+                os.system('mkdir -p {}'.format(workdir))
+                #env.log('workdir: {}'.format(workdir))
                 with open('{}/{}.PRE'.format(workdir, gno), 'w') as pre:
                     pre.write(''.join("{} {} {} {}\n".format(fid, fams[fid].print_member(pid), s[2*fams[fid].get_member_idx(pid) + 4], s[2*fams[fid].get_member_idx(pid) + 5]) for pid in ids))
                 with open('{}/{}.LOC'.format(workdir, gno), 'w') as loc:
@@ -128,14 +135,14 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                     loc.write("0.0\n")
                     loc.write("1 {} {}\n".format(theta_inc, theta_max))
             if not os.listdir('{}/{}'.format(out_base, gene)):
-                env.log('empty dir [{}/{}], deteled'.format(out_base, gene))
+                env.log('empty dir [{}/{}], deleted'.format(out_base, gene), flush=True)
                 os.rmdir(os.path.join(out_base, gene))
     tped_fh.close()
     tfam_fh.close()
     if not os.listdir('{}'.format(out_base)):
-        env.log('empty dir [{}], deteled'.format(out_base))
+        env.log('empty dir [{}], deleted'.format(out_base), flush=True)
         os.rmdir(out_base)
-    env.log("Finished LINKAGE format for {}.\n".format(out_base), flush=True)
+    env.log("Finished LINKAGE format for {}.".format(out_base), flush=True)
   
 #parse tfam file, store families into the Pedigree class                
 def parse_tfam(fh):
@@ -217,11 +224,17 @@ def run_linkage(blueprint, theta_inc, theta_max, to_plot = True):
         rmtree(os.path.join(env.output, 'heatmap'))
     except OSError:
         pass
+    runtime_err = open(os.path.join(env.tmp_dir, 'LinkageRuntimeError.txt'), 'w')
     workdirs = glob.glob('{}/LINKAGE/{}.chr*'.format(env.tmp_dir, env.output))
-    parmap(lambda x: linkage_worker(blueprint, x, theta_inc, theta_max, to_plot) , workdirs, env.jobs)
+    parmap(lambda x: linkage_worker(blueprint, x, theta_inc, theta_max, runtime_err, to_plot) , workdirs, env.jobs)
+    runtime_err.close()
+    env.log('{} makeped runtime errors'.format(env.makeped_counter.value))
+    env.log('{} pedcheck runtime errors'.format(env.pedcheck_counter.value))
+    env.log('{} unknown runtime errors'.format(env.unknown_counter.value))
+    env.log('{} mlink runtime errors'.format(env.mlink_counter.value))
     
-def linkage_worker(blueprint, workdir, theta_inc, theta_max, to_plot = True):
-    env.log("Start running LINKAGE for {} ...\n".format(workdir), flush=True)
+def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = True):
+    env.log("Start running LINKAGE for {} ...".format(workdir), flush=True)
     #hash genes into genemap
     genemap = {}
     if blueprint:
@@ -252,13 +265,34 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, to_plot = True):
                 for unit in units:
                     copyfile('{}.LOC'.format(unit), 'datafile.dat')
                     copyfile('{}.PRE'.format(unit), 'pedfile.pre')
-                    runCommand(['makeped', 'pedfile.pre', 'pedfile.ped', 'n'],
-                               show_stderr = False, return_zero = False)
-                    runCommand(['pedcheck', '-p', 'pedfile.ped', '-d', 'datafile.dat', '-c'],
-                               show_stderr = False, return_zero = False)
+
+                    step1 = runCommand(['makeped', 'pedfile.pre', 'pedfile.ped', 'n'],
+                                       show_stderr = False, return_zero = False)
+                    if step1[1]:
+                        with env.makeped_counter.get_lock():
+                            env.makeped_counter.value += 1
+                        with env.lock:
+                            errfile.write(step1[1])
+                    step2 = runCommand(['pedcheck', '-p', 'pedfile.ped', '-d', 'datafile.dat', '-c'],
+                                       show_stderr = False, return_zero = False)
+                    if step2[1]:
+                        with env.pedcheck_counter.get_lock():
+                            env.pedcheck_counter.value += 1
+                        with env.lock:
+                            errfile.write(step2[1])
                     copyfile('zeroout.dat', 'pedfile.dat')
-                    runCommand('unknown')
-                    runCommand('mlink')
+                    step3 = runCommand('unknown', show_stderr = False, return_zero = False)
+                    if step3[1]:
+                        with env.unknown_counter.get_lock():
+                            env.unkown_counter.value += 1
+                        with env.lock:
+                            errfile.write(step3[1])
+                    step4 = runCommand('mlink', show_stderr = False, return_zero = False)
+                    if step4[1]:
+                        with env.mlink_counter.get_lock():
+                            env.mlink_counter.value += 1
+                        with env.lock:
+                            errfile.write(step4[1])
                     copyfile('outfile.dat', '{}.out'.format(unit))        
                     #clean linkage tmp files
                     for f in set(glob.glob('*.dat') + glob.glob('ped*') + ['names.tmp']):
@@ -282,7 +316,7 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, to_plot = True):
     if to_plot:
         heatmap('{}/heatmap/{}.lods'.format(env.output, basename(workdir)), theta_inc, theta_max)
         heatmap('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)), theta_inc, theta_max)
-    env.log("Finished running LINKAGE for {}.\n".format(workdir), flush=True)
+    env.log("Finished running LINKAGE for {}.".format(workdir), flush=True)
 
 
 def hinton(filename, max_weight=None, ax=None):
@@ -327,6 +361,7 @@ def heatmap(file, theta_inc, theta_max):
         fig, ax = plt.subplots(1)
         ax.set_title('Chromosome {}'.format(chrID))
         ppl.pcolormesh(fig,ax,lods.transpose(),
+                       xticklabels=[''] * len(lods),
                        yticklabels=np.round(np.array(range(Num)) * theta_inc,2).tolist())
         fig.savefig('{}.png'.format(file))
         #fig.close()

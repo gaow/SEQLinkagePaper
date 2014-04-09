@@ -53,6 +53,11 @@ class Environment:
         self.commonvar_counter = Value('i',0)
         self.mendelerror_counter = Value('i',0)
         self.recomb_counter = Value('i',0)
+        self.skipped_counter = Value('i',0)
+        self.makeped_counter = Value('i',0)
+        self.pedcheck_counter = Value('i',0)
+        self.unknown_counter = Value('i',0)
+        self.mlink_counter = Value('i',0)
 
     def __mktmpdir(self, where = None):
         class LockedTempDir(str):
