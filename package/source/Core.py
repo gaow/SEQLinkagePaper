@@ -885,7 +885,7 @@ def main(args):
             if env.null_counter.value:
                 env.log('{:,d} units ignored due to absence in VCF file'.format(env.null_counter.value))
             if env.trivial_counter.value:
-                env.log('{:,d} units ignored due to absence of variants in samples'.format(env.trivial_counter.value))
+                env.log('{:,d} units ignored due to absence of variation in samples'.format(env.trivial_counter.value))
             fatal_errors = 0
             try:
                 # Error msg from C++ extension
