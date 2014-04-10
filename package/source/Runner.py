@@ -340,7 +340,7 @@ def hinton(filename, max_weight=None, ax=None):
     
         
 def heatmap(file, theta_inc, theta_max):
-    env.log("Start ploting heatmap for {} ...\n".format(file), flush=True)
+    env.log("Start ploting heatmap for {} ...".format(file), flush=True)
     lods = []
     with open(file, 'r') as f:
         for line in f.readlines():
@@ -362,7 +362,7 @@ def heatmap(file, theta_inc, theta_max):
                        yticklabels=np.round(np.array(range(Num)) * theta_inc,2).tolist())
         fig.savefig('{}.png'.format(file))
         #fig.close()
-    env.log("Finished ploting heatmap for {}.\n".format(file), flush=True)
+    env.log("Finished ploting heatmap for {}.".format(file), flush=True)
 
 def hlod_fun(Li, sign=1):
     def _fun(alpha):
