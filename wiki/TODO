@@ -3,6 +3,14 @@ Gao
 - support directly output phased original data (x)
 Di or Hang
 - provide a test data set for reviewers (x Gao did it)
+Di
+- html table frame
+- remove x-axis on heatmap
+- improvement of message info 
+- other output formats
+- maf sum to 1
 Biao
 - simulation (x)
 - power calculation (x Gao did it)
+Suzanne
+- written permission from Dan Weeks for pedcheck and makeped

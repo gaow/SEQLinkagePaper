@@ -74,6 +74,7 @@ Runtime arguments:
   --tempdir PATH        Temporary directory to use.
   --cache               Load cache data for analysis instead of starting
                         afresh.
+  -q, --quiet           Disable the display of runtime MESSAGE.
 
 	Copyright (c) 2013 - 2014 Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu>
 	Distributed under GNU General Public License
@@ -123,7 +124,7 @@ tabix -p vcf -f data.vcf.gz
 # ``Complete collapsing''. Set @@--bin 0@@ to collapse variant in the entire region to a single binary code.
 # ``Arbitrary collapsing''. Set @@--bin@@ to any arbitrary positive integer value {$\(N\)$} to collapse {$\(N\)$} variants to a single binary code.
 #}
-#!! @@--single-markers@@
+#!! @@--single-markers@@ [default to disabled]
 # When this switch is turned on, single variant markers will be generated from data instead of regional markers, and both @@--bin@@ and @@--blueprint@@ options will be ignored.
 #! Linkage analysis options
 # SEQLinkage has a built-in two-point linkage analysis routine to analyze data generated via the CHP method. Below are options for configuring linkage model parameters and producing graphic / HTML format analysis reports.
@@ -137,7 +138,7 @@ tabix -p vcf -f data.vcf.gz
 # Recombination rate value upper bound ({$\(\theta_{max}\)$}) up to which the linkage analysis will evaluate.  
 #!! @@--theta-inc@@ [default to 0.05]
 # Increment steps from 0 to {$\(\theta_{max}\)$}. At each step the {$\(\theta\)$} value will be used to calculate a LOD score.  
-#!! @@--run-linkage@@
+#!! @@--run-linkage@@ [default to disabled]
 # When this switch is on, two-point linkage analysis will be performed
 #!! @@--output-entries@@ [default to 10]
 # Output to HTML file the best {$\(N\)$} markers in terms of LOD and HLOD scores respectively. When {$\(N=0\)$}, no heatmap graph or HTML file will be generated. 
@@ -155,9 +156,11 @@ tabix -p vcf -f data.vcf.gz
 sudo mkdir /tmp/ramdisk; sudo chmod 777 /tmp/ramdisk
 sudo mount -t tmpfs -o size=1024M ramfs /tmp/ramdisk
 # With @@--tempdir /tmp/ramdisk@@ option the newly created RAM drive will be used for the intensive file I/O in the analysis.
-#!! @@--cache@@
+#!! @@--cache@@ [default to disabled]
 # To speed up repeated runs of SEQLinkage on the same data set under similar parameter settings, data are archived to the @@cache@@ folder under the work directory the first time SEQLinkage executes. With this switch on, SEQLinkage will used the archived data whenever appropriate to skip as many steps previously performed. For example in a repeated analysis under the same setting but only change @@--output-entries@@ from 10 to 50, SEQLinkage will skip the CHP coding and linkage analysis step, only updating the result HTML table using archived analysis results.
 # Note that change of some input parameters will overwrite the effect of @@--cache@@. For example changing @@--moi@@ will result in re-run of linkage analysis; changing @@--vcf@@ or @@--fam@@ input will result in re-run of CHP coding step.
+#!! @@--quiet@@ [default to disabled]
+# When this switch is on, the program will not display any log message during runtime. It will, however, display error message if an error occurs.
 ###
 # Linkage analysis results
 ###
