@@ -57,6 +57,7 @@ class Cache:
         self.infofiles = [params['vcf'], params['tfam'], params['blueprint']] if params['blueprint'] else [params['vcf'], params['tfam']]
         self.infofiles.append(self.cache_name)
         self.pchecklist = {'.vcf': ['bin', 'single_markers'],
+                           '.mega2':None, '.merlin':None,
                            '.linkage': ['prevalence', 'inherit_mode', 'wild_pen',
                                         'muta_pen', 'theta_max', 'theta_inc'],
                            '.analysis': ['prevalence', 'inherit_mode', 'wild_pen',
@@ -78,9 +79,10 @@ class Cache:
             lines = [item.strip().split() for item in f.readlines()]
         for line in lines:
             params[line[0]] = line[1]
-        for item in self.pchecklist[self.id]:
-            if params[item] != str(self.params[item]):
-                return False
+        if self.pchecklist[self.id]:
+            for item in self.pchecklist[self.id]:
+                if params[item] != str(self.params[item]):
+                    return False
         return True
 
     def load(self, target_dir = None, names = None):
@@ -111,8 +113,9 @@ class Cache:
         signatures = ['{}\t{}'.format(x, calculateFileMD5(x)) for x in self.infofiles if os.path.isfile(x)]
         with open(self.cache_info, 'w') as f:
             f.write('\n'.join(signatures))
-        with open(self.param_info + self.id, 'w') as f:
-            f.write('\n'.join(["{}\t{}".format(item, self.params[item]) for item in self.pchecklist[self.id]]))
+        if self.pchecklist[self.id]:
+            with open(self.param_info + self.id, 'w') as f:
+                f.write('\n'.join(["{}\t{}".format(item, self.params[item]) for item in self.pchecklist[self.id]]))
 
     def clear(self, pres = [], exts = []):
         for fl in glob.glob(self.cache_info + "*") + [self.cache_name]:
@@ -589,7 +592,12 @@ class MarkerMaker:
             if len(block) > 1:
                 blocks.append(block)
         # get LD clusters
-        return [[markers[idx] for idx in item] for item in list(connected_components(blocks))]
+        clusters = [[markers[idx] for idx in item] for item in list(connected_components(blocks))]
+        if env.debug:
+            with env.lock:
+                print("LD blocks: ", blocks, file = sys.stderr)
+                print("LD clusters: ", clusters, file = sys.stderr)
+        return clusters
         
 
     def __CodeHaplotypes(self, data, haplotypes, mafs, varnames, clusters):
@@ -601,6 +609,8 @@ class MarkerMaker:
         self.coder.Execute(haplotypes.values(), [[mafs[v] for v in varnames[item]] for item in haplotypes], clusters_idx)
         if env.debug:
             with env.lock:
+                if clusters:
+                    print("Family LD clusters: ", clusters_idx, "\n", file = sys.stderr)
                 self.coder.Print()
         # line: [fid, sid, hap1, hap2]
         for line in self.coder.GetHaplotypes():

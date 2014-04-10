@@ -14,7 +14,7 @@ ln -s ~/SVN/SEQLinco/simulations/LinkagePowerCalc.py pcal.py
 # Linkage analysis parameters are always @@-K 0.01 -W 0 -M 1@@. See @@seqlink -h@@ for details.
 #! Example command
 python pcal.py -g MYH9.tsv MYO7A.tsv -m dominant -r 10 -n 20 \
-       --blueprint blueprint.txt --vanilla --tempdir /ramcache \
+       --blueprint blueprint.txt --tempdir /ramcache \
        --run-linkage -K 0.01 --moi AD -W 0 -M 1 --output-entries 0
 #! Power calculation script
 # Script generator:
@@ -41,7 +41,7 @@ with open(name, 'w') as f:
                             mkdir = ''
                         count += 1
                         f.write("{12}./pcal.py --debug -s 3 8 -g {0} -m {1} -n {2} -p {3} {4} -r {5} "\
-                                "--ofile {9} {10} --blueprint blueprint.txt --vanilla {6} --jobs 1 "\
+                                "--ofile {9} {10} --blueprint blueprint.txt {6} --jobs 1 "\
                                 "--run-linkage -K 0.01 -W 0 -M 1 --moi {7} --output-entries 0 "\
                                 "> {11}/{8}.{9}\n".\
                                 format(gdict[m], m, n, p, 1-p, rep, method, mdict[m],

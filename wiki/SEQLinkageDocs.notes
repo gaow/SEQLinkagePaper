@@ -1,12 +1,12 @@
 ###
-#! SEQLinkage User Guide
+#! SEQLinkage Reference Manual
 ###
 ###
 # Introduction
 ###
 # This program implements a "combined haplotype pattern" (CHP) method to generate markers from sequence data for linkage analysis. The core concept is that instead of treating each variant as a separate marker, we create regional markers for variants in specified genetic regions (e.g. genes) based on haplotype patterns within families, and perform linkage analysis on markers thus generated. CHP method outperforms traditional single marker based approach for compound heterozygosity and allelic heterogeneity in genes. We recommend the use of CHP in conjunction with filtering based variant prioritization method in the analyses of sequence data of human pedigrees. 
 # For more details on the methodology, please refer to our paper: ... 
-# "Web resource": please visit @http://bioinformatics.org/seqlink@ for more information including download & installation instructions, software updates and user support.
+# "Web resource": please visit @http://bioinformatics.org/seqlink@ for more information including download & installation instructions, software updates and supports from SEQLinkage user forum.
 
 ###
 # SEQLinkage program command options 
@@ -88,8 +88,8 @@ tabix -p vcf -f data.vcf.gz
 # You should end up with two files @@data.vcf.gz@@ and @@data.vcf.gz.tbi@@. In SEQLinkage command you can then use @@--vcf data.vcf.gz@@ to load the genotype data.
 #!! @@--fam@@ [required]
 # This file contain information of pedigree structure, sample sex and disease status. It partially follows the [LINKAGE format|@http://www.jurgott.org/linkage/LinkagePC.html@] convention: it has only 6 columns with each column being Family ID, Individual ID, Paternal ID, Maternal ID, Sex and Status.
-#!! @@--blueprint@@ [default to WES genes]
-# A ``blueprint'' file can be supplied to define regional marker units. SEQLinkage has a default built-in blueprint which is suitable for WES studies when it is desired to group variants to create regional markers by genes. Customized blueprint file can be provided by users for specific studies. The file should contain 7 columns:
+#!! @@--blueprint@@ [default to RefSeq genes]
+# A ``blueprint'' file can be supplied to define regional marker units. SEQLinkage has a default built-in blueprint which is suitable for WES studies when it is desired to group variants to create regional markers by genes. Customized blueprint file can be provided by users for specific studies. Even for WES studies one can provide alternative blueprint based on exome sequencing capture targets rather than genes. The file should contain 7 columns:
 #{list
 # Chromosome name, without leading @@chr@@ character, e.g. ``5'' not ``chr5''
 # Start position of the genetic region
@@ -139,7 +139,7 @@ tabix -p vcf -f data.vcf.gz
 #!! @@--theta-inc@@ [default to 0.05]
 # Increment steps from 0 to {$\(\theta_{max}\)$}. At each step the {$\(\theta\)$} value will be used to calculate a LOD score.  
 #!! @@--run-linkage@@ [default to disabled]
-# When this switch is on, two-point linkage analysis will be performed
+# When this switch is on, two-point linkage analysis will be performed.
 #!! @@--output-entries@@ [default to 10]
 # Output to HTML file the best {$\(N\)$} markers in terms of LOD and HLOD scores respectively. When {$\(N=0\)$}, no heatmap graph or HTML file will be generated. 
 #! Format conversion options
@@ -168,21 +168,67 @@ sudo mount -t tmpfs -o size=1024M ramfs /tmp/ramdisk
 #! Tables of LOD and HLOD scores
 #! Heatmaps of LOD and HLOD scores
 ###
-#! SEQLinkage analysis examples
+#! Data analysis using SEQLinkage
 ###
 ###
 # Introduction
 ###
-# Here we demonstrate the use of SEQLinkage to generate regional markers from sequence data and perform linkage analysis. The simulated example data set can be found at @http://bioinformatics.org/seqlink/download/examples@ 
+# Here we demonstrate the use of SEQLinkage to generate regional markers from sequence data and perform linkage analysis. For demonstration purpose we will use a [simulated example data set|@http://bioinformatics.org/seqlink/download/examples@] of a nuclear family (see pedigree structure below) containing exome sequence data involving xx genes. From the phenotypic pattern it is reasonable to assume the disease follows a recessive mode of inheritance. We will first generate regional markers using CHP method with various collapsing themes, then perform two-point linkage analysis using regional markers. Finally we output markers to formats compatible with other linkage programs and perform non-parametric linkage analysis using Merlin.
+#* seqlinkage-example-pedigree.pdf 0.6
+
 ###
-# Generating regional markers
+# Regional markers from sequence data
 ###
+#! Understanding terminal output and regional marker data
+#{out terminal info
+MESSAGE: Binary trait detected in [/ramcache/slg/seqlinkage-example.fam]
+MESSAGE: Checking local resources 5/5 ...
+MESSAGE: 6 samples found in [/ramcache/slg/seqlinkage-example.vcf.gz]
+MESSAGE: 1 families with a total of 6 samples will be scanned for 25,305 pre-defined units
+MESSAGE: 15,657 units (from 145,908 variants) processed; 3,496 Mendelian inconsistencies and 6,482 recombination events handled
+MESSAGE: 994 tri-allelic loci were ignored
+MESSAGE: 6,778 units ignored due to absence in VCF file
+MESSAGE: 2,870 units ignored due to absence of variants in samples
+MESSAGE: Archiving to directory [/ramcache/slg/cache]
+MESSAGE: Generating MERLIN format output ...
+MESSAGE: 0 units - family pairs skipped because of too many alleles
+MESSAGE: Saving data to [/ramcache/slg/RMBinPt8] ...
+#}
+#! Collapsing themes
+#!! LD based collapsing
+# The default collapsing theme is LD based with the {$\(R^2>0.8\)$} rule; variants within LD blocks thus defined will be collapsed to binary codes before haplotype pattern is computed. You may set @@--bin@@ to other values {$\(R^2\in(0,1)\)$} for different LD block definition. The output result will be written to MERLIN format (via the @@--format MERLIN@@ argument) for use later.
+seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz --freq AF \
+        --format MERLIN --output RMBPt8 --jobs 8
+#{out terminal info
+FIXME
+#}
+#!! Complete collapsing
+# Setting @@--bin 0@@ will collapse all variants in the region to generate one marker per region. Haplotype patterns are thus simply either ``1'' for all wild type or ``2'' for any mutation in the region.
+seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz --freq AF \
+        --bin 0 --format MERLIN --output RMB0 --jobs 8
+#{out terminal info
+FIXME
+#}
+#!! No collapsing
+# Setting @@--bin 1@@ will compute the haplotype pattern for the region as is, without collapsing.
+seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz --freq AF \
+        --bin 1 --format MERLIN --output RMB0 --jobs 8
+#{out terminal info
+FIXME
+#}
+#!! Comparison between different themes
+# FIXME: visualize the output
+#! Use of founder allele frequencies
+#! Recombination events
+
 ###
 # Two-point linkage analysis
 ###
+
 ###
 # SEQLinkage with other linkage programs
 ###
+
 #{-----
 tigernotes doc SEQLinkageDocs.notes --lite --toc --font_size 12 --title "SEQLinkage Documentation [Version 1.0 alpha]" -a "Gao Wang and Di Zhang" --foot
 tigernotes dokuwiki SEQLinkageDocs.notes -o encode-linkage --lite --showall

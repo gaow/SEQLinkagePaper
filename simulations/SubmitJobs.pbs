@@ -25,11 +25,11 @@ do
 			do
 				mkdir -p FAM$N
 				./LinkagePowerCalc.py --debug -s 3 8 -g ${Gmap[$m]} \
-					  -m ${MOI[$m]} -n $N -p $p $q -r $rep \
-                      --ofile FAM${N}RUN$count $a --blueprint blueprint.txt \
-					  --vanilla ${Mtype[$t]} --jobs 1 \
-                      --run-linkage -K 0.01 -W 0 -M 1 --tempdir /mnt/ram --moi ${Mmap[$m]} --output-entries 0 \
-                      > FAM${N}/${Fmap[$t]}.RUN${N}.$count
+				-m ${MOI[$m]} -n $N -p $p $q -r $rep \
+                      		--ofile FAM${N}RUN$count $a --blueprint blueprint.txt \
+				${Mtype[$t]} --jobs 1 --run-linkage -K 0.01 -W 0 -M 1 \
+				--tempdir /mnt/ram --moi ${Mmap[$m]} --output-entries 0 \
+				> FAM${N}/${Fmap[$t]}.RUN${N}.$count
 				count=$(bc <<< "$count + 1")
 			done
 		done
