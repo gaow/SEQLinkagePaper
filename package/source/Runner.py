@@ -34,6 +34,7 @@ def parmap(f, X, nprocs = cpu_count()):
 #formatters
 #the handler, called from main, can call specific formmater.
 def format(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, theta_max, theta_inc):
+    set_units_num()
     if out_format == 'plink':
         parmap(lambda x: format_plink(x, tfam), tpeds, env.jobs)
     elif out_format == 'linkage':
@@ -59,14 +60,22 @@ def format_plink(tped, tfam):
         p.close()
     tped_fh.close()
     tfam_fh.close()
-
+    
+def file_len(fname):
+    with open(fname) as f:
+        for i, l in enumerate(f):
+            pass
+    return i + 1    
+def set_units_num():
+    if env.success_counter.value == 0:
+        env.success_counter.value = sum(map(file_len, glob.glob('{}/*.tped'.format(env.tmp_cache))))
+        env.batch = 10
 #linkage format, .pre and .loc
 #per locus, per family based
 #because the haplotype patterns are different from family to family.
 #You can analyze them all together
 def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc):
     out_base = '{}/LINKAGE/{}'.format(env.tmp_dir, splitext(basename(tped))[0])
-    env.log("Start converting to LINKAGE format for {} ...".format(basename(out_base)), flush=True)
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
         fams = parse_tfam(tfam_fh)
         #parse per family per locus AF file
@@ -85,42 +94,42 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
         heter_pen = wild_pen
         if inherit_mode == 'AD':
             heter_pen = muta_pen
-        #else:
-        #    env.error('Inheritance mode {} not implemented yet'.format(inherit_mode))
         for line in tped_fh:
             s = line.strip().split()
             gene, gno = re.search(r'^(\S+?)(?:\[(\d+)\])?$', s[1]).groups()
             if not gno:
                 gno = '0'
+                with env.format_counter.get_lock():
+                    env.format_counter.value += 1
+            elif gno == '1':
+                with env.format_counter.get_lock():
+                    env.format_counter.value += 1
+            #env.log('test: {} {} {} {}'.format(env.success_counter.value, env.jobs, env.batch, env.format_counter.value), flush=True)
+            if env.format_counter.value % (env.batch * env.jobs) == 0:
+                env.log('{:,d} units processed {:.2%} ...'.format(env.success_counter.value, float(env.format_counter.value)/env.success_counter.value), flush=True)
             for fid in fams:
                 workdir = '{}/{}/{}'.format(out_base, gene, fid)
                 os.system('mkdir -p {}'.format(workdir))
                 #env.error("fid {} num {}\n".format(fid, fams[fid].get_member_ids()))
                 fam_af = af[(fid, s[1])]
                 if not fam_af:
-                    env.log('All missing in this family {} on {}[{}], skipped ...'.format(fid, gene, gno), flush=True)
+                    #env.log('All missing in this family {} on {}[{}], skipped ...'.format(fid, gene, gno), flush=True)
                     with env.skipped_counter.get_lock():
                         env.skipped_counter.value += 1
                     if not os.listdir(workdir):
                         os.rmdir(workdir)
                     continue
-                    #env.error('no family-wise allele freq info for {} {} {}'.format(fid, s[1], fam_af))
-                    #fam_af = ['0.1'] * gs_num
                 ids = fams[fid].get_sorted_ids()
                 idxes = map(lambda x: fams[fid].get_member_idx(x), ids)
                 gs = map(lambda x: s[2 * x + 4 : 2 * x + 6], idxes)
-                #if re.search(r'\[21\]$', workdir):
-                #    env.log(set(filter(lambda x: x != '0', chain(*gs))))
                 gs_num = len(set(filter(lambda x: x != '0', chain(*gs))))
                 if gs_num >= 10:
-                    env.log('Pattern number larger than 9 for unit {} in family {}, skipped'.format(s[1], fid), flush=True)
                     with env.skipped_counter.get_lock():
                         env.skipped_counter.value += 1
                     if not os.listdir(workdir):
                         os.rmdir(workdir)
                     continue
                 os.system('mkdir -p {}'.format(workdir))
-                #env.log('workdir: {}'.format(workdir))
                 with open('{}/{}.PRE'.format(workdir, gno), 'w') as pre:
                     pre.write(''.join("{} {} {} {}\n".format(fid, fams[fid].print_member(pid), s[2*fams[fid].get_member_idx(pid) + 4], s[2*fams[fid].get_member_idx(pid) + 5]) for pid in ids))
                 with open('{}/{}.LOC'.format(workdir, gno), 'w') as loc:
@@ -137,14 +146,11 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                     loc.write("0.0\n")
                     loc.write("1 {} {}\n".format(theta_inc, theta_max))
             if not os.listdir('{}/{}'.format(out_base, gene)):
-                env.log('empty dir [{}/{}], deleted'.format(out_base, gene), flush=True)
                 os.rmdir(os.path.join(out_base, gene))
     tped_fh.close()
     tfam_fh.close()
     if not os.listdir('{}'.format(out_base)):
-        env.log('empty dir [{}], deleted'.format(out_base), flush=True)
         os.rmdir(out_base)
-    env.log("Finished LINKAGE format for {}.".format(out_base), flush=True)
   
 #parse tfam file, store families into the Pedigree class                
 def parse_tfam(fh):
@@ -226,6 +232,7 @@ def run_linkage(blueprint, theta_inc, theta_max, to_plot = True):
         rmtree(os.path.join(env.output, 'heatmap'))
     except OSError:
         pass
+    set_units_num()
     runtime_err = open(os.path.join(env.tmp_dir, 'LinkageRuntimeError.txt'), 'w')
     workdirs = glob.glob('{}/LINKAGE/{}.chr*'.format(env.tmp_dir, env.output))
     parmap(lambda x: linkage_worker(blueprint, x, theta_inc, theta_max, runtime_err, to_plot) , workdirs, env.jobs)
@@ -236,7 +243,7 @@ def run_linkage(blueprint, theta_inc, theta_max, to_plot = True):
     env.log('{} mlink runtime errors'.format(env.mlink_counter.value))
     
 def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = True):
-    env.log("Start running LINKAGE for {} ...".format(workdir), flush=True)
+    #env.log("Start running LINKAGE for {} ...".format(workdir), flush=True)
     #hash genes into genemap
     genemap = {}
     if blueprint:
@@ -315,12 +322,16 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
             a = res.x
             lods_fh.write('{} {} {} {}\n'.format(gene, ' '.join(map(str, genemap[gene])), theta, sum(lods[theta].values())))
             hlods_fh.write('{} {} {} {} {}\n'.format(gene, ' '.join(map(str, genemap[gene])), a, theta, hlod_fun(lods[theta].values())(a)))
+        with env.run_counter.get_lock():
+            env.run_counter.value += 1
+        if env.run_counter.value % (env.batch * env.jobs) == 0:
+            env.log('{:,d} units processed {:.2%} ...'.format(env.success_counter.value, float(env.run_counter.value)/env.success_counter.value), flush=True)
     lods_fh.close()
     hlods_fh.close()
     if to_plot:
         heatmap('{}/heatmap/{}.lods'.format(env.output, basename(workdir)), theta_inc, theta_max)
         heatmap('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)), theta_inc, theta_max)
-    env.log("Finished running LINKAGE for {}.".format(workdir), flush=True)
+    #env.log("Finished running LINKAGE for {}.".format(workdir), flush=True)
 
 
 def hinton(filename, max_weight=None, ax=None):
@@ -347,7 +358,7 @@ def hinton(filename, max_weight=None, ax=None):
     
         
 def heatmap(file, theta_inc, theta_max):
-    env.log("Start ploting heatmap for {} ...".format(file), flush=True)
+    #env.log("Start ploting heatmap for {} ...".format(file), flush=True)
     lods = []
     with open(file, 'r') as f:
         for line in f.readlines():
@@ -356,7 +367,7 @@ def heatmap(file, theta_inc, theta_max):
                 continue
             lods.append(lod)
         if max(lods) == min(lods):
-            env.log('Max equals Min for [{}], No real heatmap will be generated.'.format(file))
+            #env.log('Max equals Min for [{}], No real heatmap will be generated.'.format(file))
             hinton('{}.png'.format(file))
             return
         Num=int(round(theta_max/theta_inc))
@@ -369,7 +380,7 @@ def heatmap(file, theta_inc, theta_max):
                        yticklabels=np.round(np.array(range(Num)) * theta_inc,2).tolist())
         fig.savefig('{}.png'.format(file))
         #fig.close()
-    env.log("Finished ploting heatmap for {}.".format(file), flush=True)
+    #env.log("Finished ploting heatmap for {}.".format(file), flush=True)
 
 def hlod_fun(Li, sign=1):
     def _fun(alpha):

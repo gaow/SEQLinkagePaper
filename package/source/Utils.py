@@ -53,6 +53,8 @@ class Environment:
         self.commonvar_counter = Value('i',0)
         self.mendelerror_counter = Value('i',0)
         self.recomb_counter = Value('i',0)
+        self.format_counter = Value('i',0)
+        self.run_counter = Value('i',0)
         self.skipped_counter = Value('i',0)
         self.makeped_counter = Value('i',0)
         self.pedcheck_counter = Value('i',0)
