@@ -97,8 +97,13 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                 os.system('mkdir -p {}'.format(workdir))
                 #env.error("fid {} num {}\n".format(fid, fams[fid].get_member_ids()))
                 fam_af = af[(fid, s[1])]
-                #if not fam_af:
-                #    continue
+                if not fam_af:
+                    env.log('All missing in this family {} on {}[{}], skipped ...'.format(fid, gene, gno), flush=True)
+                    with env.skipped_counter.get_lock():
+                        env.skipped_counter.value += 1
+                    if not os.listdir(workdir):
+                        os.rmdir(workdir)
+                    continue
                     #env.error('no family-wise allele freq info for {} {} {}'.format(fid, s[1], fam_af))
                     #fam_af = ['0.1'] * gs_num
                 ids = fams[fid].get_sorted_ids()
@@ -299,6 +304,8 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
                         raw = out.read()
                         for i in re.finditer(r'^THETAS\s+(0\.\d+)(?:\n.+?){7}LOD SCORE =\s+(-?\d+\.\d+)', raw, re.MULTILINE):
                             theta, lod = map(float, i.group(1,2))
+                            if float(lod) < 1e-6:
+                                lod = 0
                             if theta not in lods:
                                 lods[theta] = {fam: lod}
                             elif fam not in lods[theta] or lod > lods[theta][fam]:
