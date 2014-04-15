@@ -328,7 +328,7 @@ def heatmap(file, theta_inc, theta_max):
         ppl.pcolormesh(fig,ax,lods.transpose(),
                        xticklabels=[''] * len(lods),
                        yticklabels=np.round(np.array(range(Num)) * theta_inc,2).tolist(),
-                       cmap=brewer2mpl.get_map('RdYlGn', 'diverging', 11).mpl_colormap)
+                       cmap=brewer2mpl.get_map('Blues', 'Sequential', 9).mpl_colormap)
         fig.savefig('{}.png'.format(file))
         #fig.close()
     #env.log("Finished ploting heatmap for {}.".format(file), flush=True)
@@ -345,11 +345,45 @@ def html(theta_inc, theta_max, limit):
     <head>
     <title>Results for {}</title>""".format(env.output) + """
     <style>
-    table,th,td
-    {
-    border:1px solid black;
-    border-collapse:collapse;
+    table {
+	font-family: verdana,arial,sans-serif;
+	font-size:12px;
+	color:#333333;
+	border-width: 1px;
+	border-color: #CCCCCC;
+	border-collapse: collapse;
     }
+    table th {
+	border-width: 1px;
+	padding: 6px;
+	color: #006295;
+	border-style: solid;
+	border-color: #CCCCCC;
+	background-color: #F8F8F8;
+    }
+    table td {
+	border-width: 1px;
+	padding: 6px;
+	border-style: solid;
+	border-color: #CCCCCC;
+	background-color: #ffffff;
+    }
+    a,
+    a:link,
+    a:visited,
+    a:active
+    {
+	color: #3366CC;
+	border-bottom: 1px dotted #3366CC;
+	text-decoration:none;
+    }
+    a:hover
+    {
+	border-bottom: none;
+	color: #ffffff;
+    background-color: #006295;
+    }
+    body {font-family:Lucida Sans Unicode,arial,sans-serif;}
     </style>
     <script type="text/javascript">
     function toggle(obj) {
@@ -366,9 +400,9 @@ def html(theta_inc, theta_max, limit):
     </head>"""
     body = """<body>
     <p><a href="#Lods_Table" onclick="toggle(\'lods_tbl\')">Ranked lod scores</a>
-    <div id="lods_tbl" class="divinfo">{}</div></p>
+    <div id="lods_tbl" class="divinfo", style="border:0px;width:auto;height:auto;overflow-y:hidden;overflow-x:scroll;">{}</div></p>
     <p><a href="#Hlods_Table" onclick="toggle(\'hlods_tbl\')">Ranked Hlod scores</a>
-    <div id="hlods_tbl" class="divinfo">{}</div></p>
+    <div id="hlods_tbl" class="divinfo", style="border:0px;width:auto;height:auto;overflow-y:hidden;overflow-x:scroll;">{}</div></p>
     <p><a href="#Lods_Heatmap" onclick="toggle(\'lods_heatmap\')">Lod scores heatmap</a>
     <div id="lods_heatmap">{}</div></p>
     <p><a href="#Hlods_Heatmap" onclick="toggle(\'hlods_heatmap\')">Hlod scores heatmap</a>
@@ -395,7 +429,7 @@ def html_table(type, theta_inc, theta_max, limit):
     #table
     table = r'<table style="width:300px;font-size:12px">{}</table>'
     #table header
-    lods_header = r'<tr>{}</tr>'.format(''.join(r'<th colspan="2">&#952;:{}</td>'.format(x) for x in thetas))
+    lods_header = r'<tr>{}</tr>'.format(''.join(r'<th colspan="2">&#952;={}</td>'.format(x) for x in thetas))
     lods_header += r'<tr>{}</tr>'.format(r'<th rowspan="2">{}</th><th>Gene</th>'.format(type) * colNum)
     lods_header += r'<tr>{}</tr>'.format(r'<th>chr:start-end</th>' * colNum)
     #initialize lods dict
@@ -412,12 +446,12 @@ def html_table(type, theta_inc, theta_max, limit):
                     gene, chrId, start, end, theta, lod = line.strip().split()
                     if int(round(float(theta)/theta_inc)) >= colNum:
                         continue
-                    lods[int(round(float(theta)/theta_inc))][gene] = [round(float(lod),3), gene, chrId, start, end]
+                    lods[int(round(float(theta)/theta_inc))][gene] = ['<b>{}</b>'.format(round(float(lod),3)), gene, chrId, start, end]
                 elif type == 'Hlod':
                     gene, chrId, start, end, a, theta, lod = line.strip().split()
                     if int(round(float(theta)/theta_inc)) >= colNum:
                         continue
-                    lods[int(round(float(theta)/theta_inc))][gene] = ['{}<br>&#945;={}'.format(round(float(lod),3), round(float(a),3)), gene, chrId, start, end]
+                    lods[int(round(float(theta)/theta_inc))][gene] = ['<b>{}</b><br>&#945;={}'.format(round(float(lod),3), round(float(a),3)), gene, chrId, start, end]
                 else:
                     env.error('Wrong type of LOD')
                 
