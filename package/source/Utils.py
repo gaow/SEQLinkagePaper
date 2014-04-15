@@ -8,7 +8,8 @@ from contextlib import contextmanager
 from multiprocessing import Pool, Process, Queue, Lock, Value, cpu_count
 import itertools
 from collections import OrderedDict, defaultdict, Counter
-from distutils.dir_util import mkpath, remove_tree
+from distutils.dir_util import mkpath
+from shutil import rmtree as remove_tree
 from distutils.file_util import copy_file
 from zipfile import ZipFile
 from . import VERSION
@@ -301,7 +302,7 @@ def downloadURL(URL, dest_dir, quiet = True, mode = None, force = False):
         else:
             try:
                 os.remove(dest)
-            except OSError:
+            except:
                 pass
             raise RuntimeError('Failed to download {} using wget'.format(URL))
     except (RuntimeError, ValueError, OSError):
@@ -352,7 +353,7 @@ def removeFiles(dest, exclude = [], hidden = False):
             if os.path.splitext(item)[1] not in exclude:
                 try:
                     os.remove(os.path.join(dest,item))
-                except OSError:
+                except:
                     pass
 
 def copyFiles(pattern, dist, ignore_hidden = True):
@@ -572,14 +573,14 @@ class Cache:
         for fl in glob.glob(self.cache_info + "*") + [self.cache_name]:
             try:
                 os.remove(fl)
-            except OSError:
+            except:
                 pass
         #
         for pre, ext in itertools.product(pres, exts): 
             for fl in glob.glob(os.path.join(self.cache_dir, pre) +  "*" + ext): 
                 try:
                     os.remove(fl)
-                except OSError:
+                except:
                     pass
 
 class PseudoAutoRegion:
@@ -760,30 +761,3 @@ class TFAMParser:
         for item in samples.values():
             self.__update_graph(graph, item)
         return fams, samples, graph
-
-def checkParams(args):
-    '''set default arguments or make warnings'''
-    env.debug = args.debug
-    env.quiet = args.quiet
-    args.vcf = os.path.abspath(os.path.expanduser(args.vcf))
-    args.tfam = os.path.abspath(os.path.expanduser(args.tfam))
-    for item in [args.vcf, args.tfam]:
-        if not os.path.exists(item):
-            env.error("Cannot find file [{}]!".format(item), exit = True)
-    if args.output:
-        env.output = os.path.split(args.output)[-1]
-        env.tmp_log = os.path.join(env.tmp_dir, env.output + ".STDOUT")
-    #
-    if len([x for x in set(getColumn(args.tfam, 6)) if x.lower() not in env.ped_missing]) > 2:
-        env.trait = 'quantitative'
-    env.log('{} trait detected in [{}]'.format(env.trait.capitalize(), args.tfam))
-    if not args.blueprint:
-        args.blueprint = os.path.join(env.resource_dir, 'genemap.txt')
-    args.format = [x.lower() for x in set(args.format)]
-    if args.run_linkage and "linkage" not in args.format:
-        args.format.append('linkage')
-    if None in [args.inherit_mode, args.prevalence, args.wild_pen, args.muta_pen] and "linkage" in args.format:
-        env.error('To generate LINKAGE format or run LINKAGE analysis, please specify all options below:\n\t--prevalence, -K\n\t--moi\n\t--wild-pen, -W\n\t--muta-pen, -M', show_help = True, exit = True)
-    if args.tempdir is not None:
-        env.ResetTempdir(args.tempdir)
-    return True

@@ -17,6 +17,34 @@ else:
     from cstatgen import cstatgen_py3 as cstatgen
 from cstatgen.egglib import Align
 
+def checkParams(args):
+    '''set default arguments or make warnings'''
+    env.debug = args.debug
+    env.quiet = args.quiet
+    args.vcf = os.path.abspath(os.path.expanduser(args.vcf))
+    args.tfam = os.path.abspath(os.path.expanduser(args.tfam))
+    for item in [args.vcf, args.tfam]:
+        if not os.path.exists(item):
+            env.error("Cannot find file [{}]!".format(item), exit = True)
+    if args.output:
+        env.output = os.path.split(args.output)[-1]
+        env.tmp_log = os.path.join(env.tmp_dir, env.output + ".STDOUT")
+    #
+    if len([x for x in set(getColumn(args.tfam, 6)) if x.lower() not in env.ped_missing]) > 2:
+        env.trait = 'quantitative'
+    env.log('{} trait detected in [{}]'.format(env.trait.capitalize(), args.tfam))
+    if not args.blueprint:
+        args.blueprint = os.path.join(env.resource_dir, 'genemap.txt')
+    args.format = [x.lower() for x in set(args.format)]
+    if args.run_linkage and "linkage" not in args.format:
+        args.format.append('linkage')
+    if None in [args.inherit_mode, args.prevalence, args.wild_pen, args.muta_pen] and "linkage" in args.format:
+        env.error('To generate LINKAGE format or run LINKAGE analysis, please specify all options below:\n\t--prevalence, -K\n\t--moi\n\t--wild-pen, -W\n\t--muta-pen, -M', show_help = True, exit = True)
+    if args.tempdir is not None:
+        env.ResetTempdir(args.tempdir)
+    return True
+
+
 class RData(dict):
     def __init__(self, samples_vcf, tfam):
         # tfam.samples: a dict of {sid:[fid, pid, mid, sex, trait], ...}
@@ -622,8 +650,12 @@ def main(args):
             format(tpeds, os.path.join(env.tmp_cache, "{}.tfam".format(env.output)),
                    args.prevalence, args.wild_pen, args.muta_pen, fmt,
                    args.inherit_mode, args.theta_max, args.theta_inc)
-            env.log('{:,d} units are successfully converted to {} format\n'.\
+            env.log('{:,d} units successfully converted to {} format\n'.\
                     format(env.format_counter.value, fmt.upper()), flush = True)
+            if env.skipped_counter.value:
+                # FIXME: perhaps we need to rephrase this message?
+                env.log('{} units - family pairs skipped because of too many alleles'.\
+                        format(env.skipped_counter.value))
             env.log('Archiving {} format to directory [{}]'.format(fmt.upper(), env.cache_dir))
             cache.write(arcroot = fmt.upper(),
                         source_dir = os.path.join(env.tmp_dir, fmt.upper()), mode = 'a')
@@ -637,6 +669,14 @@ def main(args):
             run_linkage(args.blueprint, args.theta_inc, args.theta_max, args.output_limit)
             env.log('Linkage analysis succesfully performed for {:,d} units\n'.\
                     format(env.run_counter.value, fmt.upper()), flush = True)
+            if env.makeped_counter.value:
+                env.log('{} "makeped" runtime errors occurred'.format(env.makeped_counter.value))
+            if env.pedcheck_counter.value:
+                env.log('{} "pedcheck" runtime errors occurred'.format(env.pedcheck_counter.value))
+            if env.unknown_counter.value:
+                env.log('{} "unknown" runtime errors occurred'.format(env.unknown_counter.value))
+            if env.mlink_counter.value:
+                env.log('{} "mlink" runtime errors occurred'.format(env.mlink_counter.value))
             cache.write(arcroot = 'heatmap', source_dir = os.path.join(env.output, 'heatmap'), mode = 'a') 
         html(args.theta_inc, args.theta_max, args.output_limit)
     else:

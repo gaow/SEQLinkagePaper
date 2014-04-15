@@ -10,6 +10,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import prettyplotlib as ppl
+import brewer2mpl
 from scipy.optimize import minimize_scalar
 
 #formatters
@@ -19,9 +20,6 @@ def format(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, thet
         parmap(lambda x: format_plink(x, tfam), tpeds, env.jobs)
     elif out_format == 'linkage':
         parmap(lambda x: format_linkage(x, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc), tpeds, env.jobs)
-    if env.skipped_counter.value > 0:
-        # FIXME: perhaps we need to rephrase this message?
-        env.log('\n{} units - family pairs skipped because of too many alleles'.format(env.skipped_counter.value))
 
 #plink format, ped and map 
 def format_plink(tped, tfam):
@@ -190,14 +188,9 @@ def run_linkage(blueprint, theta_inc, theta_max, to_plot = True):
         remove_tree(os.path.join(env.output, 'heatmap'))
     except OSError:
         pass
-    runtime_err = open(os.path.join(env.tmp_dir, 'LinkageRuntimeError.txt'), 'w')
-    workdirs = glob.glob('{}/LINKAGE/{}.chr*'.format(env.tmp_dir, env.output))
-    parmap(lambda x: linkage_worker(blueprint, x, theta_inc, theta_max, runtime_err, to_plot) , workdirs, env.jobs)
-    runtime_err.close()
-    env.log('{} makeped runtime errors'.format(env.makeped_counter.value))
-    env.log('{} pedcheck runtime errors'.format(env.pedcheck_counter.value))
-    env.log('{} unknown runtime errors'.format(env.unknown_counter.value))
-    env.log('{} mlink runtime errors'.format(env.mlink_counter.value))
+    with open(os.path.join(env.tmp_dir, 'LinkageRuntimeError.txt'), 'w') as runtime_err:
+        workdirs = glob.glob('{}/LINKAGE/{}.chr*'.format(env.tmp_dir, env.output))
+        parmap(lambda x: linkage_worker(blueprint, x, theta_inc, theta_max, runtime_err, to_plot) , workdirs, env.jobs)
     
 def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = True):
     #env.log("Start running LINKAGE for {} ...".format(workdir), flush=True)
@@ -250,7 +243,7 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
                     step3 = runCommand('unknown', show_stderr = False, return_zero = False)
                     if step3[1]:
                         with env.unknown_counter.get_lock():
-                            env.unkown_counter.value += 1
+                            env.unknown_counter.value += 1
                         with env.lock:
                             errfile.write(step3[1])
                     step4 = runCommand('mlink', show_stderr = False, return_zero = False)
@@ -334,7 +327,8 @@ def heatmap(file, theta_inc, theta_max):
         ax.set_title('Chromosome {}'.format(chrID))
         ppl.pcolormesh(fig,ax,lods.transpose(),
                        xticklabels=[''] * len(lods),
-                       yticklabels=np.round(np.array(range(Num)) * theta_inc,2).tolist())
+                       yticklabels=np.round(np.array(range(Num)) * theta_inc,2).tolist(),
+                       cmap=brewer2mpl.get_map('RdYlGn', 'diverging', 11).mpl_colormap)
         fig.savefig('{}.png'.format(file))
         #fig.close()
     #env.log("Finished ploting heatmap for {}.".format(file), flush=True)
@@ -381,12 +375,12 @@ def html(theta_inc, theta_max, limit):
     <div id="hlods_heatmap">{}</div></p>
     </body>
     </html>"""
-    env.log('Generating Reports in html format ...')
+    env.log('Generating Reports in html format ...', flush = True)
     with open('{0}/{0}_Report.html'.format(env.output), 'w') as f:
         #t = Template(index)
         #c = Context({ "lods": lods_tbl })
         f.write(head + body.format(html_table('Lod', theta_inc, theta_max, limit), html_table('Hlod', theta_inc, theta_max, limit), html_img('lod'), html_img('hlod')))
-    env.log('Reports in html format generated.')
+    env.log('Reports in html format generated\n', flush = True)
 
 def html_img(ltype):
     chrs = ['{}'.format(i+1) for i in range(22)] + ['X', 'Y']
@@ -444,4 +438,3 @@ def html_table(type, theta_inc, theta_max, limit):
         lods_res += r'<tr>{}</tr>'.format(''.join(r'<td>{}:{}-{}</td>'.format(res[theta_order][i][2],res[theta_order][i][3],res[theta_order][i][4]) for theta_order in theta_orders))
     lods_tbl = table.format(lods_header + lods_res)
     return lods_tbl
-    
