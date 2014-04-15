@@ -9,10 +9,15 @@
 # About SEQLinkage
 ###
 # This program implements a "combined haplotype pattern" (CHP) method to generate markers from sequence data for linkage analysis. The core concept is that instead of treating each variant a separate marker, we create regional markers for variants in specified genetic regions (e.g. genes) based on haplotype patterns within families, and perform linkage analysis on markers thus generated. CHP method outperforms traditional single marker based approach for compound heterozygosity and allelic heterogeneity in genes. We recommend the use of CHP in conjunction with filtering based variant prioritization method in the analyses of sequence data of human pedigrees. 
-###
-# Authors
-###
+#! Authors
 # The method and software was developed by Gao Wang, Di Zhang and Suzanne M. Leal at [Baylor College of Medicine|@http://www.bcm.edu/@].
+###
+# Why SEQLinkage
+###
+#{list
+# 
+#}
+# Documentation chapter 2. User forum
 ###
 # Latest version
 ###
@@ -33,9 +38,5 @@
 # ""2013.12.19"" Version 0.0.2, replace variant tools backbone with tabix library
 # ""2013.11.25"" Version 0.0.1, first release on institutional internal website
 # ""2013.10.17"" First version completed for in-house data analyses
-###
-# SEQLinkage User Forum
-###
-
 #}
 #}-------

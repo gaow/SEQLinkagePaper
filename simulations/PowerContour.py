@@ -25,21 +25,22 @@ class Plotter:
     def __init__(self, db):
         self.db = db
         self.moi = None
+        self.allelic_het = 0
         self.id = 1
         self.bands = 10
         self.colormap = {'SNV':"#0072B2", 'CHP':'#D55E00'}
         self.transparency = {'CHP':1, 'SNV':0.5}
         
-    def SetMOI(self, moi):
-        self.moi = moi
-
-    def SetID(self, i):
+    def SetParam(self, i, moi, a):
         self.id = i
+        self.moi = moi
+        self.allelic_het = a
 
     def GetData(self, tables, group_by = None):
         data = {}
         for table in tables:
             where = 'where moi = \'{}\''.format(self.moi) if self.moi else ''
+            where += (" AND " if where else '') + 'ahet = \'{}\''.format(self.allelic_het)
             cmd = 'wsqlite {0} "select fam_size, prop{1}, plod{1} from {2} {3} order by fam_size, prop{1}"'.\
               format(self.db, self.id, table, where)
             out = zip(*[map(float, x.split()) for x in runCommand(cmd).strip().split('\n')])
@@ -68,8 +69,8 @@ class Plotter:
 
 if __name__ == '__main__':
     p = Plotter('PowerCalc.sqlite3')
-    for moi in ['recessive', 'dominant', 'compound_recessive', 'compound_dominant']:
+    for moi in ['recessive', 'dominant', 'compound_recessive']:
         for i in [1,2]:
-            p.SetMOI(moi)
-            p.SetID(i)
-            p.Plot(p.GetData(['CHP', 'SNV'], group_by = 1), out = "PowerFigs/{}_gene{}.pdf".format(moi,i))
+            for a in [0, 1]:
+                p.SetParam(i, moi, a)
+                p.Plot(p.GetData(['CHP', 'SNV'], group_by = 1), out = "PowerFigs/a{}_{}_gene{}.pdf".format(a, moi,i))

@@ -3,43 +3,25 @@
 #
 from SEQLinkage.Utils import *
 from collections import deque, defaultdict
-from multiprocessing import Queue, Process, cpu_count
 from os.path import splitext, basename, isdir, isfile
 from itertools import chain
-from shutil import copyfile, rmtree
+import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import prettyplotlib as ppl
 from scipy.optimize import minimize_scalar
-#utils that allow lambda function in mutilprocessing map
-#grabbed from http://stackoverflow.com/a/16071616 by klaus-se
-def spawn(f):
-    def fun(q_in,q_out):
-        while True:
-            i,x = q_in.get()
-            if i is None:
-                break
-            q_out.put((i,f(x)))
-    return fun
-def parmap(f, X, nprocs = cpu_count()):
-    q_in   = Queue(1)
-    q_out  = Queue()
-    proc = [Process(target=spawn(f),args=(q_in,q_out)) for _ in range(nprocs)]
-    for p in proc:
-        p.daemon = True
-        p.start()
-    sent = [q_in.put((i,x)) for i,x in enumerate(X)]
-    [q_in.put((None,None)) for _ in range(nprocs)]
-    res = [q_out.get() for _ in range(len(sent))]
-    [p.join() for p in proc]
-    return [x for i,x in sorted(res)]
 
 #formatters
-#the handler, called from main, can call specific formmater.
+#the handler, called from main, can call specific formatter.
 def format(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, theta_max, theta_inc):
-    set_units_num()
     if out_format == 'plink':
         parmap(lambda x: format_plink(x, tfam), tpeds, env.jobs)
     elif out_format == 'linkage':
         parmap(lambda x: format_linkage(x, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc), tpeds, env.jobs)
-    env.log('{} units - family pairs skipped because of too many alleles'.format(env.skipped_counter.value))
+    if env.skipped_counter.value > 0:
+        # FIXME: perhaps we need to rephrase this message?
+        env.log('\n{} units - family pairs skipped because of too many alleles'.format(env.skipped_counter.value))
 
 #plink format, ped and map 
 def format_plink(tped, tfam):
@@ -60,16 +42,7 @@ def format_plink(tped, tfam):
         p.close()
     tped_fh.close()
     tfam_fh.close()
-    
-def file_len(fname):
-    with open(fname) as f:
-        for i, l in enumerate(f):
-            pass
-    return i + 1    
-def set_units_num():
-    if env.success_counter.value == 0:
-        env.success_counter.value = sum(map(file_len, glob.glob('{}/*.tped'.format(env.tmp_cache))))
-        env.batch = 10
+
 #linkage format, .pre and .loc
 #per locus, per family based
 #because the haplotype patterns are different from family to family.
@@ -80,7 +53,7 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
         fams = parse_tfam(tfam_fh)
         #parse per family per locus AF file
         af = defaultdict(lambda: [])
-        #try to open the file for allele frequencies, otherwise use the defaut value
+        #try to open the file for allele frequencies, otherwise use the default value
         try:
             with open(os.path.join(env.tmp_cache, basename(out_base) + '.freq')) as af_fh:
                 for line in af_fh:
@@ -104,9 +77,8 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
             elif gno == '1':
                 with env.format_counter.get_lock():
                     env.format_counter.value += 1
-            #env.log('test: {} {} {} {}'.format(env.success_counter.value, env.jobs, env.batch, env.format_counter.value), flush=True)
             if env.format_counter.value % (env.batch * env.jobs) == 0:
-                env.log('{:,d} units processed {:.2%} ...'.format(env.success_counter.value, float(env.format_counter.value)/env.success_counter.value), flush=True)
+                env.log('{:,d} units processed {{{:.2%}}} ...'.format(env.format_counter.value, float(env.format_counter.value)/env.success_counter.value), flush=True)
             for fid in fams:
                 workdir = '{}/{}/{}'.format(out_base, gene, fid)
                 os.system('mkdir -p {}'.format(workdir))
@@ -213,26 +185,11 @@ class Pedigree:
                 return self.sorted
 
 #runners
-#context manager
-#grabbed from http://stackoverflow.com/a/13197763, by Brian M. Hunt
-class cd:
-    """Context manager for changing the current working directory"""
-    def __init__(self, newPath):
-        self.newPath = newPath
-
-    def __enter__(self):
-        self.savedPath = os.getcwd()
-        os.chdir(self.newPath)
-
-    def __exit__(self, etype, value, traceback):
-        os.chdir(self.savedPath)
-
 def run_linkage(blueprint, theta_inc, theta_max, to_plot = True):
     try:
-        rmtree(os.path.join(env.output, 'heatmap'))
+        remove_tree(os.path.join(env.output, 'heatmap'))
     except OSError:
         pass
-    set_units_num()
     runtime_err = open(os.path.join(env.tmp_dir, 'LinkageRuntimeError.txt'), 'w')
     workdirs = glob.glob('{}/LINKAGE/{}.chr*'.format(env.tmp_dir, env.output))
     parmap(lambda x: linkage_worker(blueprint, x, theta_inc, theta_max, runtime_err, to_plot) , workdirs, env.jobs)
@@ -272,8 +229,8 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
             with cd('{}/{}/{}'.format(workdir, gene, fam)):
                 units = map(lambda x: re.sub(r'^(\d+?)\.PRE$', r'\1', x) ,glob.glob('*.PRE'))
                 for unit in units:
-                    copyfile('{}.LOC'.format(unit), 'datafile.dat')
-                    copyfile('{}.PRE'.format(unit), 'pedfile.pre')
+                    copy_file('{}.LOC'.format(unit), 'datafile.dat')
+                    copy_file('{}.PRE'.format(unit), 'pedfile.pre')
 
                     step1 = runCommand(['makeped', 'pedfile.pre', 'pedfile.ped', 'n'],
                                        show_stderr = False, return_zero = False)
@@ -289,7 +246,7 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
                             env.pedcheck_counter.value += 1
                         with env.lock:
                             errfile.write(step2[1])
-                    copyfile('zeroout.dat', 'pedfile.dat')
+                    copy_file('zeroout.dat', 'pedfile.dat')
                     step3 = runCommand('unknown', show_stderr = False, return_zero = False)
                     if step3[1]:
                         with env.unknown_counter.get_lock():
@@ -302,7 +259,7 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
                             env.mlink_counter.value += 1
                         with env.lock:
                             errfile.write(step4[1])
-                    copyfile('outfile.dat', '{}.out'.format(unit))        
+                    copy_file('outfile.dat', '{}.out'.format(unit))        
                     #clean linkage tmp files
                     for f in set(glob.glob('*.dat') + glob.glob('ped*') + ['names.tmp']):
                         os.remove(f)
@@ -325,7 +282,7 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
         with env.run_counter.get_lock():
             env.run_counter.value += 1
         if env.run_counter.value % (env.batch * env.jobs) == 0:
-            env.log('{:,d} units processed {:.2%} ...'.format(env.success_counter.value, float(env.run_counter.value)/env.success_counter.value), flush=True)
+            env.log('Linkage analysis for {:,d} units completed {{{:.2%}}} ...'.format(env.run_counter.value, float(env.run_counter.value)/env.success_counter.value), flush=True)
     lods_fh.close()
     hlods_fh.close()
     if to_plot:

@@ -5,18 +5,18 @@
 import sys, os, subprocess, shutil, glob, shlex, urlparse, re, hashlib, tempfile
 from cStringIO import StringIO
 from contextlib import contextmanager
-from multiprocessing import Pool, Process, Queue, Lock, Value
-from collections import defaultdict
-import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import prettyplotlib as ppl
+from multiprocessing import Pool, Process, Queue, Lock, Value, cpu_count
+import itertools
+from collections import OrderedDict, defaultdict, Counter
 from distutils.dir_util import mkpath, remove_tree
+from distutils.file_util import copy_file
+from zipfile import ZipFile
 from . import VERSION
 
+###
+# Global variables
+###
 class Environment:
-    '''Ugly globals'''
     def __init__(self):
         self.__width_cache = 1
         # About the program 
@@ -129,11 +129,14 @@ class Environment:
         start = '\n' + start if msg.startswith('\n') else start
         end = end + '\n' if msg.endswith('\n') else end
         msg = msg.strip()
-        if flush:
-            self.__width_cache = len(msg)
         sys.stderr.write(start + "\033[1;40;32mMESSAGE: {}\033[0m".format(msg) + end)
+        self.__width_cache = len(msg)
 
 env = Environment()
+
+###
+# Utility function / classes
+###
 
 class StdoutCapturer(list):
     def __enter__(self):
@@ -174,6 +177,19 @@ def stdoutRedirect(to=os.devnull):
                                             # buffering and flags such as
                                             # CLOEXEC may be different
 
+#http://stackoverflow.com/a/13197763, by Brian M. Hunt
+class cd:
+    """Context manager for changing the current working directory"""
+    def __init__(self, newPath):
+        self.newPath = newPath
+
+    def __enter__(self):
+        self.savedPath = os.getcwd()
+        os.chdir(self.newPath)
+
+    def __exit__(self, etype, value, traceback):
+        os.chdir(self.savedPath)
+
 def runCommand(cmd, instream = None, msg = '', upon_succ = None, show_stderr = False, return_zero = True):
     if isinstance(cmd, str):
         cmd = shlex.split(cmd)
@@ -197,7 +213,7 @@ def runCommand(cmd, instream = None, msg = '', upon_succ = None, show_stderr = F
                 raise ValueError ("Command '{0}' was terminated by signal {1}".format(cmd, -tc.returncode))
             elif tc.returncode > 0:
                 raise ValueError ("{0}".format(error))
-        if error and show_stderr:
+        if error.strip() and show_stderr:
             env.log(error)
     except OSError as e:
         raise OSError ("Execution of command '{0}' failed: {1}".format(cmd, e))
@@ -238,6 +254,30 @@ def runCommands(cmds, ncpu):
             j.join()
     except KeyboardInterrupt:
         raise ValueError('Commands terminated!')
+
+#utils that allow lambda function in mutilprocessing map
+#http://stackoverflow.com/a/16071616 by klaus-se
+def parmap(f, X, nprocs = cpu_count()):
+    def spawn(f):
+        def fun(q_in,q_out):
+            while True:
+                i,x = q_in.get()
+                if i is None:
+                    break
+                q_out.put((i,f(x)))
+        return fun
+    #
+    q_in   = Queue(1)
+    q_out  = Queue()
+    proc = [Process(target=spawn(f),args=(q_in,q_out)) for _ in range(nprocs)]
+    for p in proc:
+        p.daemon = True
+        p.start()
+    sent = [q_in.put((i,x)) for i,x in enumerate(X)]
+    [q_in.put((None,None)) for _ in range(nprocs)]
+    res = [q_out.get() for _ in range(len(sent))]
+    [p.join() for p in proc]
+    return [x for i,x in sorted(res)]
 
 def downloadURL(URL, dest_dir, quiet = True, mode = None, force = False):
     if not os.path.isdir(dest_dir):
@@ -352,6 +392,12 @@ def wordCount(filename):
                    word_count[word] += 1
     return word_count
 
+def fileLinesCount(fname):
+    with open(fname) as f:
+        for i, l in enumerate(f):
+            pass
+    return i + 1
+
 def connected_components(lists):
     neighbors = defaultdict(set)
     seen = set()
@@ -373,6 +419,11 @@ def connected_components(lists):
 def listit(t):
     return list(map(listit, t)) if isinstance(t, (list, tuple)) else t
             
+
+###
+# Supporting functions / classes for Core.py 
+###
+
 def parseVCFline(line, exclude = []):
     if len(line) == 0:
         return None
@@ -395,10 +446,320 @@ def parseVCFline(line, exclude = []):
                 gs.append(g.replace('1','2').replace('0','1'))
     return (line[0], line[1], line[3], line[4], line[2]), gs
 
+def indexVCF(vcf, verbose = True):
+    if not vcf.endswith(".gz"):
+        if os.path.exists(vcf + ".gz"):
+            if verbose:
+                env.error("Cannot compress [{0}] because [{0}.gz] exists!".format(vcf), exit = True)
+            else:
+                sys.exit()
+        if verbose:
+            env.log("Compressing file [{0}] to [{0}.gz] ...".format(vcf))
+        runCommand('bgzip {0}'.format(vcf))
+        vcf += ".gz"
+    if not os.path.isfile(vcf + '.tbi') or os.path.getmtime(vcf) > os.path.getmtime(vcf + '.tbi'):
+        if verbose:
+            env.log("Generating index file for [{}] ...".format(vcf))
+        runCommand('tabix -p vcf -f {}'.format(vcf))
+    return vcf
+    
+def extractSamplenames(vcf):
+    samples = runCommand('tabix -H {}'.format(vcf))[0].strip().split('\n')[-1].split('\t')[9:]
+    if not samples:
+        env.error("Fail to extract samples from [{}]".format(vcf), exit = True)
+    return samples
 
-###
-# Check parameter input
-###
+def checkVCFBundle(vcf):
+    '''VCF bundle should have a .gz file and a tabix file'''
+    if not vcf.endswith(".gz"):
+        env.error("Input VCF file has to be bgzipped and indexed (http://samtools.sourceforge.net/tabix.shtml).",
+                  exit = True)
+    if not os.path.isfile(vcf + '.tbi'):
+        env.error("Index file [{}] not found.".format(vcf + '.tbi'), exit = True)
+    return True
+
+def rewriteFamfile(tfam, samples, keys):
+    with open(tfam, 'w') as f:
+        f.write('\n'.join(['\t'.join(samples[k]) for k in keys]))
+        f.write('\n')
+
+def checkSamples(samp1, samp2):
+    '''check if two sample lists agree
+    1. samples in FAM but not in VCF --> ERROR
+    2. samples in VCF but not in FAM --> give a message'''
+    a_not_b = list(set(samp1).difference(set(samp2)))
+    b_not_a = list(set(samp2).difference(set(samp1)))
+    if b_not_a:
+        env.log('{:,d} samples found in FAM file but not in VCF file:\n{}'.\
+                           format(len(b_not_a), '\n'.join(b_not_a)))
+    if a_not_b:
+        env.log('{:,d} samples in VCF file will be ignored due to absence in FAM file'.format(len(a_not_b)))
+    return a_not_b, b_not_a
+
+class Cache:
+    def __init__(self, cache_dir, cache_name, params):
+        self.cache_dir = cache_dir
+        self.cache_name = os.path.join(cache_dir, cache_name + '.cache')
+        self.cache_info = os.path.join(cache_dir, '.info.' + cache_name)
+        self.param_info = os.path.join(cache_dir, '.conf.' + cache_name)
+        mkpath(cache_dir)
+        self.id = '.' 
+        self.params = params
+        self.infofiles = [params['vcf'], params['tfam'], params['blueprint']] if params['blueprint'] else [params['vcf'], params['tfam']]
+        self.infofiles.append(self.cache_name)
+        self.pchecklist = {'.vcf': ['bin', 'single_markers'],
+                           '.mega2':None, '.merlin':None,
+                           '.linkage': ['prevalence', 'inherit_mode', 'wild_pen',
+                                        'muta_pen', 'theta_max', 'theta_inc'],
+                           '.analysis': ['prevalence', 'inherit_mode', 'wild_pen',
+                                        'muta_pen', 'theta_max', 'theta_inc']}
+
+    def setID(self, ID):
+        self.id = "." + str(ID)
+        
+    def check(self):
+        if not os.path.isfile(self.cache_info) or not os.path.isfile(self.param_info + self.id):
+            return False
+        with open(self.cache_info, 'r') as f:
+            lines = [item.strip().split() for item in f.readlines()]
+        for line in lines:
+            if not os.path.isfile(line[0]) or line[1] != calculateFileMD5(line[0]):
+                return False
+        params = {}
+        with open(self.param_info + self.id, 'r') as f:
+            lines = [item.strip().split() for item in f.readlines()]
+        for line in lines:
+            params[line[0]] = line[1]
+        if self.pchecklist[self.id]:
+            for item in self.pchecklist[self.id]:
+                if params[item] != str(self.params[item]):
+                    return False
+        return True
+
+    def load(self, target_dir = None, names = None):
+        if target_dir is None:
+            target_dir = self.cache_dir
+        with ZipFile(self.cache_name) as f:
+            if names is None:
+                f.extractall(target_dir)
+            else:
+                for item in f.namelist():
+                    if any([item.startswith(x) for x in names]):
+                        f.extract(item, target_dir)
+
+    def write(self, source_dir = None, arcroot = '/', pres = [], exts = [],
+              files = [], mode = 'w'):
+        '''Add files to cache'''
+        if source_dir is None:
+            source_dir = self.cache_dir
+        with ZipFile(self.cache_name, mode) as f:
+            if source_dir != self.cache_dir:
+                zipdir(source_dir, f, arcroot = arcroot)
+            else:
+                for item in os.listdir(source_dir):
+                    if ((any([item.endswith(x) for x in exts]) or len(exts) == 0) \
+                        and (any([item.startswith(x) for x in pres]) or len(pres) == 0)) \
+                        or item in files:
+                        f.write(os.path.join(source_dir, item), arcname=os.path.join(arcroot, item))
+        signatures = ['{}\t{}'.format(x, calculateFileMD5(x)) for x in self.infofiles if os.path.isfile(x)]
+        with open(self.cache_info, 'w') as f:
+            f.write('\n'.join(signatures))
+        if self.pchecklist[self.id]:
+            with open(self.param_info + self.id, 'w') as f:
+                f.write('\n'.join(["{}\t{}".format(item, self.params[item]) for item in self.pchecklist[self.id]]))
+
+    def clear(self, pres = [], exts = []):
+        for fl in glob.glob(self.cache_info + "*") + [self.cache_name]:
+            try:
+                os.remove(fl)
+            except OSError:
+                pass
+        #
+        for pre, ext in itertools.product(pres, exts): 
+            for fl in glob.glob(os.path.join(self.cache_dir, pre) +  "*" + ext): 
+                try:
+                    os.remove(fl)
+                except OSError:
+                    pass
+
+class PseudoAutoRegion:
+    def __init__(self, chrom, build):
+        if build == ['hg18', 'build36'] and chrom.lower() in ['x', '23']:
+            self.check = self.checkChrX_hg18
+        elif build in ['hg18', 'build36'] and chrom.lower() in ['y', '24']:
+            self.check = self.checkChrY_hg18
+        elif build in ['hg19', 'build37'] and chrom.lower() in ['x', '23']:
+            self.check = self.checkChrX_hg19
+        elif build in ['hg19', 'build37'] and chrom.lower() in ['y', '24']:
+            self.check = self.checkChrY_hg19
+        else:
+            self.check = self.notWithinRegion
+
+    def checkChrX_hg18(self, pos):
+        return (pos >= 1 and pos <= 2709520) or \
+            (pos >= 154584238 and pos <= 154913754)
+
+    def checkChrY_hg18(self, pos):
+        return (pos >= 1 and pos <= 2709520) or \
+            (pos >= 57443438 and pos <= 57772954)
+
+    def checkChrX_hg19(self, pos):
+        return (pos >= 60001 and pos <= 2699520) or \
+            (pos >= 154931044 and pos <= 155270560)
+
+    def checkChrY_hg19(self, pos):
+        return (pos >= 10001 and pos <= 2649520) or \
+            (pos >= 59034050 and pos <= 59373566)
+
+    def notWithinRegion(self, pos):
+        return False
+
+
+class TFAMParser:
+    def __init__(self, tfam = None):
+        self.families, self.samples, self.graph = self.__parse(tfam)
+        self.families_sorted = OrderedDict([(k,[]) for k in self.families])
+
+    def is_founder(self, sid):
+        return self.samples[sid][2] == "0" and self.samples[sid][3] == "0"
+
+    def get_parents(self, sid):
+        return self.samples[sid][2], self.samples[sid][3]
+
+    def add_member(self, info):
+        '''member is one line of FAM file, [fid, sid, pid, mid, sex, pheno]'''
+        self.samples[info[1]] = info
+        self.families_sorted[info[0]] = []
+        if info[0] not in self.families:
+            self.families[info[0]] = [info[1]] 
+        else:
+            if info[1] not in self.families[info[0]]:
+                self.families[info[0]].append(info[1])
+        self.__update_graph(self.graph, info)
+
+    def get_member_idx(self, sid):
+        '''integer index, reflecting the order of the sample collected'''
+        return self.samples.keys().index(sid)
+
+    def get_members(self):
+        return self.samples.keys()
+
+    def sort_family(self, famid):
+        '''sort samples in family such that founders precede non-founders'''
+        if not self.families_sorted[famid]:
+            self.families_sorted[famid] = self.__kahn_sort(famid)
+        assert sorted(self.families_sorted[famid]) == sorted(self.families[famid])
+        return self.families_sorted[famid]
+            
+    def __kahn_sort(self, famid):
+        '''algorithm first described by Kahn (1962); implemented by Di Zhang'''
+        sorted_names = []
+        S_no_parents = filter(lambda x: True if self.is_founder(x) else False, self.families[famid])
+        graph = self.graph[famid].copy()
+        while(S_no_parents):
+            n = S_no_parents.pop()
+            sorted_names.append(n)
+            if n not in graph:
+                continue
+            offsprings = graph.pop(n)
+            for m in offsprings:
+                father, mother = self.get_parents(m)
+                if father not in graph and mother not in graph:
+                    S_no_parents.append(m)
+        if graph:
+            raise ValueError("There is a loop in the pedigree: {}\n".format(' '.join(graph.keys())))
+        else:
+            return sorted_names
+
+    def __add_or_app(self, obj, key, value):
+        islist = type(value) is list
+        if key not in obj:
+            if not islist:
+                obj[key] = [value]
+            else:
+                obj[key] = value
+        else:
+            if value not in obj[key]:
+                if not islist:
+                    obj[key].append(value)
+                else:
+                    obj[key].extend(value)
+
+    def __update_graph(self, g, info):
+        if info[2] != "0" and info[3] != "0":
+            g[info[0]][info[2]].append(info[1]) 
+            g[info[0]][info[3]].append(info[1]) 
+
+    def __parse(self, tfam):
+        '''Rules:
+        1. samples have to have unique names
+        2. both parents for a non-founder should be available
+        3. founders should have at least one offspring'''
+        fams = OrderedDict()
+        samples = OrderedDict()
+        graph = defaultdict(lambda : defaultdict(list))
+        if tfam is None:
+            return fams, samples, graph
+        observedFounders = {}
+        expectedParents = {}
+        #
+        # Load TFAM file
+        #
+        with open(tfam, 'r') as f:
+            for idx, line in enumerate(f.readlines()):
+                line = line.split()
+                if len(line) != 6:
+                    env.error("skipped line {} (has {} != 6 columns!)".format(idx, len(line)))
+                    continue
+                if line[1] in samples:
+                    env.error("skipped line {} (duplicate sample name '{}' found!)".format(idx, line[1]))
+                    continue
+                # collect sample line 
+                samples[line[1]] = [line[0], line[1], line[2], line[3], line[4], line[5]]
+                # collect family member
+                self.__add_or_app(fams, line[0], line[1])
+                # collect founders for family
+                if line[2] in env.ped_missing and line[3] in env.ped_missing:
+                    self.__add_or_app(observedFounders, line[0], line[1])
+                else:
+                    self.__add_or_app(expectedParents, line[0], (line[1], line[2], line[3]))
+        #
+        # Check sample parents
+        #
+        for k in expectedParents:
+            for person in expectedParents[k]:
+                if not (person[1] in fams[k] and person[2] in fams[k]):
+                    env.error("Cannot find parents ({} and {}) of {} in [{}]!".\
+                              format(person[1], person[2], person[0], tfam), exit = True)
+                    # missing both parents, make it a founder
+                    # samples[person[0]][2] = samples[person[0]][3] = "0"
+                    # observedFounders[k].append(person[0])
+                if person[1] in fams[k] and not person[2] in fams[k]:
+                    env.error("Cannot find mother ({}) of {} in [{}]!".\
+                              format(person[2], person[0], tfam), exit = True)
+                    # missing mother, mask as zero
+                    # samples[person[0]][3] = "0"
+                if not person[1] in fams[k] and person[2] in fams[k]:
+                    env.error("Cannot find father ({}) of {} in [{}]!".\
+                              format(person[1], person[0], tfam), exit = True)
+                    # missing father, mask as zero
+                    # samples[person[0]][2] = "0"
+        #
+        # Remove trivial families 
+        #
+        for k in fams.keys():
+            if Counter(observedFounders[k]) == Counter(fams[k]):
+                del fams[k]
+                continue
+        #
+        valid_samples = []
+        for value in fams.values():
+            valid_samples.extend(value)
+        samples = {k : samples[k] for k in valid_samples}
+        #
+        for item in samples.values():
+            self.__update_graph(graph, item)
+        return fams, samples, graph
 
 def checkParams(args):
     '''set default arguments or make warnings'''
@@ -426,30 +787,3 @@ def checkParams(args):
     if args.tempdir is not None:
         env.ResetTempdir(args.tempdir)
     return True
-
-###
-# Run External tools
-###
-
-def indexVCF(vcf, verbose = True):
-    if not vcf.endswith(".gz"):
-        if os.path.exists(vcf + ".gz"):
-            if verbose:
-                env.error("Cannot compress [{0}] because [{0}.gz] exists!".format(vcf), exit = True)
-            else:
-                sys.exit()
-        if verbose:
-            env.log("Compressing file [{0}] to [{0}.gz] ...".format(vcf))
-        runCommand('bgzip {0}'.format(vcf))
-        vcf += ".gz"
-    if not os.path.isfile(vcf + '.tbi') or os.path.getmtime(vcf) > os.path.getmtime(vcf + '.tbi'):
-        if verbose:
-            env.log("Generating index file for [{}] ...".format(vcf))
-        runCommand('tabix -p vcf -f {}'.format(vcf))
-    return vcf
-    
-def extractSamplenames(vcf):
-    samples = runCommand('tabix -H {}'.format(vcf))[0].strip().split('\n')[-1].split('\t')[9:]
-    if not samples:
-        env.error("Fail to extract samples from [{}]".format(vcf), exit = True)
-    return samples
