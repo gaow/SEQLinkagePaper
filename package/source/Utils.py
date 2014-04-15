@@ -645,6 +645,9 @@ class TFAMParser:
     def get_members(self):
         return self.samples.keys()
 
+    def print_member(self, sid):
+        return ' '.join(self.samples[sid][1:])
+
     def sort_family(self, famid):
         '''sort samples in family such that founders precede non-founders'''
         if not self.families_sorted[famid]:

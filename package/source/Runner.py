@@ -79,7 +79,7 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                 env.log('{:,d} units processed {{{:.2%}}} ...'.format(env.format_counter.value, float(env.format_counter.value)/env.success_counter.value), flush=True)
             for fid in fams:
                 workdir = '{}/{}/{}'.format(out_base, gene, fid)
-                os.system('mkdir -p {}'.format(workdir))
+                mkpath(workdir)
                 #env.error("fid {} num {}\n".format(fid, fams[fid].get_member_ids()))
                 fam_af = af[(fid, s[1])]
                 if not fam_af:
@@ -99,7 +99,7 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                     if not os.listdir(workdir):
                         os.rmdir(workdir)
                     continue
-                os.system('mkdir -p {}'.format(workdir))
+                mkpath(workdir)
                 with open('{}/{}.PRE'.format(workdir, gno), 'w') as pre:
                     pre.write(''.join("{} {} {} {}\n".format(fid, fams[fid].print_member(pid), s[2*fams[fid].get_member_idx(pid) + 4], s[2*fams[fid].get_member_idx(pid) + 5]) for pid in ids))
                 with open('{}/{}.LOC'.format(workdir, gno), 'w') as loc:
@@ -399,13 +399,13 @@ def html(theta_inc, theta_max, limit):
     }</script>
     </head>"""
     body = """<body>
-    <p><a href="#Lods_Table" onclick="toggle(\'lods_tbl\')">Ranked lod scores</a>
+    <p><a href="#Lods_Table" onclick="toggle(\'lods_tbl\')">Ranked LOD scores</a>
     <div id="lods_tbl" class="divinfo", style="border:0px;width:auto;height:auto;overflow-y:hidden;overflow-x:scroll;">{}</div></p>
-    <p><a href="#Hlods_Table" onclick="toggle(\'hlods_tbl\')">Ranked Hlod scores</a>
+    <p><a href="#Hlods_Table" onclick="toggle(\'hlods_tbl\')">Ranked HLOD scores</a>
     <div id="hlods_tbl" class="divinfo", style="border:0px;width:auto;height:auto;overflow-y:hidden;overflow-x:scroll;">{}</div></p>
-    <p><a href="#Lods_Heatmap" onclick="toggle(\'lods_heatmap\')">Lod scores heatmap</a>
+    <p><a href="#Lods_Heatmap" onclick="toggle(\'lods_heatmap\')">LOD scores heatmap</a>
     <div id="lods_heatmap">{}</div></p>
-    <p><a href="#Hlods_Heatmap" onclick="toggle(\'hlods_heatmap\')">Hlod scores heatmap</a>
+    <p><a href="#Hlods_Heatmap" onclick="toggle(\'hlods_heatmap\')">HLOD scores heatmap</a>
     <div id="hlods_heatmap">{}</div></p>
     </body>
     </html>"""
@@ -430,7 +430,7 @@ def html_table(type, theta_inc, theta_max, limit):
     table = r'<table style="width:300px;font-size:12px">{}</table>'
     #table header
     lods_header = r'<tr>{}</tr>'.format(''.join(r'<th colspan="2">&#952;={}</td>'.format(x) for x in thetas))
-    lods_header += r'<tr>{}</tr>'.format(r'<th rowspan="2">{}</th><th>Gene</th>'.format(type) * colNum)
+    lods_header += r'<tr>{}</tr>'.format(r'<th rowspan="2">{}</th><th>Marker name</th>'.format(type) * colNum)
     lods_header += r'<tr>{}</tr>'.format(r'<th>chr:start-end</th>' * colNum)
     #initialize lods dict
     lods = {}
