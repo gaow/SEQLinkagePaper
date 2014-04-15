@@ -164,9 +164,13 @@ sudo mount -t tmpfs -o size=5120M ramfs /tmp/ramdisk
 ###
 # Linkage analysis results
 ###
-# SEQLinkage summarizes two-point linkage analysis results to heatmap plots and tables in HTML format, which can be viewed with a web browser program. Below is screenshot of output from SEQLinkage analysis. 
+# SEQLinkage summarizes two-point linkage analysis results to heatmap plots and tables in HTML format, which can be viewed with a web browser program. Note that on the HTML document each section can be temporarily folded such that you can focus only on the section of interest (see the hand gesture on the heatmap screenshot below).
 #! Tables of LOD and HLOD scores
+#* lod.png 0.5; hlod.png 0.5
+# The top ranked {$\(N\)$} LOD and HLOD scores for each {$\(\theta\)$} value evaluated are summarized in HTML table as displayed on the screenshot above (left: LOD, right: HLOD). Results are annotated with the names and the genomic coordinates of the regional markers. For HLOD scores the corresponding {$\(\alpha\)$} value is also displayed. The length of the table {$\(N\)$} is controlled by the @@--output-entries@@ option.  
 #! Heatmaps of LOD and HLOD scores
+#* heatmap.png 0.7
+# LOD and HLOD scores for all markers analyzed are displayed per chromosome as heatmaps, using a sequence of blue colors from light to dark for the score values; the darker the color the higher the score. Linkage regions of potential interest across the entire genome can be easily identified on the heatmaps. 
 ###
 #! Data analysis using SEQLinkage
 ###
@@ -175,7 +179,6 @@ sudo mount -t tmpfs -o size=5120M ramfs /tmp/ramdisk
 ###
 # Here we demonstrate the use of SEQLinkage to generate regional markers from sequence data and perform linkage analysis. For demonstration purpose we will use a [simulated example data set|@http://bioinformatics.org/seqlink/download/examples@] of a nuclear family (see pedigree structure below) containing exome sequence data involving xx genes. From the phenotypic pattern it is reasonable to assume the disease follows a recessive mode of inheritance. We will first generate regional markers using CHP method with various collapsing themes, then perform two-point linkage analysis using regional markers. Finally we output markers to formats compatible with other linkage programs and perform non-parametric linkage analysis using Merlin.
 #* seqlinkage-example-pedigree.pdf 0.6
-
 ###
 # Regional markers from sequence data
 ###
