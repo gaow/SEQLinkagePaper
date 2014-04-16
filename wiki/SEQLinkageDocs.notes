@@ -5,7 +5,7 @@
 # Introduction
 ###
 # This program implements a "combined haplotype pattern" (CHP) method to generate markers from sequence data for linkage analysis. The core concept is that instead of treating each variant as a separate marker, we create regional markers for variants in specified genetic regions (e.g. genes) based on haplotype patterns within families, and perform linkage analysis on markers thus generated. CHP method outperforms traditional single marker based approach for compound heterozygosity and allelic heterogeneity in genes. We recommend the use of CHP in conjunction with filtering based variant prioritization method in the analyses of sequence data of human pedigrees. 
-# For more details on the methodology, please refer to our paper: ... 
+# For details of the method and evaluation of performance using simulated data, please refer to our paper: ... 
 # "Web resource": please visit @http://bioinformatics.org/seqlink@ for more information including download & installation instructions, software updates and supports from SEQLinkage user forum.
 
 ###
@@ -167,77 +167,114 @@ sudo mount -t tmpfs -o size=5120M ramfs /tmp/ramdisk
 # SEQLinkage summarizes two-point linkage analysis results to heatmap plots and tables in HTML format, which can be viewed with a web browser program. Note that on the HTML document each section can be temporarily folded such that you can focus only on the section of interest (see the hand gesture on the heatmap screenshot below).
 #! Tables of LOD and HLOD scores
 #* lod.png 0.5; hlod.png 0.5
-# The top ranked {$\(N\)$} LOD and HLOD scores for each {$\(\theta\)$} value evaluated are summarized in HTML table as displayed on the screenshot above (left: LOD, right: HLOD). Results are annotated with the names and the genomic coordinates of the regional markers. For HLOD scores the corresponding {$\(\alpha\)$} value is also displayed. The length of the table {$\(N\)$} is controlled by the @@--output-entries@@ option.  
+# The top ranked {$\(N\)$} LOD and HLOD scores for each {$\(\theta\)$} value evaluated are summarized in HTML table as displayed on the screenshot above (left: LOD, right: HLOD). Results are annotated with the names and the genomic coordinates of the regional markers. For HLOD scores the corresponding {$\(\alpha\)$} values are also displayed. The length of the table {$\(N\)$} is controlled by the @@--output-entries@@ option.  
 #! Heatmaps of LOD and HLOD scores
 #* heatmap.png 0.7
-# LOD and HLOD scores for all markers analyzed are displayed per chromosome as heatmaps, using a sequence of blue colors from light to dark for the score values; the darker the color the higher the score. Linkage regions of potential interest across the entire genome can be easily identified on the heatmaps. 
+# LOD and HLOD scores for all markers analyzed are displayed per chromosome as heatmaps, using a sequence of blue colors from light to dark for the score values; the darker the color the higher the score. Linkage regions of potential interest across the entire genome can be easily identified on the heatmaps. Notice that scales for per-chromosome heatmaps might differ from each other, as labeled on the right side of each heatmap. 
 ###
 #! Data analysis using SEQLinkage
 ###
 ###
 # Introduction
 ###
-# Here we demonstrate the use of SEQLinkage to generate regional markers from sequence data and perform linkage analysis. For demonstration purpose we will use a [simulated example data set|@http://bioinformatics.org/seqlink/download/examples@] of a nuclear family (see pedigree structure below) containing exome sequence data involving xx genes. From the phenotypic pattern it is reasonable to assume the disease follows a recessive mode of inheritance. We will first generate regional markers using CHP method with various collapsing themes, then perform two-point linkage analysis using regional markers. Finally we output markers to formats compatible with other linkage programs and perform non-parametric linkage analysis using Merlin.
+# Here we demonstrate the use of SEQLinkage to generate regional markers from sequence data and perform linkage analysis. For demonstration purpose we will use a [simulated example data set|@http://bioinformatics.org/seqlink/download/seqlinkage-example.zip@] of two nuclear families of the same structure and phenotype pattern (see pedigree illustration below) containing sequence data of 18 variants. From the phenotypic pattern it is reasonable to assume the disease follows a recessive mode of inheritance. We will first generate regional markers using CHP method with various collapsing themes, then perform two-point linkage analysis using regional markers generated. We further demonstrate the usage of SEQLinkage in conjunction with other linkage programs by formatting the regional markers into MEGA2 and Merlin input, and perform additional analysis using those software. Finally we demonstrate how to create blueprint file for customized regional marker definition. 
 #* seqlinkage-example-pedigree.pdf 0.6
 ###
 # Regional markers from sequence data
 ###
 #! Understanding terminal output and regional marker data
-# Here we perform a test run of SEQLinkage to generate regional marker data without performing linkage analysis. We (mostly) stick to default settings and examine the terminal output generated by the program.  
+# Here we perform a test run of SEQLinkage to generate regional marker data without performing linkage analysis. For now we (mostly) stick to default settings and focus on interpretation of terminal output generated by the program.  
 seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz -f MERLIN
 #!! Terminal output
 # Command above generates the following output:
 #{out terminal info
-MESSAGE: Binary trait detected in [/ramcache/slg/seqlinkage-example.fam]
-MESSAGE: Checking local resources 5/5 ...
-MESSAGE: 6 samples found in [/ramcache/slg/seqlinkage-example.vcf.gz]
-MESSAGE: 1 families with a total of 6 samples will be scanned for 25,305 pre-defined units
-MESSAGE: 15,657 units (from 145,908 variants) processed; 3,496 Mendelian inconsistencies and 6,482 recombination events handled
-MESSAGE: 994 tri-allelic loci were ignored
-MESSAGE: 6,778 units ignored due to absence in VCF file
-MESSAGE: 2,870 units ignored due to absence of variation in samples
-MESSAGE: Archiving to directory [/ramcache/slg/cache]
-MESSAGE: Generating MERLIN format output ...
-MESSAGE: 0 units - family pairs skipped because of too many alleles
-MESSAGE: Saving data to [/ramcache/slg/LINKAGE] ...
+MESSAGE: Binary trait detected in [/ramcache/seqlinkage-example.fam]
+MESSAGE: Checking local resources 5/5 ...                           
+MESSAGE: 12 samples found in [/ramcache/seqlinkage-example.vcf.gz]
+MESSAGE: 2 families with a total of 12 samples will be scanned for 25,305 pre-defined units
+MESSAGE: 2 units (from 18 variants) processed; 3 Mendelian inconsistencies and 2 recombination events handled
+MESSAGE: 25,302 units ignored due to absence in VCF file
+MESSAGE: 1 units ignored due to absence of variation in samples
+MESSAGE: Archiving regional marker data to directory [/ramcache/cache]
+MESSAGE: 2 units will be converted to MERLIN format
+MESSAGE: 2 units successfully converted to MERLIN format
+MESSAGE: Archiving MERLIN format to directory [/ramcache/cache]
+MESSAGE: Saving data to [/ramcache/LINKAGE]
 #}
-# The {$\(2^{nd}\)$} line of MESSAGE checks for some resource programs & files required for the execution of SEQLinkage. These files are stored in the folder @@~/.SEQLinkage@@ on your computer. SEQLinkage will automatically download these files the first time it is executed on your computer so please make sure your computer is ""connected to Internet when running SEQLinkage for the first time!"" Out of the 5 resource files only one of them is relevant to the generation of regional markers: the "blueprint" file that defines genetic regions to be considered as one "marker". This "blueprint" is based on UCSC RefSeq database. We use genomic coordinates of RefSeq genes to determine start and end positions for regional markers. The genomic coordinates are based on UCSC hg19 (or NCBI build 37) reference genome. To convert to previous builds for your data we recommend running the [UCSC liftOver tool|@http://genome.ucsc.edu/cgi-bin/hgLiftOver@] to get updated "blueprint" and use the @@--blueprint@@ option to load the file.
-# The {$\(3^{rd}\)$} line checks samples from VCF file against FAM file. For our test data samples in VCF file matches those in FAM file. SEQLinkage allows for samples in VCF file but not in FAM file, or otherwise. For such cases only samples in both files will be analyzed and a warning message will be given if samples are found in FAM but not VCF file.
-# The {$\(4^{th}\)$} line summarizes data information, mostly from FAM file, VCF header and the blueprint file. In the example one family with six members are found in both VCF and FAM input; also there are 25,305 pre-defined genetic regions in the blueprint file.
-# The {$\(5^{th}\)$} line is dynamic: it was a progress meter during runtime, and becomes a summary of runtime statistics after the CHP algorithm is complete for all regional marker units. ``xxx units (from xxx variants) were processed'' is based on those variants in both VCF file and covered by the blueprint definition. ""You should comparing the number of variants processed with the total number of variants in the VCF file to evaluate how much data was covered by the pre-defined regional marker positions in blueprint file"", and decide whether or not a customized blueprint should be provided. SEQLinkage performs Mendelian error check on the fly, ignoring genotype calls due to Mendelian inconsistency when there is not enough information to infer them correctly. It also deals with recombination events during haplotype construction and CHP coding process, and for those regions with recombination events the regional markers are divided into sub-units. This will be discussed in details later.
-# The {$\(6^{th}\sim8^{th}\)$} lines provides additional information on variants and units ignored in the analysis. Note that values on lines 7 and 8 plus the number of units on line 5 equals the total number of pre-defined units in the blueprint (line 4).  
+# ""Line 2"" of MESSAGE checks for some resource programs & files required for the execution of SEQLinkage. These files are stored in a hidden folder @@~/.SEQLinkage@@ on your computer. SEQLinkage will automatically download these files the first time it is executed on your computer so please make sure your computer is ""connected to Internet when running SEQLinkage for the first time!"" Out of the 5 resource files only one of them is relevant to the generation of regional markers: the "blueprint" file that defines genetic regions to be considered as one "marker". This "blueprint" is based on UCSC RefSeq database. We use genomic coordinates of RefSeq genes to determine start and end positions for regional markers. The genomic coordinates are based on UCSC hg19 (or NCBI build 37) reference genome. To convert to previous builds for your data we recommend running the [UCSC liftOver tool|@http://genome.ucsc.edu/cgi-bin/hgLiftOver@] to get updated "blueprint" and use the @@--blueprint@@ option to load the file.
+# ""Line 3"" checks samples from VCF file against FAM file. For our test data samples in VCF file matches those in FAM file. SEQLinkage allows for samples in VCF file but not in FAM file, or otherwise. For such cases only samples in both files will be analyzed and a warning message will be given if samples are found in FAM but not VCF file.
+# ""Line 4"" summarizes data information, mostly from FAM file, VCF header and the blueprint file. In the example one family with six members are found in both VCF and FAM input; also there are 25,305 pre-defined genetic regions in the blueprint file.
+# ""Line 5"" is dynamic: it was a progress meter during runtime, and becomes a summary of runtime statistics after the CHP algorithm is complete for all regional marker units. ``2 units (from 18 variants) were processed'' is based on those variants in both VCF file and covered by the blueprint definition. ""You should comparing the number of variants processed with the total number of variants in the VCF file to evaluate how much data was covered by the pre-defined regional marker positions in blueprint file"", and decide whether or not a customized blueprint should be provided. SEQLinkage performs Mendelian error check on the fly, ignoring genotype calls due to Mendelian inconsistency when there is not enough information to infer them correctly. It also deals with recombination events during haplotype construction and CHP coding process, and for those regions with recombination events the regional markers are divided into sub-units. This will be discussed in details later.
+# ""Lines 6-7"" provide additional information on variants and units ignored in the analysis. Note that values on lines 6 and 7 plus the number of units processed on line 5 equals the total number of pre-defined units in the blueprint (line 4).  
 # The last line of MESSAGE displays the path of output data, which in our case is in Merlin format. We will examine next the content of the output.
 #!! Regional marker data
-# [marker name is gene name. allele numbering based on per family per unit]
+# [FIXME: write this part after the Merlin format is ready ... marker name is gene name. allele numbering based on per family per unit]
 #! Collapsing themes
 #!! LD based collapsing
 # The default collapsing theme is LD based with the {$\(R^2>0.8\)$} rule; variants within LD blocks thus defined will be collapsed to binary codes before haplotype patterns are computed. You may set @@--bin@@ to other values {$\(R^2\in(0,1)\)$} for different LD block definition. The output result will be written to MERLIN format (via the @@--format MERLIN@@ argument) for use later.
 seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz --format MERLIN --output RMBPt8 --jobs 8
 #{out terminal info
-FIXME
+MESSAGE: Binary trait detected in [/ramcache/seqlinkage-example.fam]
+MESSAGE: Checking local resources 5/5 ...                           
+MESSAGE: 12 samples found in [/ramcache/seqlinkage-example.vcf.gz]
+MESSAGE: 2 families with a total of 12 samples will be scanned for 25,305 pre-defined units
+MESSAGE: 2 units (from 18 variants) processed; 3 Mendelian inconsistencies and 2 recombination events handled
+MESSAGE: 25,302 units ignored due to absence in VCF file
+MESSAGE: 1 units ignored due to absence of variation in samples
+MESSAGE: Archiving regional marker data to directory [/ramcache/cache]
+MESSAGE: 2 units will be converted to MERLIN format
+MESSAGE: 2 units successfully converted to MERLIN format
+MESSAGE: Archiving MERLIN format to directory [/ramcache/cache]
+MESSAGE: Saving data to [/ramcache/RMBPt8]
 #}
 #!! Complete collapsing
 # Setting @@--bin 0@@ will collapse all variants in the region to generate one marker per region. Haplotype patterns are thus simply either ``1'' for all wild type or ``2'' for any mutation in the region.
 seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz --format MERLIN --output RMB0 --jobs 8 --bin 0
 #{out terminal info
-FIXME
+MESSAGE: Binary trait detected in [/ramcache/seqlinkage-example.fam]
+MESSAGE: Checking local resources 5/5 ...                           
+MESSAGE: 12 samples found in [/ramcache/seqlinkage-example.vcf.gz]
+MESSAGE: 2 families with a total of 12 samples will be scanned for 25,305 pre-defined units
+MESSAGE: 2 units (from 18 variants) processed; 3 Mendelian inconsistencies and 2 recombination events handled
+MESSAGE: 25,302 units ignored due to absence in VCF file
+MESSAGE: 1 units ignored due to absence of variation in samples
+MESSAGE: Archiving regional marker data to directory [/ramcache/cache]
+MESSAGE: 2 units will be converted to MERLIN format
+MESSAGE: 2 units successfully converted to MERLIN format
+MESSAGE: Archiving MERLIN format to directory [/ramcache/cache]
+MESSAGE: Saving data to [/ramcache/RMB0]
 #}
 #!! No collapsing
 # Setting @@--bin 1@@ will compute the haplotype pattern for the region as is, without collapsing.
 seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz --format MERLIN --output RMB1 --jobs 8 --bin 1
 #{out terminal info
-FIXME
+MESSAGE: Binary trait detected in [/ramcache/seqlinkage-example.fam]
+MESSAGE: Checking local resources 5/5 ...                           
+MESSAGE: 12 samples found in [/ramcache/seqlinkage-example.vcf.gz]
+MESSAGE: 2 families with a total of 12 samples will be scanned for 25,305 pre-defined units
+MESSAGE: 2 units (from 18 variants) processed; 3 Mendelian inconsistencies and 2 recombination events handled
+MESSAGE: 25,302 units ignored due to absence in VCF file
+MESSAGE: 1 units ignored due to absence of variation in samples
+MESSAGE: Archiving regional marker data to directory [/ramcache/cache]
+MESSAGE: 2 units will be converted to MERLIN format
+MESSAGE: 2 units successfully converted to MERLIN format
+MESSAGE: Archiving MERLIN format to directory [/ramcache/cache]
+MESSAGE: Saving data to [/ramcache/RMB1]
 #}
 #!! Comparison between different themes
-# [FIXME: visualize the output]
+# [FIXME: visualize the output after MERLIN format is done]
 #! Population vs. founder allele frequencies
-# In the examples above we left @@--freq@@ option unspecified, thus frequency from samples are used. The example VCF file contains an INFO field @@EVSEAAF@@, the allele frequency for European Americans in Exome Variant Server (EVS). We assume the simulated variant data is from European American samples, and we incorporated the information to the VCF file as long as the variant is found in EVS; for variants not found in EVS we use @@EVSEAAF=0.00015@@. This input alters the resulting estimate of regional marker frequency, shown in the comparison below:
+# In the examples above we left @@--freq@@ option unspecified, thus frequency from samples are used. The example VCF file contains an INFO field @@EVSEAAF@@, the allele frequency for European Americans in Exome Variant Server (EVS). We assume the simulated variant data is from European American samples, and we incorporated the information to the VCF file as long as the variant is found in EVS; for variants not found in EVS we use @@EVSEAAF=0.00015@@. Command below uses such frequency information from VCF file:
+seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz --freq EVSEAAF --format MERLIN --jobs 8
+# Result comparison:
+#{out
+FIXME: write this after Merlin format is done
+#}
 #! Recombination events
 # For regional markers sub-divided into smaller units by recombination events, we use @@[1], [2], ..., [i]@@ convention to mark different units (see below). They can be treated different regional markers. In the linkage analysis pipeline incorporated in SEQLinkage, we choose the one sub-unit that gives strongest evidence of linkage to represent the entire region under consideration. 
 #{out
-FIXME
+FIXME: write this after Merlin format is done
 #}
-
 ###
 # Two-point linkage analysis
 ###
@@ -247,8 +284,12 @@ FIXME
 # SEQLinkage with other linkage programs
 ###
 # [give one example output to MEGA2 with --bin 0; and another example output to Merlin and run some analysis in Merlin]
+###
+# Prepare customized ``Blueprint'' of regional markers
+###
+# Will Hang Dai write up this part? (upload the python script to bioinformatics.org and explain the workflow using that script)
 #{-----
-tigernotes doc SEQLinkageDocs.notes --lite --toc --font_size 12 --title "SEQLinkage Documentation [Version 1.0 alpha]" -a "Gao Wang and Di Zhang" --foot
+tigernotes doc SEQLinkageDocs.notes --lite --toc --font_size 12 --title "SEQLinkage Documentation [Version 1.0 alpha]" -a "Gao Wang, Di Zhang and Hang Dai" --foot
 tigernotes dokuwiki SEQLinkageDocs.notes -o encode-linkage --lite --showall
 scp encode-linkage.txt tigerwang@tigerwang.org:./html/data/pages/software
 #}-----
