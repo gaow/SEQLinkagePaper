@@ -143,7 +143,7 @@ def main(args, unknown_args):
         res = {'lods':{}, 'hlods':{}}
         for score in ['lods', 'hlods']:
             for fn in glob.glob('{}/heatmap/*.{}'.format(args.outfile, score)):
-                for marker, value in zip(getColumn(fn, 1), getColumn(fn, 6)):
+                for marker, value in zip(getColumn(fn, 1), getColumn(fn, -1)):
                     value = float(value)
                     # convert single SNV marker to gene marker
                     if ":" in marker:

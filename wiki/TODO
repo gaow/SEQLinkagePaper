@@ -14,3 +14,14 @@ Biao
 - power calculation (x Gao did it)
 Suzanne
 - written permission from Dan Weeks for pedcheck and makeped
+Wed Apr 16 15:58:17 CDT 2014
+what's really left to do:
+1. merlin output, mega2 output and docs thus missed
+2. examples with merlin and the docs part
+3. hang's blueprint
+4. let Di check the output on example of linkage anlaysis in documentation
+5. mac version support after permission to redistribute the executables
+6. installation guide
+7. make sure forum works
+8. collect and organize result from simulation studies
+I'll leave these alone for now and move on to new project until we start to finalize the project

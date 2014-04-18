@@ -370,7 +370,8 @@ def downloadResources(fromto):
     return True
 
 def getColumn(fn, num, delim = None, exclude = None):
-    num = num - 1
+    if num > 0:
+        num = num - 1
     with open(fn) as inf:
         output = []
         for line in inf:
