@@ -87,12 +87,18 @@ done
 #! Power plot
 # Script see @@PowerContour.py@@ under this folder. Graphs below are based on data from @@0403.tar.gz@@:
 #!! Without allelic heterogeneity
+# Dominant
 #* PowerFigs/a0_dominant_gene1.pdf 0.5; PowerFigs/a0_dominant_gene2.pdf 0.5
+# Recessive
 #* PowerFigs/a0_recessive_gene1.pdf 0.5; PowerFigs/a0_recessive_gene2.pdf 0.5
+# Compound recessive
 #* PowerFigs/a0_compound_recessive_gene1.pdf 0.5; PowerFigs/a0_compound_recessive_gene2.pdf 0.5
 #!! With allelic heterogeneity
+# Dominant
 #* PowerFigs/a1_dominant_gene1.pdf 0.5; PowerFigs/a1_dominant_gene2.pdf 0.5
+# Recessive
 #* PowerFigs/a1_recessive_gene1.pdf 0.5; PowerFigs/a1_recessive_gene2.pdf 0.5
+# Compound recessive
 #* PowerFigs/a1_compound_recessive_gene1.pdf 0.5; PowerFigs/a1_compound_recessive_gene2.pdf 0.5
 #{-------
 tigernotes doc PowerCalc.notes --lite --no_section_number --font_size 12

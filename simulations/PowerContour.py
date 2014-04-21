@@ -15,7 +15,7 @@ def guess_seq_len(seq):
     return guess
 
 def to_matrix(l, n, transpose = False):
-    out = [l[i:i+n] for i in xrange(0, len(l), n)]
+    out = [l[i:i+n] for i in range(0, len(l), n)]
     if transpose:
         return zip(*out)
     else:
@@ -50,8 +50,8 @@ class Plotter:
                 values = Counter(out[group_by - 1]).values()
                 if len(set(values)) != 1:
                     raise ValueError('Matrix rows not equal')
-                unit = len(out[group_by - 1]) / values[0]
-                data[table] = [to_matrix(x, unit, transpose = True) for x in out]
+                # unit = len(out[group_by - 1]) / values[0]
+                data[table] = [to_matrix(x, values[0], transpose = True) for x in out]
         return data
 
     def Plot(self, data, out = 'contour.pdf'):
