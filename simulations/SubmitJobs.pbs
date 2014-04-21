@@ -1,38 +1,41 @@
 #PBS -o info/log
 #PBS -e info/err
-#PBS -N SLSimulation
-#PBS -t 5-81%50
+#PBS -N SLsim
+#PBS -t 0-4355
+#PBS -l walltime=96:00:00
+#
 cd $PBS_O_WORKDIR
-mkdir -p info
-rm -rf info/*
+mkdir -p /mnt/ram/slsim/RUN$PBS_ARRAYID
+
 rep=500
+pNarray=$(seq 0 10 100)
 MOI=( 'recessive' 'dominant' 'compound_recessive' ) #MOI in simulation
 Mmap=( 'AR' 'AD' 'AR' ) #MOI in mlink
 Gmap=( 'SLC26A4.tsv GJB2.tsv' 'MYO7A.tsv MYH9.tsv' 'SLC26A4.tsv GJB2.tsv' ) #gene pairs
 Mtype=( ' ' '--single-marker' )
 Fmap=( 'CHPResult.csv' 'SNVResult.csv' ) #result
-N=$PBS_ARRAYID #family number
-count=0
-for m in $(seq 0 2)
-do
-	for a in ' ' '-a'
-	do
-		for pN in $(seq 0 10 100)
-		do
-			p=$(bc <<< "${pN}/100")
-			q=$(bc <<< "1 - ${p}")
-			for t in 0 1
-			do
-				mkdir -p FAM$N
-				./LinkagePowerCalc.py --debug -s 3 8 -g ${Gmap[$m]} \
-				-m ${MOI[$m]} -n $N -p $p $q -r $rep \
-                      		--ofile FAM${N}RUN$count $a --blueprint blueprint.txt \
-				${Mtype[$t]} --jobs 1 --run-linkage -K 0.01 -W 0 -M 1 \
-				--tempdir /mnt/ram --moi ${Mmap[$m]} --output-entries 0 \
-				> FAM${N}/${Fmap[$t]}.RUN${N}.$count
-				count=$(bc <<< "$count + 1")
-			done
-		done
-	done
-done
+aArray=( ' ' '-a' )
 
+#compute parameters
+N=$(bc <<< $PBS_ARRAYID%33*2+5) #family number
+pN=$(bc <<< $PBS_ARRAYID/33%11)
+p=$(bc -l <<< "${pN}/10")
+q=$(bc <<< "1 - ${p}")
+m=$(bc <<< $PBS_ARRAYID/33/11%3)
+a=${aArray[$(bc <<< $PBS_ARRAYID/33/11/3%2)]}
+t=$(bc <<< $PBS_ARRAYID/33/11/3/2)
+echo "./LinkagePowerCalc.py --debug -s 3 8 -g ${Gmap[$m]} \
+	-m ${MOI[$m]} -n $N -p $p $q -r $rep \
+    --ofile RUN${PBS_ARRAYID} $a --blueprint blueprint.txt \
+	${Mtype[$t]} --jobs 1 \
+    --run-linkage -K 0.01 -W 0 -M 1 --tempdir /mnt/ram/slsim/RUN$PBS_ARRAYID \
+	--moi ${Mmap[$m]} --output-entries 0 \
+    --quiet > result/RUN${PBS_ARRAYID}.${Fmap[$t]}"
+./LinkagePowerCalc.py --debug -s 3 8 -g ${Gmap[$m]} \
+	-m ${MOI[$m]} -n $N -p $p $q -r $rep \
+    --ofile RUN${PBS_ARRAYID} $a --blueprint blueprint.txt \
+	${Mtype[$t]} --jobs 1 \
+    --run-linkage -K 0.01 -W 0 -M 1 --tempdir /mnt/ram/slsim/RUN$PBS_ARRAYID \
+	--moi ${Mmap[$m]} --output-entries 0 \
+    --quiet > result/RUN${PBS_ARRAYID}.${Fmap[$t]}
+exit 0
