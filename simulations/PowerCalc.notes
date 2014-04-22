@@ -81,8 +81,10 @@ done
 # Results below are based on data from @@0403.tar.gz@@:
 #{out
 #}
+#{----------------these comments were based on wrong simulation script ...
 # When there is no allelic heterogeneity the traditional SNV based method should be more powerful as it fits the underlying model better. Indeed SNV method is slightly more powerful for dominant mode (since creating many patterns instead of using one alternative original SNV introduces noise and lowers LOD score as observed by Di). However surprisingly there is little difference in power for recessive. When there is allelic heterogeneity there is significant power gain for compound recessive. We observed little power gain for dominant, as the improvement was offset by the use of multiple patterns than it might be necessary.
 # For compound recessive the CHP method is always more powerful than SNV method.
+#}----------
 #!!! Thu Apr  3 14:51:32 CDT 2014 | A sleepy afternoon with voltaren all over my hands ...
 #! Power plot
 # Script see @@PowerContour.py@@ under this folder. Graphs below are based on data from @@0403.tar.gz@@:

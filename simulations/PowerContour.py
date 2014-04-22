@@ -27,22 +27,28 @@ class Plotter:
         self.moi = None
         self.allelic_het = 0
         self.id = 1
+        self.name = None
         self.bands = 10
         self.colormap = {'SNV':"#0072B2", 'CHP':'#D55E00'}
         self.transparency = {'CHP':1, 'SNV':0.5}
+        self.namemap = {'dominant':{1:'MYO7A', 2:'MYH9'}, 'recessive':{1:'SLC26A4', 2:'GJB2'},
+                        'compound_recessive':{1:'SLC26A4', 2:'GJB2'}}
+        self.thresholdmap = {'lod':3.3, 'hlod':3.6}
         
-    def SetParam(self, i, moi, a):
+    def SetParam(self, i, moi, a, score):
         self.id = i
         self.moi = moi
         self.allelic_het = a
+        self.name = self.namemap[self.moi][self.id]
+        self.score = score
 
     def GetData(self, tables, group_by = None):
         data = {}
         for table in tables:
             where = 'where moi = \'{}\''.format(self.moi) if self.moi else ''
             where += (" AND " if where else '') + 'ahet = \'{}\''.format(self.allelic_het)
-            cmd = 'wsqlite {0} "select fam_size, prop{1}, plod{1} from {2} {3} order by fam_size, prop{1}"'.\
-              format(self.db, self.id, table, where)
+            cmd = 'wsqlite {0} "select fam_size, prop{1}, p{4}{1} from {2} {3} order by fam_size, prop{1}"'.\
+              format(self.db, self.id, table, where, self.score)
             out = zip(*[map(float, x.split()) for x in runCommand(cmd).strip().split('\n')])
             if group_by is None:
                 data[table] = out
@@ -60,17 +66,20 @@ class Plotter:
             cs = plt.contour(data[t][0], data[t][1], data[t][2], self.bands + 1, colors = self.colormap[t],
                              alpha = self.transparency[t])
             plt.clabel(cs, inline=1, fontsize=12, fmt='%1.2f')
-        # plt.title("Gene{}, {}\n".format(self.id, self.moi), fontsize = 20)
-        plt.title("Gene{}\n".format(self.id, self.moi), fontsize = 20)
+        plt.title("{} [{}{}{}]\n".format(self.name, self.score.upper(), r'$\geq$',
+                                         self.thresholdmap[self.score]), fontsize = 20)
         plt.xlabel("Family size", fontsize = 20)
-        plt.ylabel("Heterogeneity\n", fontsize = 20)
+        plt.ylabel("Locus heterogeneity\n", fontsize = 20)
         plt.savefig(out, dpi = 500)
 
 
 if __name__ == '__main__':
+    import sys
+    if len(sys.argv) == 1:
+        sys.argv.append('lod')
     p = Plotter('PowerCalc.sqlite3')
     for moi in ['recessive', 'dominant', 'compound_recessive']:
         for i in [1,2]:
             for a in [0, 1]:
-                p.SetParam(i, moi, a)
+                p.SetParam(i, moi, a, sys.argv[-1])
                 p.Plot(p.GetData(['CHP', 'SNV'], group_by = 1), out = "PowerFigs/a{}_{}_gene{}.pdf".format(a, moi,i))
