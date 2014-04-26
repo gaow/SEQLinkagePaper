@@ -8,7 +8,33 @@ import progressbar
 import collections, csv
 import numpy as np
 import glob
-from SEQLinkage.Utils import indexVCF, getColumn
+
+def indexVCF(vcf, verbose = True):
+    if not vcf.endswith(".gz"):
+        if os.path.exists(vcf + ".gz"):
+            if verbose:
+                env.error("Cannot compress [{0}] because [{0}.gz] exists!".format(vcf), exit = True)
+            else:
+                sys.exit()
+        if verbose:
+            env.log("Compressing file [{0}] to [{0}.gz] ...".format(vcf))
+        runCommand('bgzip {0}'.format(vcf))
+        vcf += ".gz"
+    if not os.path.isfile(vcf + '.tbi') or os.path.getmtime(vcf) > os.path.getmtime(vcf + '.tbi'):
+        if verbose:
+            env.log("Generating index file for [{}] ...".format(vcf))
+        runCommand('tabix -p vcf -f {}'.format(vcf))
+    return vcf
+
+def getColumn(fn, num, delim = None, exclude = None):
+    num = num - 1
+    with open(fn) as inf:
+        output = []
+        for line in inf:
+            parts = line.split(delim) if delim is not None else line.split()
+            if len(parts) > num and parts[num] != exclude:
+                output.append(parts[num])
+    return output
 
 OFF_PROP_2more = {2: 0.6314, 3: 0.2556, '4_more': 0.1130}
 OFF_PROP_2and3 = {2: 0.7118, 3: 0.2882}
