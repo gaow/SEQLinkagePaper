@@ -342,8 +342,8 @@ MESSAGE: Reports in html format generated
 # Prepare customized ``Blueprint'' of regional markers
 ###
 # Will Hang Dai write up this part? (upload the python script to bioinformatics.org and explain the workflow using that script)
+# Also Di could you comment on using exome capture targets as blueprint? How about giving a couple of links? How does this compare with using genes as blueprint?
 #{-----
-tigernotes doc SEQLinkageDocs.notes --lite --toc --font_size 12 --title "SEQLinkage Documentation [Version 1.0 alpha]" -a "Gao Wang, Di Zhang and Hang Dai" --foot
-tigernotes dokuwiki SEQLinkageDocs.notes -o encode-linkage --lite --showall
-scp encode-linkage.txt tigerwang@tigerwang.org:./html/data/pages/software
+tigernotes doc SEQLinkageDocs.notes -o SEQLinkage.pdf --lite --toc --font_size 12 --title "SEQLinkage Documentation [Version 1.0 alpha]" -a "Gao T. Wang, Di Zhang, Biao Li, Hang Dai and Suzanne M. Leal" --foot
+scp SEQLinkage.pdf wanggao@bioinformatics.org:./public_html/seqlink
 #}-----

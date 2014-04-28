@@ -2,7 +2,7 @@ import os, sys
 import fnmatch
 PROJ = "seqlink"
 LOCAL = "tigerwang@tigerwang.org:./html/data/pages/software/{0}".format(PROJ)
-PUB = "wanggao@bioinformatics.org:./public_html/{0}/data/pages".format(PROJ)
+PUB = "wanggao@bioinformatics.org:./data/{0}/pages".format(PROJ)
 class Publisher:
     def __init__(self, baseurl):
         self.url = baseurl

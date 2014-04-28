@@ -1,42 +1,51 @@
-# To be updated ...
-#{-----
 #[float right background=#f0f0f0 size=14 width=90]
 # [Download|@http://bioinformatics.org/seqlink/installation@]\\
 # [Documentation|@http://bioinformatics.org/seqlink/SEQLinkage.pdf@]\\
-# [Support|@http://bioinformatics.org/seqlink/support@]\\
+# [Support|@http://bioinformatics.org/seqlink/forum@]\\
 #[/float]
 ###
 # About SEQLinkage
 ###
-# This program implements a "combined haplotype pattern" (CHP) method to generate markers from sequence data for linkage analysis. The core concept is that instead of treating each variant a separate marker, we create regional markers for variants in specified genetic regions (e.g. genes) based on haplotype patterns within families, and perform linkage analysis on markers thus generated. CHP method outperforms traditional single marker based approach for compound heterozygosity and allelic heterogeneity in genes. We recommend the use of CHP in conjunction with filtering based variant prioritization method in the analyses of sequence data of human pedigrees. 
+# SEQLinkage implements a "combined haplotype pattern" (CHP) method to generate markers from sequence data for linkage analysis. The core concept is that instead of treating each variant a separate marker, we create regional markers for variants in specified genetic regions (e.g. genes) based on haplotype patterns within families, and perform linkage analysis on markers thus generated. SEQLinkage takes sequence data in VCF format and perform two-point linkage analysis. It reports both LOD and HLOD scores for linkage analysis of multiple families. For more information please read the [SEQLinkage documentation|@http://bioinformatics.org/seqlink/SEQLinkage.pdf@]. 
 #! Authors
-# The method and software was developed by Gao Wang, Di Zhang and Suzanne M. Leal at [Baylor College of Medicine|@http://www.bcm.edu/@].
+# The method and software was developed by Gao T. Wang, Di Zhang and Suzanne M. Leal at [Baylor College of Medicine|@http://www.bcm.edu/@]. 
 ###
 # Why SEQLinkage
 ###
 #{list
-# 
+# SEQLinkage implements a novel approach (the CHP method) to use sequence data for linkage analysis. Compare with applying traditional linkage methods directly to sequence data, our approach has a substantial gain in statistical power in the presence of intra- and inter-family allelic heterogeneity. 
+# SEQLinkage supports output of CHP coded regional marker data to formats compatible with other linkage programs, reviving them for use in the next-generation sequencing era.
+# SEQLinkage can perform two-point linkage analysis using the CHP method, generating user-friendly output summary of analysis results in HTML format with tables and graphs.
+# SEQLinkage calculates HLOD scores for linkage analysis involving multiple families, thus automatically maximizing the linkage signal across families to allow for the presence of locus heterogeneity.
+# We recommend the use of SEQLinkage in conjunction with filtering based variant prioritization method in the analyses of sequence data of human pedigrees.
 #}
-# Documentation chapter 2. User forum
+# Ready to explore? Please take a look at Chapter 1 of [SEQLinkage documentation|@http://bioinformatics.org/seqlink/SEQLinkage.pdf@] to get familiar with the software interface, and work through Chapter 2 for a simple example data analysis using the software. 
 ###
 # Latest version
 ###
-#[{{icons:download.png?64}}|@http://bioinformatics.org/seqlink/download@]
+#[{{icons:download.png?64}}|@http://www.bioinformatics.org/seqlink/ccount/click.php?id=2@]
 # Please read [installation guide|@http://bioinformatics.org/seqlink/installation@] to install the package.
-###
-# Reference
-###
-# Gao T. Wang, Di Zhang, Biao Li, Hang Dai and Suzanne M. Leal, "A Novel Approach and Software to Use Sequence Data for Linkage Analysis"
-###
-# ChangeLog
-###
+#! Supported platforms
+# Linux and Mac OS.
+#! ChangeLog
 #{list
-# ""2014.04.xx"" Version 1.0 alpha, first public release of SEQLinkage
+# ""2014.04.28"" Version 1.0 alpha, first public release of SEQLinkage
 # ""2014.04.02"" Version 0.0.4, graphic summary and HTML output for linkage analysis results 
 # ""2014.01.28"" Version 0.0.3, move implementation of core algorithms from Python to C++
-## "i.e.", Mendelian error check, genetic haplotyping, LD blocks computation and combined haplotype pattern coding
+## algorithms including Mendelian error check, genetic haplotyping, LD blocks computation and combined haplotype pattern coding method
 # ""2013.12.19"" Version 0.0.2, replace variant tools backbone with tabix library
 # ""2013.11.25"" Version 0.0.1, first release on institutional internal website
 # ""2013.10.17"" First version completed for in-house data analyses
 #}
-#}-------
+###
+# How to cite SEQLinkage
+###
+# Gao T. Wang, Di Zhang, Biao Li, Hang Dai and Suzanne M. Leal, "A Novel Approach and Software to Use Sequence Data for Linkage Analysis". [under review]
+#! Special Acknowledgement
+# We thank Dr. Daniel Weeks (makeped and pedcheck) and Dr. Alejandro Schaffer (FASTLINK) for the permission to recompile the source code of their program for the use of Mac OS and for publishing the binaries for Linux and Mac OS on this website.
+###
+# SEQLinkage forum
+###
+# We welcome user input to the software and exchange of experiences on linkage analysis using sequence data. We encourage you to join the SEQLinkage users community by registering an account at our [support forum|@http://bioinformatics.org/seqlink/forum/@] and interact with the developers and users. To better keep track with activities on the forum please subscribe it at @www.blogtrottr.com@ (see instructions below).
+#* blogtrottr.png
+
