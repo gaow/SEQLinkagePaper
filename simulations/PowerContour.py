@@ -77,9 +77,12 @@ if __name__ == '__main__':
     import sys
     if len(sys.argv) == 1:
         sys.argv.append('lod')
+        task = 'lod'
+    else:
+        task = sys.argv[1]
     p = Plotter('PowerCalc.sqlite3')
     for moi in ['recessive', 'dominant', 'compound_recessive']:
         for i in [1,2]:
             for a in [0, 1]:
                 p.SetParam(i, moi, a, sys.argv[-1])
-                p.Plot(p.GetData(['CHP', 'SNV'], group_by = 1), out = "PowerFigs/a{}_{}_gene{}.pdf".format(a, moi,i))
+                p.Plot(p.GetData(['CHP', 'SNV'], group_by = 1), out = "PowerFigs/{}_a{}_{}_gene{}.pdf".format(task,a,moi,i))
