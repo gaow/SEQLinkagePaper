@@ -78,30 +78,71 @@ for k in 0 1; do
     done
 done
 #}
-# Results below are based on data from @@0403.tar.gz@@:
+# Results below are based on data from @@0430.tar.gz@@:
 #{out
+recessive Gene1, allelic heterogeneity 0
+CHP=0.817241508458 SNV=0.795367095338
+recessive Gene2, allelic heterogeneity 0
+CHP=0.797376342463 SNV=0.790279430082
+dominant Gene1, allelic heterogeneity 0
+CHP=0.895763085399 SNV=0.858033057851
+dominant Gene2, allelic heterogeneity 0
+CHP=0.891829201102 SNV=0.811327823691
+compound_recessive Gene1, allelic heterogeneity 0
+CHP=0.815912978502 SNV=0.63308014474
+compound_recessive Gene2, allelic heterogeneity 0
+CHP=0.799027536692 SNV=0.628935586131
+recessive Gene1, allelic heterogeneity 1
+CHP=0.817835222056 SNV=0.522331617895
+recessive Gene2, allelic heterogeneity 1
+CHP=0.797724920312 SNV=0.659947881302
+dominant Gene1, allelic heterogeneity 1
+CHP=0.895184573003 SNV=0.830385674931
+dominant Gene2, allelic heterogeneity 1
+CHP=0.892539944904 SNV=0.762303030303
+compound_recessive Gene1, allelic heterogeneity 1
+CHP=0.816515557635 SNV=0.423349862259
+compound_recessive Gene2, allelic heterogeneity 1
+CHP=0.798936799341 SNV=0.565154320847
 #}
 #{----------------these comments were based on wrong simulation script ...
 # When there is no allelic heterogeneity the traditional SNV based method should be more powerful as it fits the underlying model better. Indeed SNV method is slightly more powerful for dominant mode (since creating many patterns instead of using one alternative original SNV introduces noise and lowers LOD score as observed by Di). However surprisingly there is little difference in power for recessive. When there is allelic heterogeneity there is significant power gain for compound recessive. We observed little power gain for dominant, as the improvement was offset by the use of multiple patterns than it might be necessary.
 # For compound recessive the CHP method is always more powerful than SNV method.
 #}----------
 #!!! Thu Apr  3 14:51:32 CDT 2014 | A sleepy afternoon with voltaren all over my hands ...
-#! Power plot
-# Script see @@PowerContour.py@@ under this folder. Graphs below are based on data from @@0403.tar.gz@@:
+#! Power plot for LOD
+# Script see @@PowerContour.py@@ under this folder. Graphs below are based on data from @@0430.tar.gz@@:
 #!! Without allelic heterogeneity
 # Dominant
-#* PowerFigs/a0_dominant_gene1.pdf 0.5; PowerFigs/a0_dominant_gene2.pdf 0.5
+#* PowerFigs/lod_a0_dominant_gene1.pdf 0.5; PowerFigs/lod_a0_dominant_gene2.pdf 0.5
 # Recessive
-#* PowerFigs/a0_recessive_gene1.pdf 0.5; PowerFigs/a0_recessive_gene2.pdf 0.5
+#* PowerFigs/lod_a0_recessive_gene1.pdf 0.5; PowerFigs/lod_a0_recessive_gene2.pdf 0.5
 # Compound recessive
-#* PowerFigs/a0_compound_recessive_gene1.pdf 0.5; PowerFigs/a0_compound_recessive_gene2.pdf 0.5
+#* PowerFigs/lod_a0_compound_recessive_gene1.pdf 0.5; PowerFigs/lod_a0_compound_recessive_gene2.pdf 0.5
 #!! With allelic heterogeneity
 # Dominant
-#* PowerFigs/a1_dominant_gene1.pdf 0.5; PowerFigs/a1_dominant_gene2.pdf 0.5
+#* PowerFigs/lod_a1_dominant_gene1.pdf 0.5; PowerFigs/lod_a1_dominant_gene2.pdf 0.5
 # Recessive
-#* PowerFigs/a1_recessive_gene1.pdf 0.5; PowerFigs/a1_recessive_gene2.pdf 0.5
+#* PowerFigs/lod_a1_recessive_gene1.pdf 0.5; PowerFigs/lod_a1_recessive_gene2.pdf 0.5
 # Compound recessive
-#* PowerFigs/a1_compound_recessive_gene1.pdf 0.5; PowerFigs/a1_compound_recessive_gene2.pdf 0.5
+#* PowerFigs/lod_a1_compound_recessive_gene1.pdf 0.5; PowerFigs/lod_a1_compound_recessive_gene2.pdf 0.5
+#! Power plot for HLOD
+# Script see @@PowerContour.py@@ under this folder. Graphs below are based on data from @@0430.tar.gz@@:
+#!! Without allelic heterogeneity
+# Dominant
+#* PowerFigs/hlod_a0_dominant_gene1.pdf 0.5; PowerFigs/hlod_a0_dominant_gene2.pdf 0.5
+# Recessive
+#* PowerFigs/hlod_a0_recessive_gene1.pdf 0.5; PowerFigs/hlod_a0_recessive_gene2.pdf 0.5
+# Compound recessive
+#* PowerFigs/hlod_a0_compound_recessive_gene1.pdf 0.5; PowerFigs/hlod_a0_compound_recessive_gene2.pdf 0.5
+#!! With allelic heterogeneity
+# Dominant
+#* PowerFigs/hlod_a1_dominant_gene1.pdf 0.5; PowerFigs/hlod_a1_dominant_gene2.pdf 0.5
+# Recessive
+#* PowerFigs/hlod_a1_recessive_gene1.pdf 0.5; PowerFigs/hlod_a1_recessive_gene2.pdf 0.5
+# Compound recessive
+#* PowerFigs/hlod_a1_compound_recessive_gene1.pdf 0.5; PowerFigs/hlod_a1_compound_recessive_gene2.pdf 0.5
+
 #{-------
 tigernotes doc PowerCalc.notes --lite --no_section_number --font_size 12
 #}-------
