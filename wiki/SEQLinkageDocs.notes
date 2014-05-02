@@ -4,7 +4,7 @@
 ###
 # Introduction
 ###
-# This program implements a "combined haplotype pattern" (CHP) method to generate markers from sequence data for linkage analysis. The core concept is that instead of treating each variant as a separate marker, we create regional markers for variants in specified genetic regions (e.g. genes) based on haplotype patterns within families, and perform linkage analysis on markers thus generated. CHP method outperforms traditional single marker based approach for compound heterozygosity and allelic heterogeneity in genes. We recommend the use of CHP in conjunction with filtering based variant prioritization method in the analyses of sequence data of human pedigrees. 
+# This program implements a "collapsed haplotype pattern" (CHP) method to generate markers from sequence data for linkage analysis. The core concept is that instead of treating each variant as a separate marker, we create regional markers for variants in specified genetic regions (e.g. genes) based on haplotype patterns within families, and perform linkage analysis on markers thus generated. CHP method outperforms traditional single marker based approach for compound heterozygosity and allelic heterogeneity in genes. We recommend the use of CHP in conjunction with filtering based variant prioritization method in the analyses of sequence data of human pedigrees. 
 # For details of the method and evaluation of performance using simulated data, please refer to our paper: ... 
 # "Web resource": please visit @http://bioinformatics.org/seqlink@ for more information including download & installation instructions, software updates and supports from SEQLinkage user forum.
 

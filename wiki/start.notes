@@ -6,7 +6,7 @@
 ###
 # About SEQLinkage
 ###
-# SEQLinkage implements a "combined haplotype pattern" (CHP) method to generate markers from sequence data for linkage analysis. The core concept is that instead of treating each variant a separate marker, we create regional markers for variants in specified genetic regions (e.g. genes) based on haplotype patterns within families, and perform linkage analysis on markers thus generated. SEQLinkage takes sequence data in VCF format and perform two-point linkage analysis. It reports both LOD and HLOD scores for linkage analysis of multiple families. For more information please read the [SEQLinkage documentation|@http://bioinformatics.org/seqlink/SEQLinkage.pdf@]. 
+# SEQLinkage implements a "collapsed haplotype pattern" (CHP) method to generate markers from sequence data for linkage analysis. The core concept is that instead of treating each variant a separate marker, we create regional markers for variants in specified genetic regions (e.g. genes) based on haplotype patterns within families, and perform linkage analysis on markers thus generated. SEQLinkage takes sequence data in VCF format and perform two-point linkage analysis. It reports both LOD and HLOD scores for linkage analysis of multiple families. For more information please read the SEQLinkage manuscript and [documentation|@http://bioinformatics.org/seqlink/SEQLinkage.pdf@]. 
 #! Authors
 # The method and software was developed by Gao T. Wang, Di Zhang and Suzanne M. Leal at [Baylor College of Medicine|@http://www.bcm.edu/@]. 
 ###
@@ -30,22 +30,25 @@
 #! ChangeLog
 #{list
 # ""2014.04.28"" Version 1.0 alpha, first public release of SEQLinkage
-# ""2014.04.02"" Version 0.0.4, graphic summary and HTML output for linkage analysis results 
+# ""2014.04.02"" Version 0.0.4, integrated linkage analysis pipeline
+## graphic summary and table output for linkage analysis results in HTML format
+## numerous bug fixes and optimizations 
 # ""2014.01.28"" Version 0.0.3, move implementation of core algorithms from Python to C++
 ## algorithms including Mendelian error check, genetic haplotyping, LD blocks computation and combined haplotype pattern coding method
 # ""2013.12.19"" Version 0.0.2, replace variant tools backbone with tabix library
 # ""2013.11.25"" Version 0.0.1, first release on institutional internal website
-# ""2013.10.17"" First version completed for in-house data analyses
+# ""2013.10.17"" Draft version, completed for in-house data analyses
 #}
 ###
 # How to cite SEQLinkage
 ###
 # Gao T. Wang, Di Zhang, Biao Li, Hang Dai and Suzanne M. Leal, "A Novel Approach and Software to Use Sequence Data for Linkage Analysis". [under review]
 #! Special Acknowledgement
-# We thank Dr. Daniel Weeks (makeped and pedcheck) and Dr. Alejandro Schaffer (FASTLINK) for the permission to recompile the source code of their program for the use of Mac OS and for publishing the binaries for Linux and Mac OS on this website.
+# We thank Dr. Daniel Weeks, Dr. Jeff O'Connell ([pedcheck program|@http://watson.hgen.pitt.edu/register@]) and Dr. Alejandro Schaffer ([FASTLINK package|@http://www.ncbi.nlm.nih.gov/CBBresearch/Schaffer/fastlink.html@]) for the permission to recompile the source code of their programs for the use of Mac OS and for publishing the binaries for Linux and Mac OS on this website.
+
 ###
 # SEQLinkage forum
 ###
-# We welcome user input to the software and exchange of experiences on linkage analysis using sequence data. We encourage you to join the SEQLinkage users community by registering an account at our [support forum|@http://bioinformatics.org/seqlink/forum/@] and interact with the developers and users. To better keep track with activities on the forum please subscribe it at @www.blogtrottr.com@ (see instructions below).
+# We welcome user input to the software and exchange of experiences on linkage analysis using sequence data. We encourage you to join the SEQLinkage users community by registering an account at our [support forum|@http://bioinformatics.org/seqlink/forum/@] and interact with the developers and users. To better keep track of activities on the forum please subscribe it at @www.blogtrottr.com@ (see instructions below).
 #* blogtrottr.png
 
