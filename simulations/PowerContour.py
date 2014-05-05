@@ -68,7 +68,7 @@ class Plotter:
             plt.clabel(cs, inline=1, fontsize=12, fmt='%1.2f')
         plt.title("{} [{}{}{}]\n".format(self.name, self.score.upper(), r'$\geq$',
                                          self.thresholdmap[self.score]), fontsize = 20)
-        plt.xlabel("Family size", fontsize = 20)
+        plt.xlabel("Number of families", fontsize = 20)
         plt.ylabel("Locus heterogeneity\n", fontsize = 20)
         plt.savefig(out, dpi = 500)
 
