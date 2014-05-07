@@ -337,12 +337,11 @@ MESSAGE: Reports in html format generated
 ###
 # SEQLinkage with other linkage programs
 ###
-# [give one example output to MEGA2 with --bin 0; and another example output to Merlin and run some analysis in Merlin]
-#! Generate mega2 format
-# Mega2 is a versatile software to convert various linkage software formats. You can easily convert the SEQLinkage CHP data to the mega2 format, so that you can then generate any format you want.
-seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz --freq EVSEAAF \
-> -o example --bin 0 --format MEGA2
-#{out mega2 format
+# We have previously shown the use of SEQLinkage to write regional markers generated to LINKAGE and MERLIN formats. Here we demonstrate one more supported program format, the @@Mega2@@ format. 
+#! Output regional marker data to @@Mega2@@ format
+# [@@Mega2@@|@http://watson.hgen.pitt.edu/docs/mega2_html/mega2.html@] is a versatile data-handling program for facilitating genetic linkage analysis. It can be used to convert data formats between various linkage software. SEQLinkage supports output of regional markers to @@Mega2@@ format which can then be converted to input for a number of other linkage analysis programs via @@Mega2@@. For example,
+seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz --freq EVSEAAF -o example --bin 0 --format MEGA2
+#{out Mega2 format
 MESSAGE: Binary trait detected in [/ramcache/seqlinkage-example.fam]
 MESSAGE: Checking local resources 5/5 ...                                                       
 MESSAGE: 12 samples found in [/ramcache/seqlinkage-example.vcf.gz]
@@ -356,23 +355,8 @@ MESSAGE: 2 units successfully converted to MEGA2 format
 MESSAGE: Archiving MEGA2 format to directory [/ramcache/cache]
 MESSAGE: Saving data to [/ramcache/example]
 #}
-#! Generate merlin format
-# Unfortunately, mega2 can only handle bi-allelic loci. This is not true for most of the CHP data. We therefore provide the conversion to another useful linkage format -- the merlin format.
-seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz --freq EVSEAAF \
-> -o example --format MERLIN
-#{out merlin format
-MESSAGE: Binary trait detected in [/ramcache/seqlinkage-example.fam]
-MESSAGE: Checking local resources 5/5 ...                           
-MESSAGE: 12 samples found in [/ramcache/seqlinkage-example.vcf.gz]
-MESSAGE: 2 families with a total of 12 samples will be scanned for 25,305 pre-defined units
-MESSAGE: 2 units (from 18 variants) processed; 3 Mendelian inconsistencies and 2 recombination events handled
-MESSAGE: 25,302 units ignored due to absence in VCF file
-MESSAGE: 1 units ignored due to absence of variation in samples
-MESSAGE: Archiving regional marker data to directory [/ramcache/cache]
-MESSAGE: 2 units will be converted to MERLIN format
-MESSAGE: 2 units successfully converted to MERLIN format
-MESSAGE: Archiving MERLIN format to directory [/ramcache/cache]
-MESSAGE: Saving data to [/ramcache/example]
+#{note
+# The collapsing theme @@--bin 0@@ is used for @@Mega2@@ format, because unlike with the @@LINKAGE@@ program it can only handle bi-allelic variants. 
 #}
 ###
 # Prepare customized ``Blueprint'' of regional markers

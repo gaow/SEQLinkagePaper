@@ -1,0 +1,12 @@
+1   I:1 0   0   1   1
+1   I:2 0   0   2   1
+1   II:1 I:1 I:2 1   2
+1   II:2 I:1 I:2 2   2
+1   II:3 I:1 I:2 1   2
+1   II:4 I:1 I:2 2   1
+2   I:A 0   0   1   1
+2   I:B 0   0   2   1
+2   II:A I:A I:B 1   2
+2   II:B I:A I:B 2   2
+2   II:C I:A I:B 1   2
+2   II:D I:A I:B 2   1
