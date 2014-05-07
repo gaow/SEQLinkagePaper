@@ -23,7 +23,7 @@ EXEDIR = 'source'
 DEVDIR = 'development'
 EXE = ['seqlink']
 PROJ = 'SEQLinkage'
-VERDEV = 'subversion'
+VERDEV = '3.14159'
 DEPS = ['tornado', 'brewer2mpl']
 ###
 

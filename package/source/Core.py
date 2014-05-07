@@ -9,7 +9,7 @@ from multiprocessing import Process, Queue
 from collections import OrderedDict
 import itertools
 from copy import deepcopy
-import sys, faulthandler
+import sys, faulthandler, platform
 
 if sys.version_info.major == 2:
     from cstatgen import cstatgen_py2 as cstatgen
@@ -536,10 +536,10 @@ def main(args):
     '''the main encoder function'''
     checkParams(args)
     downloadResources([('{}/uploads/genemap.txt'.format(HOMEPAGE), env.resource_dir),
-                       ('{}/uploads/mlink'.format(HOMEPAGE), env.resource_bin),
-                       ('{}/uploads/unknown'.format(HOMEPAGE), env.resource_bin),
-                       ('{}/uploads/makeped'.format(HOMEPAGE), env.resource_bin),
-                       ('{}/uploads/pedcheck'.format(HOMEPAGE), env.resource_bin)])
+                       ('{}/uploads/{}/mlink'.format(HOMEPAGE), platform.system().lower(), env.resource_bin),
+                       ('{}/uploads/{}/unknown'.format(HOMEPAGE), platform.system().lower(), env.resource_bin),
+                       ('{}/uploads/{}/makeped'.format(HOMEPAGE), platform.system().lower(), env.resource_bin),
+                       ('{}/uploads/{}/pedcheck'.format(HOMEPAGE), platform.system().lower(), env.resource_bin)])
     cache = Cache(env.cache_dir, env.output, vars(args))
     cache.setID('vcf')
     # STEP 1: write encoded data to TPED format
