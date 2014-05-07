@@ -294,13 +294,18 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
                             env.makeped_counter.value += 1
                         with env.lock:
                             errfile.write(step1[1])
+                        continue
                     step2 = runCommand(['pedcheck', '-p', 'pedfile.ped', '-d', 'datafile.dat', '-c'],
                                        show_stderr = False, return_zero = False)
                     if step2[1]:
-                        with env.pedcheck_counter.get_lock():
-                            env.pedcheck_counter.value += 1
-                        with env.lock:
-                            errfile.write(step2[1])
+                        lines = step2[1].split('\n')
+                        if len(lines) > 10:
+                            env.log('{} lines'.format(len(lines)))
+                            with env.pedcheck_counter.get_lock():
+                                env.pedcheck_counter.value += 1
+                            with env.lock:
+                                errfile.write(step2[1])
+                            continue                            
                     copy_file('zeroout.dat', 'pedfile.dat')
                     step3 = runCommand('unknown', show_stderr = False, return_zero = False)
                     if step3[1]:
@@ -308,12 +313,14 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
                             env.unknown_counter.value += 1
                         with env.lock:
                             errfile.write(step3[1])
+                        continue
                     step4 = runCommand('mlink', show_stderr = False, return_zero = False)
                     if step4[1]:
                         with env.mlink_counter.get_lock():
                             env.mlink_counter.value += 1
                         with env.lock:
                             errfile.write(step4[1])
+                        continue
                     copy_file('outfile.dat', '{}.out'.format(unit))        
                     #clean linkage tmp files
                     for f in set(glob.glob('*.dat') + glob.glob('ped*') + ['names.tmp']):
@@ -371,6 +378,9 @@ def hinton(filename, max_weight=None, ax=None):
         
 def heatmap(file, theta_inc, theta_max):
     #env.log("Start ploting heatmap for {} ...".format(file), flush=True)
+    if os.path.getsize(file) == 0:
+        hinton('{}.png'.format(file))
+        return
     lods = []
     with open(file, 'r') as f:
         for line in f.readlines():
