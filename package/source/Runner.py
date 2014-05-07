@@ -43,7 +43,7 @@ def format_plink(tped, tfam):
                 map(lambda x: p.write(' {} {}'.format(x.popleft(), x.popleft)), geno)
                 p.write("\n")
 #mega2 format, datain.01, pedin.01, map.01 
-def formatmega2(tped, tfam):
+def format_mega2(tped, tfam):
     trait = 'A' if env.trait == 'binary' else 'T'
     pedheader = ['Pedigree', 'ID', 'Father', 'Mother', 'Sex', 'Trait.{}'.format(trait)]
     out_base = os.path.join(env.output, 'MEGA2')
