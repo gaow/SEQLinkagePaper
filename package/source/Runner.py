@@ -19,10 +19,10 @@ def format(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, thet
     if out_format == 'plink':
         parmap(lambda x: format_plink(x, tfam), tpeds, env.jobs)
     elif out_format == 'mega2':
-        mkpath(os.path.join(env.output, 'mega2'))
+        mkpath(os.path.join(env.output, 'MEGA2'))
         parmap(lambda x: format_mega2(x, tfam), tpeds, env.jobs)
     elif out_format == 'merlin':
-        mkpath(os.path.join(env.output, 'merlin'))
+        mkpath(os.path.join(env.output, 'MERLIN'))
         parmap(lambda x: format_merlin(x, tfam), tpeds, env.jobs)
     elif out_format == 'linkage':
         parmap(lambda x: format_linkage(x, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc), tpeds, env.jobs)
