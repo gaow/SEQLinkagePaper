@@ -342,6 +342,18 @@ MESSAGE: Reports in html format generated
 # Prepare customized ``Blueprint'' of regional markers
 ###
 # Will Hang Dai write up this part? (upload the python script to bioinformatics.org and explain the workflow using that script)
+#The goal of the script @@genetic_pos_searcher.py@@ is to find, for male, female and also on averag
+e, the genetic positions in cM value for genes provided by users. The first 4 columns of input file
+ should be chromosome, start position, end position, gene name delimited by tab or space(s). The co
+lumns of output file are chromosome, start position, end position, gene name, genetic position of t
+he gene on average, in female and in male, delimited by tab. The command is:
+#{bash
+python genetic_pos_searcher.py input_file
+#}
+#The data source is downloaded from @http://compgen.rutgers.edu/mapinterpolator@. The RutgersMap provides the physical and genetic positions of large amount of SNPs, allowing determination of cM-scale linkage-based map positions for any marker, given its physical position.
+#Given a set of genes, the script will take the middle position of a gene as the position of the gene. Two closest SNP markers will be searched in RutgersMap. Then the genetic position of the gene will be interpolated using the position of the gene's relative distance to the two markers. Under the circumstances that the position of the gene goes beyond the smallest or largest positions provided by RutgersMap on the chromosome, the genetic position of the gene will be interpolated in scale using the smallest or largest positions. 
+#For X chromosome, if the position falls in [175751,2800677] or [155045646,155150393], genetic position in both male and female will be interpolated; out of two ranges only genetic position in female are available. No genetic position on average can be obtained.
+
 # Also Di could you comment on using exome capture targets as blueprint? How about giving a couple of links? How does this compare with using genes as blueprint?
 #{-----
 tigernotes doc SEQLinkageDocs.notes -o SEQLinkage.pdf --lite --toc --font_size 12 --title "SEQLinkage Documentation [Version 1.0 alpha]" -a "Gao T. Wang, Di Zhang, Biao Li, Hang Dai and Suzanne M. Leal" --foot
