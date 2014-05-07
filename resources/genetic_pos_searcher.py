@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# Copyright (c) 2014, Hang Dai <hang.dai@bcm.edu>
 import subprocess
 import sys
 
@@ -185,4 +187,3 @@ with open ('cM_'+genemap_file,'w') as write_genemap:
 							interpolated_cMmale='NA'
 							new_line='{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(chromosome,start,end,gene,str(interpolated_cMavg),str(interpolated_cMfemale),str(interpolated_cMmale))
 			write_genemap.write(new_line)
-		
