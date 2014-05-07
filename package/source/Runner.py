@@ -29,7 +29,7 @@ def format(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, thet
 
 #plink format, ped and map 
 def format_plink(tped, tfam):
-    out_base = '{}/PLINK/{}'.format(env.tmp_dir, splitext(basename(tped))[0])
+    out_base = '{}/PLINK/{}'.format(env.output, splitext(basename(tped))[0])
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
         geno = []
         with open(out_base + '.map', 'w') as m:
@@ -42,6 +42,7 @@ def format_plink(tped, tfam):
                 p.write(line.strip())
                 map(lambda x: p.write(' {} {}'.format(x.popleft(), x.popleft)), geno)
                 p.write("\n")
+
 #mega2 format, datain.01, pedin.01, map.01 
 def format_mega2(tped, tfam):
     trait = 'A' if env.trait == 'binary' else 'T'
@@ -53,13 +54,15 @@ def format_mega2(tped, tfam):
         name = []
         with open('{}/map.{}'.format(out_base, suffix), 'w') as m,\
              open('{}/datain.{}'.format(out_base, suffix), 'w') as d:
-            d.write('Type\tName\nA\tTrait\n')
+            d.write('Type\tName\n{}\tTrait\n'.format(trait))
             m.write('Chromosome\tMap.k.a\tName\tMap.k.m\tMap.k.f\thg19.p\n')
             for line in tph:
                 s = line.strip().split()
                 d.write('M\t{}\n'.format(s[1]))
-                m.write('{}\t{}\t{}\n'.format(s[0],'\t'.join(s[2].split().insert(1,s[1])),s[3]))
-                name.append(s[1])
+                dis = s[2].split(';')
+                dis.insert(1,s[1])
+                m.write('{}\t{}\t{}\n'.format(s[0],'\t'.join(dis),s[3]))
+                name.append('{0}.M.1\t{0}.M.2'.format(s[1]))
                 geno.append(deque(map(lambda x: re.sub(r'^0$', 'NA', x), s[4:])))
         with open('{}/pedin.{}'.format(out_base, suffix), 'w') as p:
             p.write('{}\n'.format('\t'.join(pedheader + name)))
@@ -70,6 +73,35 @@ def format_mega2(tped, tfam):
                 p.write("\n")
 
 #merlin format
+def format_merlin(tped, tfam):
+    trait = 'A' if env.trait == 'binary' else 'T'
+    #pedheader = ['Pedigree', 'ID', 'Father', 'Mother', 'Sex', 'Trait.{}'.format(trait)]
+    out_base = os.path.join(env.output, 'MERLIN', splitext(basename(tped))[0])
+    #suffix =  re.search(r'chr([0-9XY]+)', basename(tped)).groups()[0]
+    with open(tped) as tph, open(tfam) as tfh:
+        geno = []
+        #name = []
+        with open('{}.map'.format(out_base), 'w') as m,\
+             open('{}.dat'.format(out_base), 'w') as d:
+            d.write('{}\tTrait\n'.format(trait))
+            m.write('CHROMOSOME\tMARKER\t\tPOSITION\tFEMALE_POSITION\tMALE_POSITION\n')
+            for line in tph:
+                s = line.strip().split()
+                d.write('M\t{}\n'.format(s[1]))
+                dis = s[2].split(';')
+                dis[1], dis[2] = dis[2], dis[1]
+                #dis.insert(1,s[1])
+                m.write('{}\t{}\t{}\n'.format(s[0],s[1],'\t'.join(dis)))
+                #name.append('{0}.M.1\t{0}.M.2'.format(s[1]))
+                geno.append(deque(s[4:]))
+        with open('{}.ped'.format(out_base), 'w') as p:
+            #p.write('{}\n'.format('\t'.join(pedheader + name)))
+            for line in tfh:
+                p.write(line.strip())
+                s = line.strip().split()
+                map(lambda x: p.write('\t{}\t{}'.format(x.popleft(), x.popleft())), geno)
+                p.write("\n")
+
 
 #linkage format, .pre and .loc
 #per locus, per family based
