@@ -18,6 +18,12 @@ from scipy.optimize import minimize_scalar
 def format(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, theta_max, theta_inc):
     if out_format == 'plink':
         parmap(lambda x: format_plink(x, tfam), tpeds, env.jobs)
+    elif out_format == 'mega2':
+        mkpath(os.path.join(env.output, 'mega2'))
+        parmap(lambda x: format_mega2(x, tfam), tpeds, env.jobs)
+    elif out_format == 'merlin':
+        mkpath(os.path.join(env.output, 'merlin'))
+        parmap(lambda x: format_merlin(x, tfam), tpeds, env.jobs)
     elif out_format == 'linkage':
         parmap(lambda x: format_linkage(x, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc), tpeds, env.jobs)
 
@@ -29,17 +35,41 @@ def format_plink(tped, tfam):
         with open(out_base + '.map', 'w') as m:
             for line in tped_fh:
                 s = line.strip().split()
-                m.write(env.delimiter.join(s[:3]))
+                m.write(env.delimiter.join(s[:3]) + '\n')
                 geno.append(deque(s[4:]))
-        m.close()
         with open(out_base + '.ped', 'w') as p:
             for line in tfam_fh:
                 p.write(line.strip())
                 map(lambda x: p.write(' {} {}'.format(x.popleft(), x.popleft)), geno)
                 p.write("\n")
-        p.close()
-    tped_fh.close()
-    tfam_fh.close()
+#mega2 format, datain.01, pedin.01, map.01 
+def formatmega2(tped, tfam):
+    trait = 'A' if env.trait == 'binary' else 'T'
+    pedheader = ['Pedigree', 'ID', 'Father', 'Mother', 'Sex', 'Trait.{}'.format(trait)]
+    out_base = os.path.join(env.output, 'MEGA2')
+    suffix =  re.search(r'chr([0-9XY]+)', basename(tped)).groups()[0]
+    with open(tped) as tph, open(tfam) as tfh:
+        geno = []
+        name = []
+        with open('{}/map.{}'.format(out_base, suffix), 'w') as m,\
+             open('{}/datain.{}'.format(out_base, suffix), 'w') as d:
+            d.write('Type\tName\nA\tTrait\n')
+            m.write('Chromosome\tMap.k.a\tName\tMap.k.m\tMap.k.f\thg19.p\n')
+            for line in tph:
+                s = line.strip().split()
+                d.write('M\t{}\n'.format(s[1]))
+                m.write('{}\t{}\t{}\n'.format(s[0],'\t'.join(s[2].split().insert(1,s[1])),s[3]))
+                name.append(s[1])
+                geno.append(deque(map(lambda x: re.sub(r'^0$', 'NA', x), s[4:])))
+        with open('{}/pedin.{}'.format(out_base, suffix), 'w') as p:
+            p.write('{}\n'.format('\t'.join(pedheader + name)))
+            for line in tfh:
+                p.write(line.strip())
+                s = line.strip().split()
+                map(lambda x: p.write('\t{}\t{}'.format(x.popleft(), x.popleft())), geno)
+                p.write("\n")
+
+#merlin format
 
 #linkage format, .pre and .loc
 #per locus, per family based
