@@ -99,7 +99,7 @@ def buildSourcePackage(version):
             if ret != 0:
                 sys.exit('Failed to build source package of {}.'.format(PROJ))
         os.rename('dist/{}-{}.tar.gz'.format(PROJ, version),
-            'dist/{}-{}-src.tar.gz'.format(PROJ, version))
+            'dist/{}-{}-src.tar.gz'.format(PROJ, version).lower())
     except Exception as e:
         sys.exit('Failed to build source package of {}: {}'.format(PROJ, e))
 
@@ -155,7 +155,7 @@ def buildExecutables(git_dir, option):
 
 def createPackage(version, data_dir = None):
     machine = "MacOSX" if platform.system() == 'Darwin' else platform.system()
-    bundle = '{}-{}-{}-{}'.format(PROJ, version, machine, platform.machine())
+    bundle = '{}-{}-{}-{}'.format(PROJ, version, machine, platform.machine()).lower()
     dest = os.path.join('dist', bundle)
     rm(dest)
     os.makedirs(dest)
@@ -179,7 +179,7 @@ def createZipPackage(version):
     # after the creation of commands, create a zip file with OS and version information
     machine = "MacOSX" if platform.system() == 'Darwin' else platform.system()
     zipfilename = os.path.join('dist', '{}-{}-{}-{}.zip'
-        .format(PROJ, version, machine, platform.machine()))
+        .format(PROJ, version, machine, platform.machine()).lower())
     print('Adding executable to file {}'.format(zipfilename))
     with zipfile.ZipFile(zipfilename, 'w') as dist_file:
         for exe in EXE:
