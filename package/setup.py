@@ -4,17 +4,17 @@
 # Copyright (c) 2014, Gao Wang <ewanggao@gmail.com>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 
-import sys, imp, os
+import sys, os
 for item in ['faulthandler', 'numpy', 'matplotlib', 'prettyplotlib']:
     try:
-        imp.find_module(item)
+        __import__(item)
     except ImportError:
         sys.exit('Cannot build package: missing module "{}"!'.format(item))
 
 from source import VERSION, HOMEPAGE
 
 try:
-    imp.find_module('cstatgen')
+    __import__('cstatgen')
 except ImportError:
     from source.Utils import downloadURL
     from distutils.dir_util import remove_tree
