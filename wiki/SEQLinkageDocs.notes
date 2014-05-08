@@ -5,7 +5,10 @@
 # Introduction
 ###
 # This program implements a "collapsed haplotype pattern" (CHP) method to generate markers from sequence data for linkage analysis. The core concept is that instead of treating each variant as a separate marker, we create regional markers for variants in specified genetic regions (e.g. genes) based on haplotype patterns within families, and perform linkage analysis on markers thus generated. CHP method outperforms traditional single marker based approach for compound heterozygosity and allelic heterogeneity in genes. We recommend the use of CHP in conjunction with filtering based variant prioritization method in the analyses of sequence data of human pedigrees. 
-# For details of the method and evaluation of performance using simulated data, please refer to our paper: ... 
+# For details of the method and evaluation of performance using simulated data, please refer to our paper:
+#{list
+# Gao T. Wang, Di Zhang, Biao Li, Hang Dai and Suzanne M. Leal, "SEQLinkage: A Novel Linkage Analysis Method for Next-Generation Sequencing Data". [under review] 
+#}
 # "Web resource": please visit @http://bioinformatics.org/seqlink@ for more information including download & installation instructions, software updates and supports from SEQLinkage user forum.
 
 ###
@@ -208,7 +211,36 @@ MESSAGE: Saving data to [/ramcache/LINKAGE]
 # ""Lines 6-7"" provide additional information on variants and units ignored in the analysis. Note that values on lines 6 and 7 plus the number of units processed on line 5 equals the total number of pre-defined units in the blueprint (line 4).  
 # The last line of MESSAGE displays the path of output data, which in our case is in Merlin format. We will examine next the content of the output.
 #!! Regional marker data
-# [FIXME: write this part after the Merlin format is ready ... marker name is gene name. allele numbering based on per family per unit]
+# In the example above, regional marker data generated via the CHP method is written to a folder called @@LINKAGE@@ (this is default value for parameter @@--output@@). Data are saved per file bundle per chromosome and for Merlin format the data bundle consists of 3 files: the PED file, the MAP file and the DAT file.
+#{text contents in LINKAGE/MERLIN folder
+LINKAGE.chr16.dat  LINKAGE.chr16.map  LINKAGE.chr16.ped  LINKAGE.chr1.dat  LINKAGE.chr1.map  LINKAGE.chr1.ped
+#}
+# The PED file @@LINKAGE.chr1.ped@@ is displayed below:
+#{out LINKAGE.chr1.ped
+1	II:2	I:1	I:2	2	2	1	4
+1	I:2	0	0	2	1	2	1
+1	I:1	0	0	1	1	3	4
+1	II:3	I:1	I:2	1	2	1	4
+1	II:4	I:1	I:2	2	1	2	3
+1	II:1	I:1	I:2	1	2	1	4
+2	II:B	I:A	I:B	2	2	4	1
+2	I:B	0	0	2	1	2	4
+2	I:A	0	0	1	1	1	3
+2	II:C	I:A	I:B	1	2	4	1
+2	II:D	I:A	I:B	2	1	2	1
+2	II:A	I:A	I:B	1	2	2	3
+#}
+# The first 6 columns of the PED file contains information in the input FAM file. Since the test data have only one gene on chromosome 1, there is only one regional marker generated for this chromosome and the genotypes are found at the last two columns of this file.  
+# The MAP file @@LINKAGE.chr1.map@@ is displayed below. "PAPPA2" is the marker name and the genetic distances are extrapolated from Rutgers linkage-physical map.
+#{out LINKAGE.chr1.map
+CHROMOSOME	MARKER		POSITION	FEMALE_POSITION	MALE_POSITION
+1	PAPPA2	186.278964324	136.402021932	238.991541401
+#}
+# The DAT file @@LINKAGE.chr1.dat@@ is displayed below.
+#{out LINKAGE.chr1.dat
+A	Trait
+M	PAPPA2
+#}
 #! Collapsing themes
 #!! LD based collapsing
 # The default collapsing theme is LD based with the {$\(R^2>0.8\)$} rule; variants within LD blocks thus defined will be collapsed to binary codes before haplotype patterns are computed. You may set @@--bin@@ to other values {$\(R^2\in(0,1)\)$} for different LD block definitions. The output result will be written to MERLIN format (via the @@--format MERLIN@@ argument) for use later.
@@ -262,16 +294,25 @@ MESSAGE: Archiving MERLIN format to directory [/ramcache/cache]
 MESSAGE: Saving data to [/ramcache/RMB1]
 #}
 #!! Comparison between different themes
-# [FIXME: visualize the output after MERLIN format is done]
-#! Population vs. founder allele frequencies
-# In the examples above we left @@--freq@@ option unspecified, thus MAF from founders in samples are used to compute the regional marker frequencies. To demonstrate the use of external MAF reference we annotated the example VCF file with allele frequency for European Americans in Exome Variant Server (EVS), assuming the simulated variant data is from European American samples. We incorporated the information to the VCF file INFO field @@EVSEAAF@@ as long as the variant is found in EVS; for variants not found in EVS we set @@EVSEAAF=0.00015@@. Command below show the use of the @@EVSEAAF@@ frequency INFO field:
-seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz --freq EVSEAAF --format MERLIN --jobs 8
-# Result comparison:
-#{out
-FIXME: write this after Merlin format is done
+# To see the outcome of different collapsing themes, for example we look at marker "PAPPA2" on chromosome 1. The shell command below extracts the genotypes from the three themes and concatenated them for visual convenience -- the first 2 columns of integer values are LD 0.8 collapsing, the middle 2 columns are no collapsing and the last 2 columns are complete collapsing.
+paste RMBPt8/MERLIN/RMBPt8.chr1.ped RMB1/MERLIN/RMB1.chr1.ped RMB0/MERLIN/RMB0.chr1.ped | cut -f 2,3,4,7,8,15,16,23,24
+#{text concatenated genotypes from different collapsing themes
+II:2	I:1	I:2	1	4	1	4	1	2
+I:2	0	0	2	1	2	1	2	1
+I:1	0	0	3	4	3	4	2	2
+II:3	I:1	I:2	1	4	1	4	1	2
+II:4	I:1	I:2	2	3	2	3	2	2
+II:1	I:1	I:2	1	4	1	4	1	2
+II:B	I:A	I:B	4	1	4	1	2	1
+I:B	0	0	2	4	2	4	2	2
+I:A	0	0	1	3	1	3	1	2
+II:C	I:A	I:B	4	1	4	1	2	1
+II:D	I:A	I:B	2	1	2	1	2	1
+II:A	I:A	I:B	2	3	2	3	2	2
 #}
+# From the output we see that the first two collapsing themes are identical, indicating there are no variants in this gene that are in strong LD with each other. The last theme is different and has only two alleles: this collapsing theme is useful for generating data for use of linkage analysis software that only accept a limited number of alternative alleles.   
 #! Recombination events
-# For regional markers sub-divided into smaller units by recombination events, we use @@[1], [2], ..., [i]@@ convention to label different units (see below). They can be treated different regional markers. In the linkage analysis pipeline incorporated in SEQLinkage, we choose the one sub-unit that gives strongest evidence of linkage to represent the entire region under consideration when computing combined LOD scores and HLOD scores for all samples. 
+# For regional markers sub-divided into smaller units by recombination events, we use @@[1], [2], ..., [i]@@ convention to label different units (see below). They can be treated different regional markers. In the linkage analysis pipeline incorporated in SEQLinkage, we choose the one sub-unit that gives strongest evidence of linkage to represent the entire region under consideration when computing combined LOD scores and HLOD scores for all samples. In the simulated example data set the gene "MC1R"
 #{out
 FIXME: write this after Merlin format is done
 #}
@@ -301,6 +342,13 @@ MESSAGE: Linkage analysis succesfully performed for 2 units
 MESSAGE: Reports in html format generated
 #}
 # Results are written to file @@LinkageAnalysis/LinkageAnalysis_Report.html@@.
+#! Population vs. founder allele frequencies
+# In the examples above we left @@--freq@@ option unspecified, thus MAF from founders in samples are used to compute the regional marker frequencies. To demonstrate the use of external MAF reference we annotated the example VCF file with allele frequency for European Americans in Exome Variant Server (EVS), assuming the simulated variant data is from European American samples. We incorporated the information to the VCF file INFO field @@EVSEAAF@@ as long as the variant is found in EVS; for variants not found in EVS we set @@EVSEAAF=0.00015@@. Command below show the use of the @@EVSEAAF@@ frequency INFO field:
+seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz --freq EVSEAAF --format LINKAGE --jobs 8
+# Result comparison:
+#{out
+FIXME: write this after Merlin format is done
+#}
 #! Single variant marker linkage analysis
 # It is also possible to apply linkage analysis directly on the original sequence data, taking advantage of the user friendly linkage analysis feature in SEQLinkage. Simply add @@--single-markers@@ switch to the command above:
 seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz --freq EVSEAAF --single-markers \
@@ -361,10 +409,10 @@ MESSAGE: Saving data to [/ramcache/example]
 ###
 # Prepare customized ``Blueprint'' of regional markers
 ###
-# A [utility program|downloadable via command @@wget http://www.bioinformatics.org/seqlink/uploads/genetic_pos_searcher@@] can be used to find, for male, female and also on average, the genetic positions (in cM) for genes provided by users. To use the program, you must have @@Python@@ and @@tabix@@ programs installed to your system, and [the human linkage-physical map|@http://compgen.rutgers.edu/maps@] downloaded to your hard drive. The first 4 columns of input file should be chromosome, start position (hg19 coordinate), end position (hg19 coordinate), gene name delimited by white space (tab or multiple spaces). The columns of output file are chromosome, start position, end position, gene name, genetic position of the gene on average, in female and in male, delimited by tab. The command is:
+# A [utility program|downloadable via command @@wget http://www.bioinformatics.org/seqlink/uploads/genetic_pos_searcher@@] can be used to find the genetic positions (in cM) for genomic regions provided by users. To use the program, you must have @@Python@@ and @@tabix@@ programs installed to your system, and [the human linkage-physical map|@http://compgen.rutgers.edu/maps@] downloaded to your hard drive. The first 4 columns of input file should be chromosome, start position (hg19 coordinate), end position (hg19 coordinate), region name delimited by white space (tab or multiple spaces). The columns of output file are chromosome, start position, end position, region name, genetic position of the gene on average, in female and in male, delimited by tab. The command is:
 ./genetic_pos_searcher /path/to/input/file
 # The RutgersMap provides the physical and genetic positions of large amount of SNPs, allowing determination of cM-scale linkage-based map positions for any marker, given its physical position.
-# The utility program works as follows. For a given gene, it will take the middle position of a gene as the position of the gene. Two closest SNP markers to this position will be searched in RutgersMap. Then the genetic position of the gene will be interpolated using the relative distance from the position to the two markers. Under the circumstances that the position of the gene is outside of the boundary of the smallest or largest positions provided by RutgersMap, the genetic position of the gene will be interpolated in scale with respect to the smallest or largest positions. 
+# The utility program works as follows. For a given region, it will take the middle position of the region as the position of the region. Two closest SNP markers to this position will be searched in RutgersMap. Then the genetic position of the region will be interpolated using the relative distance from the position to the two markers. Under the circumstances that the position of the region is outside of the boundary of the smallest or largest positions provided by RutgersMap, the genetic position of the region will be interpolated in scale with respect to the smallest or largest positions. 
 #For chromosome X, if the position falls in [175751,2800677] or [155045646,155150393], i.e. pseudo-autosomal regions (hg19 coordinate), genetic position in both male and female will be interpolated; otherwise only genetic position in female are available. No genetic position on average can be obtained for chromosome X.
 #{-----
 tigernotes doc SEQLinkageDocs.notes -o SEQLinkage.pdf --lite --toc --font_size 12 --title "SEQLinkage Documentation [Version 1.0 alpha]" -a "Gao T. Wang, Di Zhang, Biao Li, Hang Dai and Suzanne M. Leal" --foot

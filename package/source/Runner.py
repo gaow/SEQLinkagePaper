@@ -141,7 +141,8 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                 env.log('{:,d} units processed {{{:.2%}}} ...'.format(env.format_counter.value, float(env.format_counter.value)/env.success_counter.value), flush=True)
             for fid in fams:
                 workdir = '{}/{}/{}'.format(out_base, gene, fid)
-                mkpath(workdir)
+                with env.lock:
+                    mkpath(workdir)
                 #env.error("fid {} num {}\n".format(fid, fams[fid].get_member_ids()))
                 fam_af = af[(fid, s[1])]
                 if not fam_af:
@@ -161,7 +162,8 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                     if not os.listdir(workdir):
                         os.rmdir(workdir)
                     continue
-                mkpath(workdir)
+                with env.lock:
+                    mkpath(workdir)
                 with open('{}/{}.PRE'.format(workdir, gno), 'w') as pre:
                     pre.write(''.join("{} {} {} {}\n".format(fid, fams[fid].print_member(pid), s[2*fams[fid].get_member_idx(pid) + 4], s[2*fams[fid].get_member_idx(pid) + 5]) for pid in ids))
                 with open('{}/{}.LOC'.format(workdir, gno), 'w') as loc:
@@ -272,7 +274,8 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
                 gene = items[1]
                 pos = items[3]
                 genemap[gene] = [chrID, int(pos), int(pos)+1]
-    mkpath('{}/heatmap'.format(env.output))
+    with env.lock:
+        mkpath('{}/heatmap'.format(env.output))
     lods_fh = open('{}/heatmap/{}.lods'.format(env.output, basename(workdir)), 'w')
     hlods_fh = open('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)), 'w')
     genes = filter(lambda g: g in genemap, map(basename, glob.glob(workdir + '/*')))
