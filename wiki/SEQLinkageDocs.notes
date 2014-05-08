@@ -312,9 +312,11 @@ II:A	I:A	I:B	2	3	2	3	2	2
 #}
 # From the output we see that the first two collapsing themes are identical, indicating there are no variants in this gene that are in strong LD with each other. The last theme is different and has only two alleles: this collapsing theme is useful for generating data for use of linkage analysis software that only accept a limited number of alternative alleles.   
 #! Recombination events
-# For regional markers sub-divided into smaller units by recombination events, we use @@[1], [2], ..., [i]@@ convention to label different units (see below). They can be treated different regional markers. In the linkage analysis pipeline incorporated in SEQLinkage, we choose the one sub-unit that gives strongest evidence of linkage to represent the entire region under consideration when computing combined LOD scores and HLOD scores for all samples. In the simulated example data set the gene "MC1R"
-#{out
-FIXME: write this after Merlin format is done
+# For regional markers sub-divided into smaller units by recombination events, we use @@[1], [2], ..., [i]@@ convention to label different units (see below). They can be treated different regional markers. In the linkage analysis pipeline incorporated in SEQLinkage, we choose the one sub-unit that gives strongest evidence of linkage to represent the entire region under consideration when computing combined LOD scores and HLOD scores for all samples. 
+#{out LINKAGE.chr16.map
+CHROMOSOME	MARKER		POSITION	FEMALE_POSITION	MALE_POSITION
+16	MC1R[1]	133.689089888	111.195245154	159.050776809
+16	MC1R[2]	133.689089888	111.195245154	159.050776809
 #}
 ###
 # Two-point linkage analysis
@@ -342,12 +344,8 @@ MESSAGE: Linkage analysis succesfully performed for 2 units
 MESSAGE: Reports in html format generated
 #}
 # Results are written to file @@LinkageAnalysis/LinkageAnalysis_Report.html@@.
-#! Population vs. founder allele frequencies
-# In the examples above we left @@--freq@@ option unspecified, thus MAF from founders in samples are used to compute the regional marker frequencies. To demonstrate the use of external MAF reference we annotated the example VCF file with allele frequency for European Americans in Exome Variant Server (EVS), assuming the simulated variant data is from European American samples. We incorporated the information to the VCF file INFO field @@EVSEAAF@@ as long as the variant is found in EVS; for variants not found in EVS we set @@EVSEAAF=0.00015@@. Command below show the use of the @@EVSEAAF@@ frequency INFO field:
-seqlink --fam seqlinkage-example.fam --vcf seqlinkage-example.vcf.gz --freq EVSEAAF --format LINKAGE --jobs 8
-# Result comparison:
-#{out
-FIXME: write this after Merlin format is done
+#{note
+# In examples in previous sections we left @@--freq@@ option unspecified, thus MAF from founders in samples are used to compute the regional marker frequencies. In the example above, to demonstrate the use of external MAF reference we annotated the example VCF file with allele frequency for European Americans in Exome Variant Server (EVS), assuming the simulated variant data is from European American samples. We incorporated the information to the VCF file INFO field @@EVSEAAF@@ as long as the variant is found in EVS; for variants not found in EVS we set @@EVSEAAF=0.00015@@. Please refer to the SEQLinkage paper for details in the motivation and calculation of regional marker allele frequencies using external annotation sources. 
 #}
 #! Single variant marker linkage analysis
 # It is also possible to apply linkage analysis directly on the original sequence data, taking advantage of the user friendly linkage analysis feature in SEQLinkage. Simply add @@--single-markers@@ switch to the command above:
