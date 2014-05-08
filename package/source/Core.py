@@ -654,7 +654,7 @@ def main(args):
                     format(env.format_counter.value, fmt.upper()), flush = True)
             if env.skipped_counter.value:
                 # FIXME: perhaps we need to rephrase this message?
-                env.log('{} units - family pairs skipped because of too many alleles'.\
+                env.log('{} region - family pairs skipped'.\
                         format(env.skipped_counter.value))
             env.log('Archiving {} format to directory [{}]'.format(fmt.upper(), env.cache_dir))
             cache.write(arcroot = fmt.upper(),

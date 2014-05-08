@@ -58,6 +58,16 @@ def format_mega2(tped, tfam):
             m.write('Chromosome\tMap.k.a\tName\tMap.k.m\tMap.k.f\thg19.p\n')
             for line in tph:
                 s = line.strip().split()
+                gene, gno = re.search(r'^(\S+?)(?:\[(\d+)\])?$', s[1]).groups()
+                if not gno:
+                    gno = '0'
+                    with env.format_counter.get_lock():
+                        env.format_counter.value += 1
+                elif gno == '1':
+                    with env.format_counter.get_lock():
+                        env.format_counter.value += 1
+                if env.format_counter.value % (env.batch * env.jobs) == 0:
+                    env.log('{:,d} units processed {{{:.2%}}} ...'.format(env.format_counter.value, float(env.format_counter.value)/env.success_counter.value), flush=True)                
                 d.write('M\t{}\n'.format(s[1]))
                 dis = s[2].split(';')
                 dis.insert(1,s[1])
@@ -87,6 +97,16 @@ def format_merlin(tped, tfam):
             m.write('CHROMOSOME\tMARKER\t\tPOSITION\tFEMALE_POSITION\tMALE_POSITION\n')
             for line in tph:
                 s = line.strip().split()
+                gene, gno = re.search(r'^(\S+?)(?:\[(\d+)\])?$', s[1]).groups()
+                if not gno:
+                    gno = '0'
+                    with env.format_counter.get_lock():
+                        env.format_counter.value += 1
+                elif gno == '1':
+                    with env.format_counter.get_lock():
+                        env.format_counter.value += 1
+                if env.format_counter.value % (env.batch * env.jobs) == 0:
+                    env.log('{:,d} units processed {{{:.2%}}} ...'.format(env.format_counter.value, float(env.format_counter.value)/env.success_counter.value), flush=True)
                 d.write('M\t{}\n'.format(s[1]))
                 dis = s[2].split(';')
                 dis[1], dis[2] = dis[2], dis[1]
