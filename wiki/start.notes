@@ -42,7 +42,7 @@
 ###
 # How to cite SEQLinkage
 ###
-# Gao T. Wang, Di Zhang, Biao Li, Hang Dai and Suzanne M. Leal, "SEQLinkage: A Novel Linkage Analysis Method for Next-Generation Sequencing Data". [under review]
+# Gao T. Wang, Di Zhang, Biao Li, Hang Dai and Suzanne M. Leal, "Collapsed Haplotype Pattern Method for Linkage Analysis of Next-Generation Sequencing Data". [under review]
 #! Special Acknowledgement
 # We thank Dr. Daniel Weeks, Dr. Jeff O'Connell ([pedcheck program|@http://watson.hgen.pitt.edu/register@]) and Dr. Alejandro Schaffer ([FASTLINK package|@http://www.ncbi.nlm.nih.gov/CBBresearch/Schaffer/fastlink.html@]) for the permission to recompile the source code of their programs for the use of Mac OS and for publishing the binaries for Linux and Mac OS on this website.
 

@@ -7,9 +7,9 @@
 # Both pre-compiled binary executables as well as source code for SEQLinkage is available for download. The installation package (@@*.bundle@@) for your platform is recommended for ease of installation. If you have issues using these packages you will need to install from source (@@*src.tar.gz@@ files). 
 #[{{icons:download.png?64}}|@http://www.bioinformatics.org/seqlink/ccount/click.php?id=2@]
 ###
-# Installation package for Linux and Mac OSX
+# Installation package for Linux
 ###
-# The installer is a @@*.bundle@@ file that can be executed in Linux or Mac command terminal. Make it executable after you download it, and run the installer from command-line, for example:
+# The installer is a @@*.bundle@@ file that can be executed in Linux terminal. Make it executable after you download it, and run the installer from command-line, for example:
 chmod +x SEQLinkage-<version>.bundle
 ./SEQLinkage-<version>.bundle
 # The default installation directory is @@/usr/local@@. It requires root privilege to install to this directories. Alternatively you can specify a directory at the installer's prompt, for example @@$HOME/local@@ or any other folder under your user account. Then the executable @@seqlink@@ will be installed to @@$HOME/local/bin@@. You will have to add this to your system's @@PATH@@. If you are using bash, you can add to your @@~/.bashrc@@ file the following line:
@@ -17,32 +17,24 @@ export PATH=$HOME/local/bin:$PATH
 #{note
 #{list
 # The Linux packages are built under Linux kernel version 2.6.32 on Ubuntu 10. They should be compatible with any newer platforms. You might experience problems if your platform is older than these, in which case you will have to compile from source code.
-# Prior to release 1.0.0 the Mac OSX package built under OS 10.8 is provided. Since 1.0.0 we no longer release official pre-compiled Mac packages. Please see below for source installation on Mac. 
 #}
 #}
 ###
 # Install from source
 ###
 #! Dependencies
-# To successfully compile the program from source you need to have on your OS gcc (version 4.7+), Python, numpy, faulthandler, matplotlib, prettyplotlib, and swig installed. Some operating system may have these software packages in their package repository ready for installation with one line of command.
-#!! Dependency packages installation on Debian Linux
-# Below are commands for installing dependency packages on Debian 7.0. It may also hold for Ubuntu based Linux.
-apt-get install gcc g++ python python-numpy python-matplotlib python-faulthandler swig python-dev build-essential libbz2-dev 
-#!! Dependency packages installation on Mac OS
+# To successfully compile the program from source you need to have on your OS gcc (version 4.7+), Python, scipy, faulthandler, matplotlib, prettyplotlib, and swig installed. Some operating systems may have these software packages in their package repository ready for installation with one line of command.
+#!! Dependency packages installation on Debian/Ubuntu Linux
+# Below are commands for installing dependency packages on Debian 7.0. It is also applicable to other Debian / Ubuntu based Linux as long as the gcc/g++ version is newer than gcc-4.7:
+apt-get install gcc g++ swig build-essential libbz2-dev 
+# Additionally required dependencies are:
 #{list
-# Install [Xcode | @https://developer.apple.com/downloads/index.action@], choose ""Preferences"" from Xcode menu and install ""Command Line Tools""
-# Download and install [MacPorts | @http://www.macports.org/install.php@]
-# Use MacPorts to install gcc (v4.7+) and enable gcc4.7+ as system default gcc compiler, e.g. run
+# [Anaconda | @http://continuum.io/downloads@] scientific Python distribution
+# [Python faulthandler package|@https://pypi.python.org/pypi/faulthandler/@] 
+# [Python prettyplotlib package|@http://olgabot.github.io/prettyplotlib/@] 
 #}
-sudo port install gcc48
-sudo port select --set gcc mp-gcc48
-#{list
-# Download and install [Anaconda | @http://continuum.io/downloads@] scientific Python distribution
-# Use MacPorts to install swig and swig-python
-#}
-sudo port install swig swig-python
 #! Compile from source
-# On Linux or Mac OS with @@bash@@ terminal, type
+# Now that the dependencies are installed we can compile the package. In command terminal, type
 sudo python setup.py install
 # If you do not have root privilege you can run a local installation by
 #{list
