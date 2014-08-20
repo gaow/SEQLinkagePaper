@@ -215,7 +215,7 @@ if __name__ == '__main__':
         help='If specified, tag this release.')
     parser.add_argument('-p', '--pyinstaller_dir', default = '.',
         help='Path to the directory where pyinstaller git clone is located.')
-    group = parser.add_mutually_exclusive_group()
+    # group = parser.add_mutually_exclusive_group()
     # group.add_argument('-o', '--onefile', action='store_true',
     #     help='Build one file executable instead of installer')
     parser.add_argument('-r', '--rebuild', action='store_true',
