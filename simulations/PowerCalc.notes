@@ -142,7 +142,22 @@ CHP=0.798936799341 SNV=0.565154320847
 #* PowerFigs/hlod_a1_recessive_gene1.pdf 0.5; PowerFigs/hlod_a1_recessive_gene2.pdf 0.5
 # Compound recessive
 #* PowerFigs/hlod_a1_compound_recessive_gene1.pdf 0.5; PowerFigs/hlod_a1_compound_recessive_gene2.pdf 0.5
-
+#! Some highlights
+#{bash sample size result table
+for table in CHP SNV; do
+echo "=$table="
+for gene in 1 2; do
+wsqlite PowerCalc.sqlite3 "select gene$gene, moi, fam_size, plod$gene from $table where plod$gene>0.75 and plod$gene<0.95 and prop$gene=1 order by moi"
+done
+done
+echo "#"
+for table in CHP SNV; do
+echo "=$table="
+for gene in 1 2; do
+wsqlite PowerCalc.sqlite3 "select gene$gene, moi, fam_size, phlod$gene from $table where phlod$gene>0.75 and phlod$gene<0.95 and prop$gene=0.5 order by moi"
+done
+done
+#}
 #{-------
 tigernotes doc PowerCalc.notes --lite --no_section_number --font_size 12
 #}-------
