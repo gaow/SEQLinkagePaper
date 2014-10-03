@@ -1,18 +1,21 @@
 #!/usr/bin/python
 # Copyright (c) 2013 - 2014, Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
-
+from . import VERSION
 import sys, os, subprocess, shutil, glob, shlex, urlparse, re, hashlib, tempfile
 from cStringIO import StringIO
 from contextlib import contextmanager
 from multiprocessing import Pool, Process, Queue, Lock, Value, cpu_count
 import itertools
 from collections import OrderedDict, defaultdict, Counter
-from distutils.dir_util import mkpath
 from shutil import rmtree as remove_tree
 from distutils.file_util import copy_file
 from zipfile import ZipFile
-from . import VERSION
+
+# from distutils.dir_util import mkpath
+def mkpath(directory):
+    '''Have to use system mkdir here because python's mkpath is currently faulty!'''
+    os.system('mkdir -p {}'.format(directory))
 
 ###
 # Global variables
