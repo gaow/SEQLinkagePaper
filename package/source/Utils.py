@@ -356,6 +356,13 @@ def removeFiles(dest, exclude = [], hidden = False):
                 except:
                     pass
 
+def removeEmptyDir(directory):
+    try:
+        if not os.listdir(directory):
+            os.rmdir(directory)
+    except:
+        pass
+
 def copyFiles(pattern, dist, ignore_hidden = True):
     mkpath(dist)
     for fl in glob.glob(pattern):

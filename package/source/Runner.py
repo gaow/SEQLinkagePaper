@@ -169,8 +169,7 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                     #env.log('All missing in this family {} on {}[{}], skipped ...'.format(fid, gene, gno), flush=True)
                     with env.skipped_counter.get_lock():
                         env.skipped_counter.value += 1
-                    if not os.listdir(workdir):
-                        os.rmdir(workdir)
+                    removeEmptyDir(workdir)
                     continue
                 ids = fams[fid].get_sorted_ids()
                 idxes = map(lambda x: fams[fid].get_member_idx(x), ids)
@@ -179,8 +178,7 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                 if gs_num >= 10:
                     with env.skipped_counter.get_lock():
                         env.skipped_counter.value += 1
-                    if not os.listdir(workdir):
-                        os.rmdir(workdir)
+                    removeEmptyDir(workdir)
                     continue
                 with env.lock:
                     mkpath(workdir)
@@ -199,12 +197,11 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
                     loc.write("0 0\n")
                     loc.write("0.0\n")
                     loc.write("1 {} {}\n".format(theta_inc, theta_max))
-            if not os.listdir('{}/{}'.format(out_base, gene)):
-                os.rmdir(os.path.join(out_base, gene))
+
+            removeEmptyDir('{}/{}'.format(out_base, gene))
     tped_fh.close()
     tfam_fh.close()
-    if not os.listdir('{}'.format(out_base)):
-        os.rmdir(out_base)
+    removeEmptyDir('{}'.format(out_base))
   
 #parse tfam file, store families into the Pedigree class                
 def parse_tfam(fh):
