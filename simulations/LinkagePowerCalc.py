@@ -76,6 +76,10 @@ def arguments(parser):
                         nargs=2,
                         default=[0.5,0.5],
                         help='''Specify proportion of locus heterogeneity between two genes in the sample (the two proportion should sum to 1.0), e.g. 0.5 0.5''')
+    parser.add_argument('--rec_rate',
+                        type=float,
+                        default=0.01,
+                        help='''Recombination rate on the gene region''')
     parser.add_argument('-r', '--num-replicates',
                         dest = 'numreps',
                         type=int,
@@ -153,15 +157,15 @@ def main(args, unknown_args):
             samples.extend(pedInfo)
         # write *.fam file per sample for pedigree structure info only
         # write *.vcf file per sample for variant info
-        fam = args.outfile + ".fam"
-        vcf = args.outfile + ".vcf"
+        fam = args.outfile + 'rep'+str(i) + ".fam"
+        vcf = args.outfile + 'rep'+str(i) + ".vcf"
         writeVCF(samples, writePedsToFile(samples, fam, pedStructOnly=True), gene1, gene2, vcf)
-        cleanup(['vcf.gz', 'vcf.gz.tbi'])
-        vcf = indexVCF(vcf, verbose = False)
         if args.sim_only:
             if not args.debug:
                 pbar.update(i)
-            continue
+            continue        
+        cleanup(['vcf.gz', 'vcf.gz.tbi'])
+        vcf = indexVCF(vcf, verbose = False)
         # linkage analysis
         cmd = "seqlink --vcf {} --fam {} --output {} {} 2> /dev/null".\
                   format(vcf, fam, args.outfile, " ".join(unknown_args))
@@ -323,7 +327,7 @@ def parseGeneInfo(fileName):
     return info
 
 
-def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID):
+def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID, recRate=0.01):
     '''
     simulate two-generational pedigree based on given input gene info, number of offspring, mode of inheritance and allelic heterogenity ratio.
     Note: at least two affected offspring are required per family sample
@@ -335,7 +339,7 @@ def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID):
                        genes[1]['d_idx'][weightedRandomIdx(genes[1]['cumuProbs_dMaf'])]]
     dVarIdx = dVarIndices[causalGeneIdx]
     #
-    causalHaps, diseaseStatus = getCausalHaps(genes[causalGeneIdx], mode, numOffspring, dVarIdx)
+    causalHaps, diseaseStatus = getCausalHaps(genes[causalGeneIdx], mode, numOffspring, dVarIdx, recRate)
     markerHaps = getMarkerHaps(genes[markerGeneIdx], numOffspring)
     pedInfo = createPedInfoDict(causalGeneIdx, causalHaps, markerHaps, diseaseStatus, familyID)
     return pedInfo
@@ -373,7 +377,7 @@ def getMarkerHaps(geneInfo, numOffspring):
     [markerHaps.update({i+3:[parHaps[random.choice([0,1])], parHaps[random.choice([2,3])]]}) for i in range(numOffspring)]
     return markerHaps
 
-def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx):
+def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx, recRate):
     '''
     Allowed dominant parental haplotype patterns:
     +-/--, ++/--, +-/+-
@@ -408,22 +412,46 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx):
             parAff[1] = 2 if sum(parentalHapCausality[2:]) == 2 else 1
         else:
             pass
-        offspringAff, offHapIdx = genOffspringAffAndHapIdx(mode, parentalHapCausality,
-                                                           numOffspring, [hap1, hap2, hap3, hap4],
-                                                           geneInfo['d_idx'])
-        if offspringAff.count(2) >= 2:
-            # fill in parental and offspring causalHaps dict (1 - father; 2 - mother; 3,...,n - offspring)
-            causalHaps[1], causalHaps[2] = [hap1, hap2], [hap3, hap4]
-            parHaps = [hap1, hap2, hap3, hap4]
-            [causalHaps.update({i+3:[parHaps[j[0]], parHaps[j[1]]]}) for i,j in enumerate(offHapIdx)]
-            break
+        if not recRate > 0: # without recombination
+            offspringAff, offHapIdx = genOffspringAffAndHapIdx(mode, parentalHapCausality,
+                                                               numOffspring, [hap1, hap2, hap3, hap4],
+                                                               geneInfo['d_idx'])
+            if offspringAff.count(2) >= 2:
+                # fill in parental and offspring causalHaps dict (1 - father; 2 - mother; 3,...,n - offspring)
+                causalHaps[1], causalHaps[2] = [hap1, hap2], [hap3, hap4]
+                parHaps = [hap1, hap2, hap3, hap4]
+                [causalHaps.update({i+3:[parHaps[j[0]], parHaps[j[1]]]}) for i,j in enumerate(offHapIdx)]
+                break
+        else: # with recombination
+            pass
+            
     aff = parAff + offspringAff
     #print dVarIdx
     #print parentalHapCausality
     #print offspringAff, offHapIdx
     #if parentalHapCausality.count(1) == 2:
     return causalHaps, aff
+   
+
+   
         
+
+def genOffspringAffAngHaps(mode, parentalHapCausality, numOffspring, haps, d_idx, recRate):
+    
+    offHaps = [None] * numOffspring
+    aff = [1] * numOffspring
+    for idx in range(numOffspring):
+        indHap1 = genGametHap(haps[0], haps[1], recRate)
+        indHap2 = genGametHap(haps[2], haps[3], recRate)
+        g = [checkIfCausal(d_idx, indHap1), checkIfCausal(d_idx, indHap2)]
+        n = g.count(True)
+        if 'dominant' in mode:
+            aff[idx] = 2 if n > 0 else 1
+        elif 'recessive' in mode:
+            if '_' in mode:
+                aff[idx] = 2 if n == 2 else
+
+
 
 def genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring, haps, d_idx):
     def check_recessive_causal(idx):
@@ -450,6 +478,19 @@ def genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring, haps, d_i
             raise ValueError("Inappropriate argument value '--mode'")
     return aff, hapIdx
             
+
+def genGametHap(hap1, hap2, recRate):
+    '''
+    generate a gamet haplotype allowing for recombination
+    '''
+    if random.random() < recRate:
+        spot = random.choice(range(len(hap1))[1:])
+        hap3 = hap1[:spot] + hap2[spot:]
+        hap4 = hap2[:spot] + hap1[spot:]
+        return random.choice([hap1, hap2, hap3, hap4])
+    else:
+        return random.choice([hap1, hap2])
+
 
 def genMarkerHap(geneInfo):
     hap = [0] * len(geneInfo['maf'])
