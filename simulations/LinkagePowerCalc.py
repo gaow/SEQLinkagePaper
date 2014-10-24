@@ -3,7 +3,7 @@
 # Date: 03-01-2014
 # Purpose: simulation program to evaluate statistical power of SEQLinkage algorithm 
 
-import argparse, random, tempfile, os, sys, shutil, time, glob, tarfile
+import argparse, random, tempfile, os, sys, shutil, time, glob, tarfile, copy
 import progressbar
 import collections, csv
 import numpy as np
@@ -76,7 +76,7 @@ def arguments(parser):
                         nargs=2,
                         default=[0.5,0.5],
                         help='''Specify proportion of locus heterogeneity between two genes in the sample (the two proportion should sum to 1.0), e.g. 0.5 0.5''')
-    parser.add_argument('--rec_rate',
+    parser.add_argument('--recrate',
                         type=float,
                         default=0.01,
                         help='''Recombination rate on the gene region''')
@@ -95,6 +95,10 @@ def arguments(parser):
                         type=float,
                         default=None,
                         help='''Specify seed for random number generator, if left unspecified the current system time will be used''')
+    parser.add_argument('--save',
+                        action='store_true',
+                        default=False,
+                        help='''Save ped and vcf files for each replicate''')
     parser.add_argument('--alpha',
                         type=float,
                         nargs=2,
@@ -112,7 +116,6 @@ def arguments(parser):
                         action='store_true',
                         dest = 'print_header',
                         help='''Print output table header and quit.''')
-
 
 
 def main(args, unknown_args):
@@ -153,18 +156,24 @@ def main(args, unknown_args):
         for j in xrange(args.numfamilies):
             numOffspring = getNumOffspring(offNumProp)
             pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.locusheterogenprop,
-                                  diseaseVariantIndices, familyID=j+1)
+                                  diseaseVariantIndices, familyID=j+1, recRate=args.recrate)
             samples.extend(pedInfo)
         # write *.fam file per sample for pedigree structure info only
         # write *.vcf file per sample for variant info
-        fam = args.outfile + 'rep'+str(i) + ".fam"
-        vcf = args.outfile + 'rep'+str(i) + ".vcf"
+        dirName, baseName = os.path.dirname(args.outfile), os.path.basename(args.outfile)
+        fam = os.path.join(dirName, baseName + 'rep'+str(i) + ".fam")
+        vcf = os.path.join(dirName, baseName + 'rep'+str(i) + ".vcf")
         writeVCF(samples, writePedsToFile(samples, fam, pedStructOnly=True), gene1, gene2, vcf)
+        # also write *.ped file if args.save is true
+        if args.save:
+            ped = os.path.join(dirName, baseName + 'rep'+str(i) + ".ped")
+            writePedsToFile(samples, ped, pedStructOnly=False)
         if args.sim_only:
             if not args.debug:
                 pbar.update(i)
-            continue        
-        cleanup(['vcf.gz', 'vcf.gz.tbi'])
+            continue
+        if not args.save:
+            cleanup(['vcf.gz', 'vcf.gz.tbi'])
         vcf = indexVCF(vcf, verbose = False)
         # linkage analysis
         cmd = "seqlink --vcf {} --fam {} --output {} {} 2> /dev/null".\
@@ -234,14 +243,16 @@ def writeVCF(samples, sample_names, gene1, gene2, fileName):
     fi.close()
     return
     
+    
 def writePedsToFile(peds, fileName, pedStructOnly=False):
     '''
     write pedigree samples to 'fileName' in linkage format,
     if 'pedStructOnly' is True, output only the first 6 columns
     '''
     sample_names = []
+    peds_clone = copy.deepcopy(peds)
     fi = open(fileName, 'w')
-    for ind_info in peds:
+    for ind_info in peds_clone:
         for i in [1,2,3]:
             if ind_info[i]:
                 ind_info[i] = "{}:{}".format(ind_info[0], ind_info[i])
@@ -268,7 +279,7 @@ def checkInput(args):
     for item in args.genes:
         if not os.path.isfile(item):
             sys.exit('Cannot find file {}'.format(item)) 
-        if item.split('.')[0] not in GENEMAP.values():
+        if os.path.basename(item).split('.')[0] not in GENEMAP.values():
             sys.exit('Gene {} is not supported!'.format(item.split('.')[0]))
     return
 
@@ -340,7 +351,7 @@ def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID, recRat
     dVarIdx = dVarIndices[causalGeneIdx]
     #
     causalHaps, diseaseStatus = getCausalHaps(genes[causalGeneIdx], mode, numOffspring, dVarIdx, recRate)
-    markerHaps = getMarkerHaps(genes[markerGeneIdx], numOffspring)
+    markerHaps = getMarkerHaps(genes[markerGeneIdx], numOffspring, recRate)
     pedInfo = createPedInfoDict(causalGeneIdx, causalHaps, markerHaps, diseaseStatus, familyID)
     return pedInfo
 
@@ -352,14 +363,14 @@ def createPedInfoDict(causalGeneIdx, causalHaps, markerHaps, diseaseStatus, fami
     for idx, indID in enumerate(gene1Haps.keys()):
         tmp = [familyID, indID]
         if indID == 1:
-            sex1 = 1 if random.random() < 0.5 else 2
-            tmp += [0,0,sex1]
+            #sex1 = 1 if random.random() < 0.5 else 2
+            tmp += [0,0,1]
         elif indID == 2:
-            sex2 = 1 if sex1 == 2 else 2
-            tmp += [0,0,sex2]
+            #sex2 = 1 if sex1 == 2 else 2
+            tmp += [0,0,2]
         else:
             sex = 1 if random.random() < 0.5 else 2
-            tmp += [sex1,sex2,sex]
+            tmp += [1, 2, sex]
         tmp += [diseaseStatus[idx]]
         [tmp.extend([v1, v2]) for v1, v2 in zip(gene1Haps[indID][0], gene1Haps[indID][1])]
         [tmp.extend([v1, v2]) for v1, v2 in zip(gene2Haps[indID][0], gene2Haps[indID][1])]
@@ -367,15 +378,22 @@ def createPedInfoDict(causalGeneIdx, causalHaps, markerHaps, diseaseStatus, fami
     return pedInfo
 
 
-def getMarkerHaps(geneInfo, numOffspring):
+def getMarkerHaps(geneInfo, numOffspring, recRate):
     '''
     simulate non-disease-causing haplotypes
     '''
     markerHaps = collections.OrderedDict({})
     parHaps = [genMarkerHap(geneInfo) for _ in range(4)]
     markerHaps[1], markerHaps[2] = parHaps[:2], parHaps[2:]
-    [markerHaps.update({i+3:[parHaps[random.choice([0,1])], parHaps[random.choice([2,3])]]}) for i in range(numOffspring)]
+    if not recRate > 0: 
+        [markerHaps.update({i+3:[parHaps[random.choice([0,1])], parHaps[random.choice([2,3])]]}) for i in range(numOffspring)]
+    else:
+        for idx in range(numOffspring):
+            indHap1 = genGametHap(parHaps[0], parHaps[1], recRate)
+            indHap2 = genGametHap(parHaps[2], parHaps[3], recRate)
+            markerHaps[idx+3] = [indHap1, indHap2]
     return markerHaps
+    
 
 def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx, recRate):
     '''
@@ -423,34 +441,44 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx, recRate):
                 [causalHaps.update({i+3:[parHaps[j[0]], parHaps[j[1]]]}) for i,j in enumerate(offHapIdx)]
                 break
         else: # with recombination
-            pass
-            
+            offspringAff, offspringHaps = genOffspringAffAndHaps(mode, numOffspring, [hap1, hap2, hap3, hap4], geneInfo['d_idx'], recRate)
+            if offspringAff.count(2) >= 2:
+                causalHaps[1], causalHaps[2] = [hap1, hap2], [hap3, hap4]
+                [causalHaps.update({i+3:x}) for i,x in enumerate(offspringHaps)]
+                break
     aff = parAff + offspringAff
     #print dVarIdx
     #print parentalHapCausality
     #print offspringAff, offHapIdx
     #if parentalHapCausality.count(1) == 2:
     return causalHaps, aff
-   
-
-   
         
 
-def genOffspringAffAngHaps(mode, parentalHapCausality, numOffspring, haps, d_idx, recRate):
-    
+def genOffspringAffAndHaps(mode, numOffspring, haps, d_idx, recRate):
+    def check_recessive_causal(h1, h2):
+        if 2 in [x+y for i,(x,y) in enumerate(zip(h1, h2)) if i in d_idx]:
+            return 2
+        else:
+            return 1
+    #
     offHaps = [None] * numOffspring
     aff = [1] * numOffspring
     for idx in range(numOffspring):
         indHap1 = genGametHap(haps[0], haps[1], recRate)
         indHap2 = genGametHap(haps[2], haps[3], recRate)
+        offHaps[idx] = [indHap1, indHap2]
         g = [checkIfCausal(d_idx, indHap1), checkIfCausal(d_idx, indHap2)]
         n = g.count(True)
         if 'dominant' in mode:
             aff[idx] = 2 if n > 0 else 1
         elif 'recessive' in mode:
             if '_' in mode:
-                aff[idx] = 2 if n == 2 else
-
+                aff[idx] = 2 if n == 2 else 1
+            else:
+                aff[idx] = 1 if n < 2 else check_recessive_causal(indHap1, indHap2)
+        else:
+            raise ValueError("Inappropriate argument value '--mode'")
+    return aff, offHaps
 
 
 def genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring, haps, d_idx):
