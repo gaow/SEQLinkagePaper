@@ -99,6 +99,10 @@ def arguments(parser):
                         action='store_true',
                         default=False,
                         help='''Save ped and vcf files for each replicate''')
+    parser.add_argument('--ld',
+                        action='store_true',
+                        default=False,
+                        help='''Fake LD structure on one var site adjacent to the causal var site''')
     parser.add_argument('--alpha',
                         type=float,
                         nargs=2,
@@ -156,7 +160,7 @@ def main(args, unknown_args):
         for j in xrange(args.numfamilies):
             numOffspring = getNumOffspring(offNumProp)
             pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.locusheterogenprop,
-                                  diseaseVariantIndices, familyID=j+1, recRate=args.recrate)
+                                  diseaseVariantIndices, familyID=j+1, recRate=args.recrate, fakeLD=args.ld)
             samples.extend(pedInfo)
         # write *.fam file per sample for pedigree structure info only
         # write *.vcf file per sample for variant info
@@ -338,7 +342,7 @@ def parseGeneInfo(fileName):
     return info
 
 
-def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID, recRate=0.01):
+def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID, recRate=0.01, fakeLD=False):
     '''
     simulate two-generational pedigree based on given input gene info, number of offspring, mode of inheritance and allelic heterogenity ratio.
     Note: at least two affected offspring are required per family sample
@@ -350,7 +354,7 @@ def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID, recRat
                        genes[1]['d_idx'][weightedRandomIdx(genes[1]['cumuProbs_dMaf'])]]
     dVarIdx = dVarIndices[causalGeneIdx]
     #
-    causalHaps, diseaseStatus = getCausalHaps(genes[causalGeneIdx], mode, numOffspring, dVarIdx, recRate)
+    causalHaps, diseaseStatus = getCausalHaps(genes[causalGeneIdx], mode, numOffspring, dVarIdx, recRate, fakeLD)
     markerHaps = getMarkerHaps(genes[markerGeneIdx], numOffspring, recRate)
     pedInfo = createPedInfoDict(causalGeneIdx, causalHaps, markerHaps, diseaseStatus, familyID)
     return pedInfo
@@ -395,7 +399,7 @@ def getMarkerHaps(geneInfo, numOffspring, recRate):
     return markerHaps
     
 
-def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx, recRate):
+def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx, recRate, fakeLD=False):
     '''
     Allowed dominant parental haplotype patterns:
     +-/--, ++/--, +-/+-
@@ -405,6 +409,7 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx, recRate):
     causalHaps = collections.OrderedDict({})
     parentalHapCausality = [None,None,None,None] # 1 - causal; 0 - non-causal
     parAff = [None,None] # 1 - unaffected; 2 - affected
+    avoids = [dVarIdx] if fakeLD else []
     while True:
         hap2, parentalHapCausality[1] = genCausalHap(geneInfo)
         hap4, parentalHapCausality[3] = genCausalHap(geneInfo)  
@@ -420,7 +425,10 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx, recRate):
             hap1, parentalHapCausality[0] = genCausalHap(geneInfo, addCausalVars=[dVarIdx])
             if '_' in mode:
                 # compound recessive. randomly choose another dVarIdx to use for this family instead of using the provided one
-                hap3, parentalHapCausality[2] = genCausalHap(geneInfo, addCausalVars=[geneInfo['d_idx'][weightedRandomIdx(geneInfo['cumuProbs_dMaf'], avoid = geneInfo['d_idx'].index(dVarIdx))]])
+                causalVarIdx = geneInfo['d_idx'][weightedRandomIdx(geneInfo['cumuProbs_dMaf'], avoid = geneInfo['d_idx'].index(dVarIdx))]
+                hap3, parentalHapCausality[2] = genCausalHap(geneInfo, addCausalVars=[causalVarIdx])
+                if fakeLD:
+                    avoids.append(causalVarIdx)
             else:
                 hap3, parentalHapCausality[2] = genCausalHap(geneInfo, addCausalVars=[dVarIdx])
             # up to three '+' are allowed
@@ -447,6 +455,21 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx, recRate):
                 [causalHaps.update({i+3:x}) for i,x in enumerate(offspringHaps)]
                 break
     aff = parAff + offspringAff
+    # fake LD structure on causal haps if fakeLD is True
+    if fakeLD:
+        listIdx = copy.deepcopy(geneInfo['d_idx'])
+        if len(avoids) == 2:
+            listIdx.remove(avoids[-1])
+        tmpIdx = listIdx.index(dVarIdx)
+        if tmpIdx == 0:
+            fakeIdx = listIdx[1]
+        elif tmpIdx == len(listIdx) - 1:
+            fakeIdx = listIdx[-2]
+        else:
+            fakeIdx = listIdx[tmpIdx-1 if random.random() < 0.5 else tmpIdx+1]
+        for (hap1, hap2) in causalHaps.values():
+            hap1[fakeIdx] = hap1[dVarIdx]
+            hap2[fakeIdx] = hap2[dVarIdx]
     #print dVarIdx
     #print parentalHapCausality
     #print offspringAff, offHapIdx
@@ -568,11 +591,16 @@ def weightedRandomIdx(cumuProbs, avoid = None):
     '''
     if len(cumuProbs) == 1:
         avoid = None
+    try:
+        len(avoid)
+    except:
+        avoid = [avoid]
     while True:
         randNum = random.random()
         for idx, p in enumerate(cumuProbs):
-            if randNum < p and idx != avoid:
+            if randNum < p and idx not in avoid:
                 return idx
+
 
 if __name__ == '__main__':
     master_parser = argparse.ArgumentParser(
