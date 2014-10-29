@@ -354,9 +354,10 @@ def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID, recRat
         dVarIndices = [genes[0]['d_idx'][weightedRandomIdx(genes[0]['cumuProbs_dMaf'])],
                        genes[1]['d_idx'][weightedRandomIdx(genes[1]['cumuProbs_dMaf'])]]
     dVarIdx = dVarIndices[causalGeneIdx]
+    mVarIdx = dVarIndices[markerGeneIdx]
     #
     causalHaps, diseaseStatus = getCausalHaps(genes[causalGeneIdx], mode, numOffspring, dVarIdx, recRate, fakeLD)
-    markerHaps = getMarkerHaps(genes[markerGeneIdx], numOffspring, recRate)
+    markerHaps = getMarkerHaps(genes[markerGeneIdx], numOffspring, mVarIdx, recRate, fakeLD)
     pedInfo = createPedInfoDict(causalGeneIdx, causalHaps, markerHaps, diseaseStatus, familyID)
     return pedInfo
 
@@ -383,12 +384,13 @@ def createPedInfoDict(causalGeneIdx, causalHaps, markerHaps, diseaseStatus, fami
     return pedInfo
 
 
-def getMarkerHaps(geneInfo, numOffspring, recRate):
+def getMarkerHaps(geneInfo, numOffspring, mVarIdx, recRate, fakeLD=False):
     '''
     simulate non-disease-causing haplotypes
     '''
     markerHaps = collections.OrderedDict({})
-    parHaps = [genMarkerHap(geneInfo) for _ in range(4)]
+    # require the first hap to contain at least one variant
+    parHaps = [genMarkerHap(geneInfo, addVars=[mVarIdx])] + [genMarkerHap(geneInfo) for _ in range(3)]
     markerHaps[1], markerHaps[2] = parHaps[:2], parHaps[2:]
     if not recRate > 0: 
         [markerHaps.update({i+3:[parHaps[random.choice([0,1])], parHaps[random.choice([2,3])]]}) for i in range(numOffspring)]
@@ -397,6 +399,19 @@ def getMarkerHaps(geneInfo, numOffspring, recRate):
             indHap1 = genGametHap(parHaps[0], parHaps[1], recRate)
             indHap2 = genGametHap(parHaps[2], parHaps[3], recRate)
             markerHaps[idx+3] = [indHap1, indHap2]
+    # fake LD structure if fakeLD is True
+    if fakeLD:
+        listIdx = range(len(geneInfo['maf']))
+        tmpIdx = listIdx.index(mVarIdx)
+        if tmpIdx == 0:
+            fakeIdx = listIdx[1]
+        elif tmpIdx == len(listIdx) - 1:
+            fakeIdx = listIdx[-2]
+        else:
+            fakeIdx = listIdx[tmpIdx-1 if random.random() < 0.5 else tmpIdx+1]
+        for (hap1, hap2) in markerHaps.values():
+            hap1[fakeIdx] = hap1[mVarIdx]
+            hap2[fakeIdx] = hap2[mVarIdx]
     return markerHaps
     
 
@@ -544,11 +559,14 @@ def genGametHap(hap1, hap2, recRate):
         return random.choice([hap1, hap2])
 
 
-def genMarkerHap(geneInfo):
+def genMarkerHap(geneInfo, addVars=[]):
     hap = [0] * len(geneInfo['maf'])
     for idx in geneInfo['nd_idx']:
         if random.random() < geneInfo['maf'][idx]:
             hap[idx] = 1
+    # add variants if given
+    for idx in addVars:
+        hap[idx] = 1
     return hap
   
 
