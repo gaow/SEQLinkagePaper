@@ -79,7 +79,7 @@ def arguments(parser):
                         help='''Specify proportion of locus heterogeneity between two genes in the sample (the two proportion should sum to 1.0), e.g. 0.5 0.5''')
     parser.add_argument('--recrate',
                         type=float,
-                        default=0.01,
+                        default=0,
                         help='''Recombination rate on the gene region''')
     parser.add_argument('-r', '--num-replicates',
                         dest = 'numreps',
@@ -104,6 +104,11 @@ def arguments(parser):
                         action='store_true',
                         default=False,
                         help='''Fake LD structure on one var site adjacent to the causal var site''')
+    parser.add_argument('--parent-missing',
+                        type=float,
+                        default=0,
+                        dest = 'par_missing',
+                        help='''Specify probability of parental genotype being missing''')
     parser.add_argument('--alpha',
                         type=float,
                         nargs=2,
@@ -161,7 +166,7 @@ def main(args, unknown_args):
         for j in xrange(args.numfamilies):
             numOffspring = getNumOffspring(offNumProp)
             pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.locusheterogenprop,
-                                  diseaseVariantIndices, familyID=j+1, recRate=args.recrate, fakeLD=args.ld)
+                                  diseaseVariantIndices, familyID=j+1, recRate=args.recrate, fakeLD=args.ld, parentMissing=args.par_missing)
             samples.extend(pedInfo)
         # write *.fam file per sample for pedigree structure info only
         # write *.vcf file per sample for variant info
@@ -239,11 +244,12 @@ def writeVCF(samples, sample_names, gene1, gene2, fileName):
     varInfo = np.transpose(np.array(samples)[:,6:])
     chrInfo = gene1['chr'] + gene2['chr']
     posInfo = gene1['pos'] + gene2['pos']
+    varMafs = gene1['maf'] + gene2['maf']
     numVars = len(varInfo)/2
     fi.write("##fileformat=VCFv4.0\n")
     fi.write('#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t' + '\t'.join(sample_names) + '\n')
     for idx in xrange(numVars):
-        fi.write('\t'.join([str(chrInfo[idx]), str(posInfo[idx]), 'V'+str(idx+1), 'A', 'C', '.', 'PASS', '.', 'GT']) + '\t')
+        fi.write('\t'.join([str(chrInfo[idx]), str(posInfo[idx]), 'V'+str(idx+1), 'A', 'C', '.', 'PASS', 'EVSMAF='+str(varMafs[idx]), 'GT']) + '\t')
         fi.write('\t'.join(str(i)+'/'+str(j) for i,j in zip(varInfo[2*idx], varInfo[2*idx+1])) + '\n') 
     fi.close()
     return
@@ -343,7 +349,7 @@ def parseGeneInfo(fileName):
     return info
 
 
-def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID, recRate=0.01, fakeLD=False):
+def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID, recRate=0.01, fakeLD=False, parentMissing=0):
     '''
     simulate two-generational pedigree based on given input gene info, number of offspring, mode of inheritance and allelic heterogenity ratio.
     Note: at least two affected offspring are required per family sample
@@ -356,8 +362,11 @@ def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID, recRat
     dVarIdx = dVarIndices[causalGeneIdx]
     mVarIdx = dVarIndices[markerGeneIdx]
     #
-    causalHaps, diseaseStatus = getCausalHaps(genes[causalGeneIdx], mode, numOffspring, dVarIdx, recRate, fakeLD)
-    markerHaps = getMarkerHaps(genes[markerGeneIdx], numOffspring, mVarIdx, recRate, fakeLD)
+    parToMiss = 0
+    if random.random() < parentMissing:
+        parToMiss = 1 if random.random() < 0.5 else 2
+    causalHaps, diseaseStatus = getCausalHaps(genes[causalGeneIdx], mode, numOffspring, dVarIdx, recRate, fakeLD, parToMiss)
+    markerHaps = getMarkerHaps(genes[markerGeneIdx], numOffspring, mVarIdx, recRate, fakeLD, parToMiss)
     pedInfo = createPedInfoDict(causalGeneIdx, causalHaps, markerHaps, diseaseStatus, familyID)
     return pedInfo
 
@@ -384,7 +393,7 @@ def createPedInfoDict(causalGeneIdx, causalHaps, markerHaps, diseaseStatus, fami
     return pedInfo
 
 
-def getMarkerHaps(geneInfo, numOffspring, mVarIdx, recRate, fakeLD=False):
+def getMarkerHaps(geneInfo, numOffspring, mVarIdx, recRate, fakeLD=False, parToMiss=0):
     '''
     simulate non-disease-causing haplotypes
     '''
@@ -412,10 +421,14 @@ def getMarkerHaps(geneInfo, numOffspring, mVarIdx, recRate, fakeLD=False):
         for (hap1, hap2) in markerHaps.values():
             hap1[fakeIdx] = hap1[mVarIdx]
             hap2[fakeIdx] = hap2[mVarIdx]
+    # handle missing parental genotype
+    if parToMiss > 0:
+        markerHaps[parToMiss][0] = ['.'] * len(markerHaps[parToMiss][0])
+        markerHaps[parToMiss][1] = ['.'] * len(markerHaps[parToMiss][1])
     return markerHaps
     
 
-def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx, recRate, fakeLD=False):
+def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx, recRate, fakeLD=False, parToMiss=0):
     '''
     Allowed dominant parental haplotype patterns:
     +-/--, ++/--, +-/+-
@@ -486,6 +499,10 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx, recRate, fakeLD=False):
         for (hap1, hap2) in causalHaps.values():
             hap1[fakeIdx] = hap1[dVarIdx]
             hap2[fakeIdx] = hap2[dVarIdx]
+    # handle missing parental genotype
+    if parToMiss > 0:
+        causalHaps[parToMiss][0] = ['.'] * len(causalHaps[parToMiss][0])
+        causalHaps[parToMiss][1] = ['.'] * len(causalHaps[parToMiss][1])
     #print dVarIdx
     #print parentalHapCausality
     #print offspringAff, offHapIdx
