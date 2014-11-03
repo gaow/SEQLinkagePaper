@@ -1,3 +1,5 @@
+scp:
+	scp RunGeneHunter.py csg:/mnt/nfs/zhangdi/data/0archive/seqlink/3revision1/2multipoint/genehunter/2run/
 run:
 	qsub SubmitJobs.pbs
 clean:
