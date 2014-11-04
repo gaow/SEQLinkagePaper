@@ -339,7 +339,6 @@ class MarkerMaker:
             clusters_idx = [[[varnames[item].index(x) for x in y] for y in clusters] for item in haplotypes]
         else:
             clusters_idx = [[[]] for item in haplotypes]
-        print('DDDDD',self.r2)
         self.coder.Execute(haplotypes.values(), [[mafs[v] for v in varnames[item]] for item in haplotypes], clusters_idx)
         if env.debug:
             with env.lock:
