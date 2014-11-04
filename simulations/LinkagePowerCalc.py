@@ -97,6 +97,7 @@ def arguments(parser):
                         default=None,
                         help='''Specify seed for random number generator, if left unspecified the current system time will be used''')
     parser.add_argument('-v', '--marker-variant',
+                        action='store_true',
                         dest='if_marker_var',
                         default=False,
                         help='''Require marker gene to have at least one variant, default False''')
