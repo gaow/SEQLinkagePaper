@@ -96,6 +96,10 @@ def arguments(parser):
                         type=float,
                         default=None,
                         help='''Specify seed for random number generator, if left unspecified the current system time will be used''')
+    parser.add_argument('-v', '--marker-variant',
+                        dest='if_marker_var',
+                        default=False,
+                        help='''Require marker gene to have at least one variant, default False''')
     parser.add_argument('--save',
                         action='store_true',
                         default=False,
@@ -166,7 +170,7 @@ def main(args, unknown_args):
         for j in xrange(args.numfamilies):
             numOffspring = getNumOffspring(offNumProp)
             pedInfo = simPedigree([gene1, gene2], numOffspring, args.mode, args.locusheterogenprop,
-                                  diseaseVariantIndices, familyID=j+1, recRate=args.recrate, fakeLD=args.ld, parentMissing=args.par_missing)
+                                  diseaseVariantIndices, familyID=j+1, recRate=args.recrate, ifMarkerVar=args.if_marker_var, fakeLD=args.ld, parentMissing=args.par_missing)
             samples.extend(pedInfo)
         # write *.fam file per sample for pedigree structure info only
         # write *.vcf file per sample for variant info
@@ -349,7 +353,7 @@ def parseGeneInfo(fileName):
     return info
 
 
-def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID, recRate=0.01, fakeLD=False, parentMissing=0):
+def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID, recRate=0.01, ifMarkerVar=False, fakeLD=False, parentMissing=0):
     '''
     simulate two-generational pedigree based on given input gene info, number of offspring, mode of inheritance and allelic heterogenity ratio.
     Note: at least two affected offspring are required per family sample
@@ -360,7 +364,7 @@ def simPedigree(genes, numOffspring, mode, hetero, dVarIndices, familyID, recRat
         dVarIndices = [genes[0]['d_idx'][weightedRandomIdx(genes[0]['cumuProbs_dMaf'])],
                        genes[1]['d_idx'][weightedRandomIdx(genes[1]['cumuProbs_dMaf'])]]
     dVarIdx = dVarIndices[causalGeneIdx]
-    mVarIdx = dVarIndices[markerGeneIdx]
+    mVarIdx = dVarIndices[markerGeneIdx] if ifMarkerVar else None
     #
     parToMiss = 0
     if random.random() < parentMissing:
@@ -399,7 +403,7 @@ def getMarkerHaps(geneInfo, numOffspring, mVarIdx, recRate, fakeLD=False, parToM
     '''
     markerHaps = collections.OrderedDict({})
     # require the first hap to contain at least one variant
-    parHaps = [genMarkerHap(geneInfo, addVars=[mVarIdx])] + [genMarkerHap(geneInfo) for _ in range(3)]
+    parHaps = [genMarkerHap(geneInfo, addVars=[] if mVarIdx == None else [mVarIdx])] + [genMarkerHap(geneInfo) for _ in range(3)]
     markerHaps[1], markerHaps[2] = parHaps[:2], parHaps[2:]
     if not recRate > 0: 
         [markerHaps.update({i+3:[parHaps[random.choice([0,1])], parHaps[random.choice([2,3])]]}) for i in range(numOffspring)]
