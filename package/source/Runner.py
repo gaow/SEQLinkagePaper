@@ -350,8 +350,8 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
                         raw = out.read()
                         for i in re.finditer(r'^THETAS\s+(0\.\d+)(?:\n.+?){7}LOD SCORE =\s+(-?\d+\.\d+)', raw, re.MULTILINE):
                             theta, lod = map(float, i.group(1,2))
-                            if float(lod) < 1e-6:
-                                lod = 0
+                            #if float(lod) < 1e-6:
+                            #    lod = 0
                             if theta not in lods:
                                 lods[theta] = {fam: lod}
                             elif fam not in lods[theta] or lod > lods[theta][fam]:

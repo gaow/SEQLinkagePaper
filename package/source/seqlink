@@ -88,7 +88,7 @@ class Args:
                            help='Theta upper bound. Default to 0.5.')
         vargs.add_argument('--theta-inc', metavar='FLOAT', type=float, dest = "theta_inc", default = 0.05,
                            help='Theta increment. Default to 0.05.')
-        if (platform.system() == 'Linux' and platform.architecture()[0] == '64bit'):
+        if ((platform.system() == 'Linux' or platform.system() == 'Darwin') and platform.architecture()[0] == '64bit'):
             vargs.add_argument('--run-linkage', action='store_true', dest = "run_linkage",
                            help='''Perform Linkage analysis using FASTLINK program.''')
             vargs.add_argument('--output-entries', metavar='N', type=int, dest = "output_limit", default = 10,

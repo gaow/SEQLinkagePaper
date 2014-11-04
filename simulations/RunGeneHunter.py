@@ -92,7 +92,7 @@ class Loc:
     def getMarkers(self):
         res = ''
         for m in range(self.numMarkers):
-            res += '3 2\n{} {}\n'.format(self.markAF, 1 - self.markAF)
+            res += '3 2\n{} {}\n'.format(1 - self.markAF, self.markAF)
         return res
         
     def getRates(self):
@@ -115,7 +115,7 @@ class Pre:
             for line in p:
                 s = line.strip('\n').split()
                 fam = map(lambda x: x.split(':')[-1], s[:self.offset])
-                geno = getSlice(s[self.offset:], self.idxes)
+                geno = map(lambda x: str(1 + int(x)), getSlice(s[self.offset:], self.idxes))
                 f.write('{} {}\n'.format(' '.join(fam), ' '.join(geno)))
 
 ##Meaningful funtions
