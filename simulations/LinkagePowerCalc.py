@@ -197,7 +197,7 @@ def main(args, unknown_args):
         res = {'lods':{}, 'hlods':{}}
         for score in ['lods', 'hlods']:
             for fn in glob.glob('{}/heatmap/*.{}'.format(args.outfile, score)):
-                for marker, value in zip(getColumn(fn, 1), getColumn(fn, -1)):
+                for marker, theta, value in zip(getColumn(fn, 1), getColumn(fn,-2), getColumn(fn,-1)):
                     value = float(value)
                     # convert single SNV marker to gene marker
                     if ":" in marker:
@@ -205,7 +205,7 @@ def main(args, unknown_args):
                     if marker not in res[score]:
                         res[score][marker] = value
                     else:
-                        if value > res[score][marker]:
+                        if theta == '0.0':
                             res[score][marker] = value
         # write result to file and calculate significance
         for score in res:

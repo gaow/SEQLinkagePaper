@@ -1,0 +1,5 @@
+This is result from multipoint linkage using GeneHunter, analyzed by Di Zhang
+FAM{No.} : FAM No.
+RUN{No.} : No. = 10 * p
+gene{No.} : 0 is the S gene, 1 is the G gene
+MultipointCHPCompare is the results from CHP matching the scenario for multipoint linkage

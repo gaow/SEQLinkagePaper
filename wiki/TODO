@@ -25,3 +25,8 @@ what's really left to do:
 7. make sure forum works
 8. collect and organize result from simulation studies
 I'll leave these alone for now and move on to new project until we start to finalize the project
+
+Tue Nov  4 17:50:41 CST 2014
+SEQLinkage 1.0.0 todo:
+1. allow negative LOD score plot for the heatmap
+2. re-calculate haplotype MAF using the Poisson PMF
