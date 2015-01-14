@@ -348,7 +348,16 @@ def parseGeneInfo(fileName, recRate=0):
     if recRate:
         # read the last column as recombination rate (unit: CM - centimorgan)
         info['cm'] = [float(i[5]) for i in rows]
-        info['prob_rec'] = [0] + [(info['cm'][i+1]-info['cm'][i])/100. for i in range(len(info['cm'])-1)]
+        info['num_rec'] = [(info['cm'][i+1]-info['cm'][i])/100. for i in range(len(info['cm'])-1)]
+        # assume that number of crossing overs between any two adjacent var sites can be modeled by a Poisson distribution (absence of interference)
+        from scipy.stats import poisson
+        import math
+        info['prob_rec'] = [0]
+        for mu in info['num_rec']:
+            rv = poisson(mu)
+            pmf = rv.pmf(0)
+            info['prob_rec'].append(0) if math.isnan(pmf) else info['prob_rec'].append(1-rv.pmf(0))
+        # info['prob_rec'] = [0] + [(info['cm'][i+1]-info['cm'][i])/100. for i in range(len(info['cm'])-1)]
         from operator import mul
         info['rec_rate'] = 1 - reduce(mul, [1-i for i in info['prob_rec']], 1)
     info['d_idx'] = [i for i,j in enumerate(info['annotation']) if j]
