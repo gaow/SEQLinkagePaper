@@ -80,7 +80,7 @@ def arguments(parser):
     parser.add_argument('--recrate',
                         type=float,
                         default=0,
-                        help='''Recombination rate on the gene region''')
+                        help=''''= 0' - no recombination; '> 0' - use derived recombination rate''')
     parser.add_argument('-r', '--num-replicates',
                         dest = 'numreps',
                         type=int,
@@ -153,7 +153,7 @@ def main(args, unknown_args):
     ## update proportions of number of offspring
     offNumProp = updateOffNumProp(args.offspring)
     ## parse input gene info
-    gene1, gene2 = parseGeneInfo(args.genes[0]), parseGeneInfo(args.genes[1])
+    gene1, gene2 = parseGeneInfo(args.genes[0], recRate=args.recrate), parseGeneInfo(args.genes[1], recRate=args.recrate)
     ## clean up directory
     cleanup(['lods','hlods'])
     ## simulation
@@ -331,7 +331,7 @@ def updateOffNumProp(offspringRange):
     
 
 
-def parseGeneInfo(fileName):
+def parseGeneInfo(fileName, recRate=0):
     '''
     parse input gene file (*.tsv) and return dict obj of gene info
     '''
@@ -345,6 +345,12 @@ def parseGeneInfo(fileName):
     info['pos'] = [int(i[1]) for i in rows]
     info['maf'] = [float(i[2]) for i in rows]
     info['annotation'] = [bool(int(i[4])) for i in rows]
+    if recRate:
+        # read the last column as recombination rate (unit: CM - centimorgan)
+        info['cm'] = [float(i[5]) for i in rows]
+        info['prob_rec'] = [0] + [(info['cm'][i+1]-info['cm'][i])/100. for i in range(len(info['cm'])-1)]
+        from operator import mul
+        info['rec_rate'] = 1 - reduce(mul, [1-i for i in info['prob_rec']], 1)
     info['d_idx'] = [i for i,j in enumerate(info['annotation']) if j]
     info['nd_idx'] = [i for i,j in enumerate(info['annotation']) if not j]
     info['d_maf'] = [info['maf'][i] for i in info['d_idx']]
@@ -410,8 +416,10 @@ def getMarkerHaps(geneInfo, numOffspring, mVarIdx, recRate, fakeLD=False, parToM
         [markerHaps.update({i+3:[parHaps[random.choice([0,1])], parHaps[random.choice([2,3])]]}) for i in range(numOffspring)]
     else:
         for idx in range(numOffspring):
-            indHap1 = genGametHap(parHaps[0], parHaps[1], recRate)
-            indHap2 = genGametHap(parHaps[2], parHaps[3], recRate)
+            rec_rate = geneInfo['rec_rate']
+            prob_rec = geneInfo['prob_rec']
+            indHap1 = genGametHap(parHaps[0], parHaps[1], rec_rate, prob_rec)
+            indHap2 = genGametHap(parHaps[2], parHaps[3], rec_rate, prob_rec)
             markerHaps[idx+3] = [indHap1, indHap2]
     # fake LD structure if fakeLD is True
     if fakeLD:
@@ -483,7 +491,9 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx, recRate, fakeLD=False, 
                 [causalHaps.update({i+3:[parHaps[j[0]], parHaps[j[1]]]}) for i,j in enumerate(offHapIdx)]
                 break
         else: # with recombination
-            offspringAff, offspringHaps = genOffspringAffAndHaps(mode, numOffspring, [hap1, hap2, hap3, hap4], geneInfo['d_idx'], recRate)
+            rec_rate = geneInfo['rec_rate']
+            prob_rec = geneInfo['prob_rec']
+            offspringAff, offspringHaps = genOffspringAffAndHaps(mode, numOffspring, [hap1, hap2, hap3, hap4], geneInfo['d_idx'], rec_rate, prob_rec)
             if offspringAff.count(2) >= 2:
                 causalHaps[1], causalHaps[2] = [hap1, hap2], [hap3, hap4]
                 [causalHaps.update({i+3:x}) for i,x in enumerate(offspringHaps)]
@@ -515,7 +525,7 @@ def getCausalHaps(geneInfo, mode, numOffspring, dVarIdx, recRate, fakeLD=False, 
     return causalHaps, aff
         
 
-def genOffspringAffAndHaps(mode, numOffspring, haps, d_idx, recRate):
+def genOffspringAffAndHaps(mode, numOffspring, haps, d_idx, recRate, probRec):
     def check_recessive_causal(h1, h2):
         if 2 in [x+y for i,(x,y) in enumerate(zip(h1, h2)) if i in d_idx]:
             return 2
@@ -525,8 +535,8 @@ def genOffspringAffAndHaps(mode, numOffspring, haps, d_idx, recRate):
     offHaps = [None] * numOffspring
     aff = [1] * numOffspring
     for idx in range(numOffspring):
-        indHap1 = genGametHap(haps[0], haps[1], recRate)
-        indHap2 = genGametHap(haps[2], haps[3], recRate)
+        indHap1 = genGametHap(haps[0], haps[1], recRate, probRec)
+        indHap2 = genGametHap(haps[2], haps[3], recRate, probRec)
         offHaps[idx] = [indHap1, indHap2]
         g = [checkIfCausal(d_idx, indHap1), checkIfCausal(d_idx, indHap2)]
         n = g.count(True)
@@ -568,12 +578,23 @@ def genOffspringAffAndHapIdx(mode, parentalHapCausality, numOffspring, haps, d_i
     return aff, hapIdx
             
 
-def genGametHap(hap1, hap2, recRate):
+def wheelSpin(probs):
+    '''
+    return which idx is selected according to given probabilities
+    '''
+    choice = random.random() * sum(probs)
+    for i, w in enumerate(probs):
+        choice -= w
+        if choice < 0:
+            return i  
+
+
+def genGametHap(hap1, hap2, recRate, probRec):
     '''
     generate a gamet haplotype allowing for recombination
     '''
     if random.random() < recRate:
-        spot = random.choice(range(len(hap1))[1:])
+        spot = wheelSpin(probRec)
         hap3 = hap1[:spot] + hap2[spot:]
         hap4 = hap2[:spot] + hap1[spot:]
         return random.choice([hap1, hap2, hap3, hap4])
