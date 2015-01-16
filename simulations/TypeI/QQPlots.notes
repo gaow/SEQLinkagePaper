@@ -1,0 +1,19 @@
+#{bash
+grep SLC2 FAM20EfreqNull.hlods | cut -f2 > /tmp/1.txt
+grep SLC2 FAM20EfreqNoLDPMissing.hlods | cut -f2 > /tmp/2.txt
+grep SLC2 FAM20SfreqNoLDPMissing.hlods | cut -f2 > /tmp/3.txt
+#}
+#{r
+d1 = sort(scan('/tmp/1.txt'))
+d2 = sort(scan('/tmp/2.txt'))
+d3 = sort(scan('/tmp/3.txt'))
+d0 = sort(scan('/tmp/1.txt')[1:1000])
+pdf()
+plot(d0,d2)
+abline(0,1)
+plot(d0,d3)
+plot(d2,d3)
+hist(d1)
+dev.off()
+length(which(d1>3.6))
+#}
