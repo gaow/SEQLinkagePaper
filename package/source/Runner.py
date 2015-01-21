@@ -357,7 +357,7 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
                             elif fam not in lods[theta] or lod > lods[theta][fam]:
                                 lods[theta][fam] = lod
         for theta in sorted(lods.keys()):
-            res = minimize_scalar(hlod_fun(lods[theta].values(), -1), bounds=(0,1), method='bounded', options={'xtol':1e-8})
+            res = minimize_scalar(hlod_fun(lods[theta].values(), -1), bounds=(0,1), method='bounded', options={'xatol':1e-8})
             a = res.x
             lods_fh.write('{} {} {} {}\n'.format(gene, ' '.join(map(str, genemap[gene])), theta, sum(lods[theta].values())))
             hlods_fh.write('{} {} {} {} {}\n'.format(gene, ' '.join(map(str, genemap[gene])), a, theta, hlod_fun(lods[theta].values())(a)))
