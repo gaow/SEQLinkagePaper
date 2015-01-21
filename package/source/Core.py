@@ -249,7 +249,6 @@ class MarkerMaker:
                                                                sorted(positions), data.getFamSamples(item))[0]
                 else:
                     haplotypes[item] = self.__PedToHaplotype(data.getFamSamples(item))
-                
             if len(haplotypes[item]) == 0:
                 # C++ haplotyping implementation failed
                 with env.chperror_counter.get_lock():
