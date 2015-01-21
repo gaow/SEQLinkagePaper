@@ -21,6 +21,7 @@ def checkParams(args):
     '''set default arguments or make warnings'''
     env.debug = args.debug
     env.quiet = args.quiet
+    env.prephased = args.prephased
     args.vcf = os.path.abspath(os.path.expanduser(args.vcf))
     args.tfam = os.path.abspath(os.path.expanduser(args.tfam))
     for item in [args.vcf, args.tfam]:
@@ -242,9 +243,13 @@ class MarkerMaker:
                     sys.stderr.write('\n'.join(['\t'.join(x) for x in data.getFamSamples(item)]) + '\n\n')
             # haplotyping
             with env.lock:
-                with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
-                    haplotypes[item] = self.haplotyper.Execute(data.chrom, varnames[item],
+                if not env.prephased:
+                    with stdoutRedirect(to = env.tmp_log + str(os.getpid()) + '.log'):
+                        haplotypes[item] = self.haplotyper.Execute(data.chrom, varnames[item],
                                                                sorted(positions), data.getFamSamples(item))[0]
+                else:
+                    haplotypes[item] = self.__PedToHaplotype(data.getFamSamples(item))
+                
             if len(haplotypes[item]) == 0:
                 # C++ haplotyping implementation failed
                 with env.chperror_counter.get_lock():
@@ -386,6 +391,19 @@ class MarkerMaker:
             if diff > 0:
                 data[person].extend([self.missings] * diff)
         
+    def __PedToHaplotype(self, ped):
+        '''convert prephased ped format to haplotype format.
+        Input: e.g. [['13346', '5888', '0', '0', '1', '11', '11', '11'], ['13346', '5856', '0', '0', '2', '12', '12', '12'], ['13346', '5920', '5888', '5856', '1', '12', '12', '12'], ['13346', '6589', '5888', '5856', '1', '11', '11', '11']]
+        Output: e.g. (('13346', '5856', '1:', '1:', '1:'), ('13346', '5856', '2:', '2:', '2:'), ('13346', '5888', '1:', '1:', '1:'), ('13346', '5888', '1:', '1:', '1:'), ('13346', '6589', '1:', '1|', '1|'), ('13346', '6589', '1:', '1|', '1|'), ('13346', '5920', '2:', '2|', '2|'), ('13346', '5920', '1:', '1|', '1|'))
+        '''
+        haps = []
+        for item in ped:
+            entry = [item[0], item[1]] + [x[0] + ':' if x[0] != '0' else '?:' for x in item[5:]]
+            haps.append(tuple(entry))
+            entry = [item[0], item[1]] + [x[1] + ':' if x[1] != '0' else '?:' for x in item[5:]]
+            haps.append(tuple(entry))
+        return tuple(haps)
+
 
 class LinkageWriter:
     def __init__(self, num_missing_append = 0):

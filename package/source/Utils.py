@@ -41,6 +41,7 @@ class Environment:
         self.delimiter = " "
         self.ped_missing = ['0', '-9'] + ['none', 'null', 'na', 'nan', '.']
         self.trait = 'binary'
+        self.prephased = False
         # Input & output options
         self.output = 'LINKAGE'
         self.tmp_log = os.path.join(self.tmp_dir, "clog." + self.output)

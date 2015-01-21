@@ -49,6 +49,7 @@ class Args:
         vargs.add_argument('--fam', metavar='FILE', required=True, dest = "tfam",
                            help='''Input pedigree and phenotype information in FAM format.''')
         vargs.add_argument('--vcf', metavar='FILE', required=True, help='''Input VCF file, bgzipped.''')
+        vargs.add_argument('--prephased', action='store_true', help='Input VCF is phased.')
         vargs.add_argument('--freq', metavar='INFO', help='''Info field name for allele frequency in VCF file.''')
         vargs.add_argument('-c', '--maf-cutoff', metavar='P', type=float, dest = "maf_cutoff",
                            help='''MAF cutoff to define "common" variants to be excluded from analyses.''')
