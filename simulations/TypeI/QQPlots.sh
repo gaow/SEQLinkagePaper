@@ -66,4 +66,6 @@ if [ "$(uname)" == "Darwin" ]; then
 else
     prog='google-chrome'
 fi
-$prog $gene.pdf 
+$prog $gene.pdf
+echo "Converting to PNG format for use in manuscript's supplemental material ..."
+convert -density 300 $gene.pdf FigS1.png
