@@ -24,9 +24,8 @@ class Args:
         self.parser.set_defaults(func=main)
 
     def isalnum(self, string):
-        for item in os.path.split(string):
-            if not item.isalnum():
-                raise ArgumentTypeError("Illegal path name [%]: must be alphanumerical string." % string)
+        if not os.path.basename(string).isalnum():
+            raise ArgumentTypeError("Illegal path name [%]: must be alphanumerical string." % string)
         return string
 
     def get(self):
