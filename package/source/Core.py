@@ -558,7 +558,10 @@ def main(args):
                        ('{}/uploads/{}/unknown'.format(HOMEPAGE, platform.system().lower()), env.resource_bin),
                        ('{}/uploads/{}/makeped'.format(HOMEPAGE, platform.system().lower()), env.resource_bin),
                        ('{}/uploads/{}/pedcheck'.format(HOMEPAGE, platform.system().lower()), env.resource_bin)])
-    cache = Cache(env.cache_dir, env.output, vars(args))
+    if args.no_save:
+        cache = NoCache()
+    else:
+        cache = Cache(env.cache_dir, env.output, vars(args))
     cache.setID('vcf')
     # STEP 1: write encoded data to TPED format
     if not args.vanilla and cache.check():
@@ -677,7 +680,7 @@ def main(args):
             env.log('Archiving {} format to directory [{}]'.format(fmt.upper(), env.cache_dir))
             cache.write(arcroot = fmt.upper(),
                         source_dir = os.path.join(env.tmp_dir, fmt.upper()), mode = 'a')
-    mkpath(env.output)
+    mkpath(env.outdir)
     if args.run_linkage:
         cache.setID('analysis')
         if not args.vanilla and cache.check():

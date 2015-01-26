@@ -7,6 +7,7 @@ import platform
 from SEQLinkage import HOMEPAGE
 from SEQLinkage.Utils import env, getColumn
 from SEQLinkage.Core import main
+import os
 
 class Args:
     def __init__(self):
@@ -72,6 +73,7 @@ class Args:
                            help='''Load cache data for analysis instead of starting afresh.''')
         vargs.add_argument('-q', '--quiet', action='store_true', help='Disable the display of runtime MESSAGE.')
         vargs.add_argument('--debug', action='store_true', help=SUPPRESS)
+        vargs.add_argument('--no-save', action='store_true', dest='no_save', help=SUPPRESS)
 
     def getLinkageArguments(self, parser):
         vargs = parser.add_argument_group('LINKAGE options')

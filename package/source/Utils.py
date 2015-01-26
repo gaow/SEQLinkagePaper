@@ -510,6 +510,19 @@ def checkSamples(samp1, samp2):
         env.log('{:,d} samples in VCF file will be ignored due to absence in FAM file'.format(len(a_not_b)))
     return a_not_b, b_not_a
 
+class NoCache:
+    def setID(self, ID):
+        pass
+    def check(self):
+        return True
+    def load(self, target_dir = None, names = None):
+        pass
+    def write(self, source_dir = None, arcroot = '/', pres = [], exts=[],
+              files = [], mode = 'w'):
+        pass
+    def clear(self, pres = [], exts = []):
+        pass
+    
 class Cache:
     def __init__(self, cache_dir, cache_name, params):
         self.cache_dir = cache_dir
