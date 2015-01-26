@@ -28,6 +28,7 @@ def checkParams(args):
         if not os.path.exists(item):
             env.error("Cannot find file [{}]!".format(item), exit = True)
     if args.output:
+        env.outdir = args.output
         env.output = os.path.split(args.output)[-1]
         env.tmp_log = os.path.join(env.tmp_dir, env.output + ".STDOUT")
     #

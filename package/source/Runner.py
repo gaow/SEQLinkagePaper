@@ -19,17 +19,17 @@ def format(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, thet
     if out_format == 'plink':
         parmap(lambda x: format_plink(x, tfam), tpeds, env.jobs)
     elif out_format == 'mega2':
-        mkpath(os.path.join(env.output, 'MEGA2'))
+        mkpath(os.path.join(env.outdir, 'MEGA2'))
         parmap(lambda x: format_mega2(x, tfam), tpeds, env.jobs)
     elif out_format == 'merlin':
-        mkpath(os.path.join(env.output, 'MERLIN'))
+        mkpath(os.path.join(env.outdir, 'MERLIN'))
         parmap(lambda x: format_merlin(x, tfam), tpeds, env.jobs)
     elif out_format == 'linkage':
         parmap(lambda x: format_linkage(x, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc), tpeds, env.jobs)
 
 #plink format, ped and map 
 def format_plink(tped, tfam):
-    out_base = '{}/PLINK/{}'.format(env.output, splitext(basename(tped))[0])
+    out_base = '{}/PLINK/{}'.format(env.outdir, splitext(basename(tped))[0])
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
         geno = []
         with open(out_base + '.map', 'w') as m:
@@ -47,7 +47,7 @@ def format_plink(tped, tfam):
 def format_mega2(tped, tfam):
     trait = 'A' if env.trait == 'binary' else 'T'
     pedheader = ['Pedigree', 'ID', 'Father', 'Mother', 'Sex', 'Trait.{}'.format(trait)]
-    out_base = os.path.join(env.output, 'MEGA2')
+    out_base = os.path.join(env.outdir, 'MEGA2')
     suffix =  re.search(r'chr([0-9XY]+)', basename(tped)).groups()[0]
     with open(tped) as tph, open(tfam) as tfh:
         geno = []
@@ -86,7 +86,7 @@ def format_mega2(tped, tfam):
 def format_merlin(tped, tfam):
     trait = 'A' if env.trait == 'binary' else 'T'
     #pedheader = ['Pedigree', 'ID', 'Father', 'Mother', 'Sex', 'Trait.{}'.format(trait)]
-    out_base = os.path.join(env.output, 'MERLIN', splitext(basename(tped))[0])
+    out_base = os.path.join(env.outdir, 'MERLIN', splitext(basename(tped))[0])
     #suffix =  re.search(r'chr([0-9XY]+)', basename(tped)).groups()[0]
     with open(tped) as tph, open(tfam) as tfh:
         geno = []
@@ -266,7 +266,7 @@ class Pedigree:
 #runners
 def run_linkage(blueprint, theta_inc, theta_max, to_plot = True):
     try:
-        remove_tree(os.path.join(env.output, 'heatmap'))
+        remove_tree(os.path.join(env.outdir, 'heatmap'))
     except OSError:
         pass
     with open(os.path.join(env.tmp_dir, 'LinkageRuntimeError.txt'), 'w') as runtime_err:
@@ -292,9 +292,9 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
                 pos = items[3]
                 genemap[gene] = [chrID, int(pos), int(pos)+1]
     with env.lock:
-        mkpath('{}/heatmap'.format(env.output))
-    lods_fh = open('{}/heatmap/{}.lods'.format(env.output, basename(workdir)), 'w')
-    hlods_fh = open('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)), 'w')
+        mkpath('{}/heatmap'.format(env.outdir))
+    lods_fh = open('{}/heatmap/{}.lods'.format(env.outdir, basename(workdir)), 'w')
+    hlods_fh = open('{}/heatmap/{}.hlods'.format(env.outdir, basename(workdir)), 'w')
     genes = filter(lambda g: g in genemap, map(basename, glob.glob(workdir + '/*')))
     for gene in sorted(genes, key=lambda g: genemap[g]):
         lods = {}
@@ -368,8 +368,8 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
     lods_fh.close()
     hlods_fh.close()
     if to_plot:
-        heatmap('{}/heatmap/{}.lods'.format(env.output, basename(workdir)), theta_inc, theta_max)
-        heatmap('{}/heatmap/{}.hlods'.format(env.output, basename(workdir)), theta_inc, theta_max)
+        heatmap('{}/heatmap/{}.lods'.format(env.outdir, basename(workdir)), theta_inc, theta_max)
+        heatmap('{}/heatmap/{}.hlods'.format(env.outdir, basename(workdir)), theta_inc, theta_max)
     #env.log("Finished running LINKAGE for {}.".format(workdir), flush=True)
 
 
@@ -502,7 +502,7 @@ def html(theta_inc, theta_max, limit):
     </body>
     </html>"""
     env.log('Generating Reports in html format ...', flush = True)
-    with open('{0}/{0}_Report.html'.format(env.output), 'w') as f:
+    with open('{}/{}_Report.html'.format(env.outdir, env.output), 'w') as f:
         #t = Template(index)
         #c = Context({ "lods": lods_tbl })
         f.write(head + body.format(html_table('Lod', theta_inc, theta_max, limit), html_table('Hlod', theta_inc, theta_max, limit), html_img('lod'), html_img('hlod')))
@@ -511,7 +511,7 @@ def html(theta_inc, theta_max, limit):
 def html_img(ltype):
     chrs = ['{}'.format(i+1) for i in range(22)] + ['X', 'Y']
     imgs = ['heatmap/{0}.chr{1}.{2}s.png'.format(env.output, chrID, ltype) for chrID in chrs]
-    exist_imgs = [img for img in imgs if isfile('{}/{}'.format(env.output,img))]
+    exist_imgs = [img for img in imgs if isfile('{}/{}'.format(env.outdir,img))]
     return ''.join('<img src={}></img>'.format(img) for img in exist_imgs)
         
 def html_table(type, theta_inc, theta_max, limit):
@@ -530,7 +530,7 @@ def html_table(type, theta_inc, theta_max, limit):
         lods[theta_order] = {}
         #print '{}\n'.format(theta_order)
     #read lods
-    lods_files = glob.glob('{0}/heatmap/{0}.*.{1}s'.format(env.output, type.lower()))
+    lods_files = glob.glob('{}/heatmap/{}.*.{}s'.format(env.outdir, env.output, type.lower()))
     for file in lods_files:
         with open(file, 'r') as f:
             for line in f:

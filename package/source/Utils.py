@@ -44,6 +44,7 @@ class Environment:
         self.prephased = False
         # Input & output options
         self.output = 'LINKAGE'
+        self.outdir = 'LINKAGE'
         self.tmp_log = os.path.join(self.tmp_dir, "clog." + self.output)
         # Multiprocessing counters
         self.batch = 50
