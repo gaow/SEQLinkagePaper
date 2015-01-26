@@ -8,6 +8,7 @@ import progressbar
 import collections, csv
 import numpy as np
 import glob
+from SEQLinkage.Utils import runCommand
 
 def indexVCF(vcf, verbose = True):
     if not vcf.endswith(".gz"):
@@ -187,8 +188,8 @@ def main(args, unknown_args):
             if not args.debug:
                 pbar.update(i)
             continue
-        if not args.save:
-            cleanup(['vcf.gz', 'vcf.gz.tbi'])
+        #if not args.save:
+        #    cleanup(['vcf.gz', 'vcf.gz.tbi'])
         vcf = indexVCF(vcf, verbose = False)
         # linkage analysis
         cmd = "seqlink --vcf {} --fam {} --output {} {} 2> /dev/null".\
@@ -219,6 +220,8 @@ def main(args, unknown_args):
                         counter[marker][score][1] += 1 
                     else:
                         counter[marker][score][1] += 1 
+        if not args.save:
+            os.system('rm -rf {0}/ {0}rep{1}*'.format(args.outfile, i))
         if not args.debug:
             pbar.update(i)
     if not args.debug:
