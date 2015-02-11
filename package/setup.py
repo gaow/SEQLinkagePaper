@@ -28,9 +28,10 @@ except ImportError:
     sys.stderr.write("Installing cstatgen library ...\n")
     try:
         remove_tree(pkg_dir)
+        os.mkdir(pkg_dir)
     except:
-        pass
-    os.system("tar zxvf {} -C {} > /dev/null".format(pkg, download_dir))
+        os.mkdir(pkg_dir)
+    os.system("tar zxvf {} -C {} > /dev/null".format(pkg, pkg_dir))
     cwd = os.getcwd()
     os.chdir(pkg_dir)
     cmd = "python setup.py install {}".format(" ".join(sys.argv[2:]))
