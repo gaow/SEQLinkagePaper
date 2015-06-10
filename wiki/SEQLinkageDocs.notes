@@ -157,7 +157,7 @@ tabix -p vcf -f data.vcf.gz
 #!! @@--tempdir@@ [default to system temporary folder]
 # The linkage analysis routine in SEQLinkage performs analysis per marker per family, thus involving frequent file I/O operations which can be a computational bottleneck. By default such I/O operations take place in one of the system temporary foldes, e.g. @@/tmp@@, @@/var/tmp@@ in Linux system. To speed things up one can set the SEQLinkage temporary directory to some high speed hard drives, e.g. a solid state drive (SSD), or, if possible, a ``RAM drive''. Below is an example to create a 5GB RAM drive in Linux:
 sudo mkdir /tmp/ramdisk; sudo chmod 777 /tmp/ramdisk
-sudo mount -t tmpfs -o size=5120M ramfs /tmp/ramdisk
+sudo mount -t ramfs -o size=5120M ramfs /tmp/ramdisk
 # With @@--tempdir /tmp/ramdisk@@ option the newly created RAM drive will be used for the intensive file I/O in the analysis.
 #!! @@--cache@@ [default to disabled]
 # To speed up repeated runs of SEQLinkage on the same data set under similar parameter settings, data are archived to the @@cache@@ folder under the work directory the first time SEQLinkage executes. With this switch on, SEQLinkage will used the archived data whenever appropriate to skip as many steps previously performed. For example in a repeated analysis under the same setting but only change @@--output-entries@@ from 10 to 50, SEQLinkage will skip the CHP coding and linkage analysis step, only updating the result HTML table using archived analysis results.
