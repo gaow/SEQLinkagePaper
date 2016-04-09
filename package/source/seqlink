@@ -1,5 +1,5 @@
-#!/usr/bin/python
-# Copyright (c) 2013 - 2014, Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu>
+#!/usr/bin/python2.7
+# Copyright (c) 2013 - 2014, Gao Wang <gaow@uchicago.edu> and Di Zhang <di.zhang@bcm.edu>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 
 from argparse import ArgumentParser, ArgumentTypeError, RawDescriptionHelpFormatter, SUPPRESS
@@ -17,7 +17,7 @@ class Args:
         formatter_class = RawDescriptionHelpFormatter, 
         prog = env.prog,
         fromfile_prefix_chars = '@', add_help = False,
-        epilog = '''\tCopyright (c) 2013 - 2014 Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu>\n\tDistributed under GNU General Public License\n\tHome page: {}'''.format(HOMEPAGE))
+        epilog = '''\tCopyright (c) 2013 - 2014 Gao Wang <gaow@uchicago.edu> and Di Zhang <di.zhang@bcm.edu>\n\tDistributed under GNU General Public License\n\tHome page: {}'''.format(HOMEPAGE))
         self.getEncoderArguments(self.parser)
         self.getIOArguments(self.parser)
         self.getLinkageArguments(self.parser)

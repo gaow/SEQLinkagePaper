@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 # $File: release.py $
 # $LastChangedDate:  $
 # $Rev:  $
@@ -83,7 +83,7 @@ def buildPackage(extra_args):
     try:
         print('Building and installing {} ...'.format(PROJ))
         with open(os.devnull, 'w') as fnull:
-            ret = subprocess.call('python setup.py install ' + ' '.join(extra_args),
+            ret = subprocess.call('python2.7 setup.py install ' + ' '.join(extra_args),
                                   shell=True, stdout=fnull)
             if ret != 0:
                 sys.exit('Failed to build and install {}.'.format(PROJ))
@@ -95,7 +95,7 @@ def buildSourcePackage(version):
     try:
         print('Building source package of {} {} ...'.format(PROJ, version))
         with open(os.devnull, 'w') as fnull:
-            ret = subprocess.call('python setup.py sdist', shell=True, stdout=fnull)
+            ret = subprocess.call('python2.7 setup.py sdist', shell=True, stdout=fnull)
             if ret != 0:
                 sys.exit('Failed to build source package of {}.'.format(PROJ))
         os.rename('dist/{}-{}.tar.gz'.format(PROJ, version),
@@ -144,7 +144,7 @@ def buildExecutables(git_dir, option):
             rm(os.path.join('dist', exe))
             print('Building executable {} ...'.format(exe))
             with open(os.devnull, 'w') as fnull:
-                ret = subprocess.call('python {} {} --log-level=ERROR {} '
+                ret = subprocess.call('python2.7 {} {} --log-level=ERROR {} '
                     .format(os.path.join(git_dir, 'pyinstaller.py'), option, os.path.join(EXEDIR, exe)),
                     shell=True, stdout=fnull)
                 if ret != 0:
@@ -207,7 +207,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='''Create source distribution 
         and executables for a {} release. In addition to optional
         parameters version and tag, extra parameters would be specified and 
-        will be passed directly to the 'python setup.py install' process.'''.format(PROJ))
+        will be passed directly to the 'python2.7 setup.py install' process.'''.format(PROJ))
     parser.add_argument('--version', default = VERDEV,
         help='''Modify {}/__init__.py to the specified version string and
             make the release.'''.format(SRCDIR))

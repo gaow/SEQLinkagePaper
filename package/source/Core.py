@@ -1,5 +1,5 @@
-#!/usr/bin/python
-# Copyright (c) 2013, Gao Wang <gaow@bcm.edu>
+#!/usr/bin/python2.7
+# Copyright (c) 2013, Gao Wang <gaow@uchicago.edu>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 from __future__ import print_function
 from SEQLinkage import HOMEPAGE

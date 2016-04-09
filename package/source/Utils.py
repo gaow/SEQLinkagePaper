@@ -1,5 +1,5 @@
-#!/usr/bin/python
-# Copyright (c) 2013 - 2014, Gao Wang <gaow@bcm.edu> and Di Zhang <di.zhang@bcm.edu>
+#!/usr/bin/python2.7
+# Copyright (c) 2013 - 2014, Gao Wang <gaow@uchicago.edu> and Di Zhang <di.zhang@bcm.edu>
 # GNU General Public License (http://www.gnu.org/licenses/gpl.html)
 from . import VERSION
 import sys, os, subprocess, shutil, glob, shlex, urlparse, re, hashlib, tempfile
@@ -14,7 +14,7 @@ from zipfile import ZipFile
 
 # from distutils.dir_util import mkpath
 def mkpath(directory):
-    '''Have to use system mkdir here because python's mkpath is currently faulty!'''
+    '''Have to use system mkdir here because python2.7's mkpath is currently faulty!'''
     os.system('mkdir -p {}'.format(directory))
 
 ###

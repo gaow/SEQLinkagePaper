@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2.7
 # Di Zhang diz@bcm.edu
 #
 from SEQLinkage.Utils import *
