@@ -49,10 +49,10 @@ def modifyInit(version, include = [], exclude = []):
         rev = subprocess.check_output('date', shell=True).decode().strip()
     try:
         cppversion = subprocess.check_output('gcc -dumpversion', shell=True,
-                                          stderr=subprocess.STDOUT).strip().split('\n')[0] 
+                                          stderr=subprocess.STDOUT).strip().split('\n')[0]
     except:
         cppversion = subprocess.check_output('gcc -dumpversion', shell=True,
-                                          stderr=subprocess.STDOUT).decode().strip().split('\n')[0] 
+                                          stderr=subprocess.STDOUT).decode().strip().split('\n')[0]
     full_version = "{}, released on {}, developed under Python {}.{}.{} and GNU/GCC {}".\
       format(version, rev, sys.version_info.major, sys.version_info.minor, sys.version_info.micro, cppversion)
     #
@@ -121,7 +121,7 @@ def obtainPyInstaller(pyinstaller_dir):
                     sys.exit('Failed to clone pyinstaller. Please check if you have git installed.'
                         'You can also get pyinstaller manually anf decompress it under the pyinstaller directory.')
         except Exception as e:
-            sys.exit('Failed to clone pyinstaller: {}'.format(e) + 
+            sys.exit('Failed to clone pyinstaller: {}'.format(e) +
                 'You can get pyinstaller manually anf decompress it under the pyinstaller directory '
                 'if you are having trouble getting git installed.')
     else:
@@ -204,9 +204,9 @@ def tagRelease(version):
         sys.exit('Failed to commit and tag release {}: {}'.format(version, e))
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='''Create source distribution 
+    parser = argparse.ArgumentParser(description='''Create source distribution
         and executables for a {} release. In addition to optional
-        parameters version and tag, extra parameters would be specified and 
+        parameters version and tag, extra parameters would be specified and
         will be passed directly to the 'python2.7 setup.py install' process.'''.format(PROJ))
     parser.add_argument('--version', default = VERDEV,
         help='''Modify {}/__init__.py to the specified version string and
@@ -234,7 +234,7 @@ if __name__ == '__main__':
     git_dir = obtainPyInstaller(args.pyinstaller_dir)
     if args.onefile:
         buildExecutables(git_dir, '--onefile')
-        createZipPackage(args.version)  
+        createZipPackage(args.version)
     else:
         buildExecutables(git_dir, '--onedir')
         createPackage(args.version, data_dir = os.path.join(DEVDIR, 'data'))

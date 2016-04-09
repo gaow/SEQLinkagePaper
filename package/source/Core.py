@@ -10,6 +10,7 @@ from collections import OrderedDict
 import itertools
 from copy import deepcopy
 import sys, faulthandler, platform
+import numpy as np
 
 if sys.version_info.major == 2:
     from cstatgen import cstatgen_py2 as cstatgen
@@ -78,8 +79,8 @@ class RData(dict):
         self.chrom = None
         for k in self.families:
             self.famvaridx[k] = []
-        self.maf = OrderedDict() 
-        # superMarkerCount is the max num. of recombinant fragments among all fams   
+        self.maf = OrderedDict()
+        # superMarkerCount is the max num. of recombinant fragments among all fams
         self.superMarkerCount = 0
 
     def getMidPosition(self):
@@ -115,7 +116,7 @@ class RData(dict):
                 output[idx].extend(["00"] * nvar)
         return output
 
-    
+
 class RegionExtractor:
     '''Extract given genomic region from VCF
     converting genotypes into dictionary of
@@ -128,7 +129,7 @@ class RegionExtractor:
         self.af_info = allele_freq_info
         self.xchecker = PseudoAutoRegion('X', build)
         self.ychecker = PseudoAutoRegion('Y', build)
-        
+
     def apply(self, data):
         # Clean up
         data.reset()
@@ -142,13 +143,13 @@ class RegionExtractor:
                 with env.triallelic_counter.get_lock():
                     env.triallelic_counter.value += 1
                 continue
-            # check if the line's sample number matches the entire VCF sample number 
+            # check if the line's sample number matches the entire VCF sample number
             if not self.vcf.CountSampleGenotypes() == self.vcf.sampleCount:
                 raise ValueError('Genotype and sample mismatch for region {}: {:,d} vs {:,d}'.\
                              format(self.name, self.vcf.CountSampleGenotypes(), self.vcf.sampleCount))
             # valid line found, get variant info
             try:
-                maf = float(self.vcf.GetInfo(self.af_info)) if self.af_info else None 
+                maf = float(self.vcf.GetInfo(self.af_info)) if self.af_info else None
                 if maf > 0.5:
                     maf = 1 - maf
             except Exception as e:
@@ -167,21 +168,21 @@ class RegionExtractor:
                     for person, g in zip(data.families[k], gs):
                         data[person].append(g)
             varIdx += 1
-        # 
+        #
         if varIdx == 0:
             return 1
         else:
             with env.variants_counter.get_lock():
-                env.variants_counter.value += varIdx 
+                env.variants_counter.value += varIdx
             return 0
-            
+
 
     def getRegion(self, region):
         self.chrom, self.startpos, self.endpos, self.name = region[:4]
         self.startpos = int(self.startpos)
         self.endpos = int(self.endpos) + 1
         if self.chrom in ['X','23']:
-            if self.xchecker.check(self.startpos) or self.xchecker.check(self.endpos): 
+            if self.xchecker.check(self.startpos) or self.xchecker.check(self.endpos):
                 self.chrom = 'XY'
         if self.chrom in ['Y','24']:
             if self.ychecker.check(self.startpos) or self.ychecker.check(self.endpos):
@@ -189,7 +190,7 @@ class RegionExtractor:
         if self.chr_prefix and not self.chrom.startswith(self.chr_prefix):
             self.chrom = self.chr_prefix + self.chrom
 
-    
+
 class MarkerMaker:
     def __init__(self, wsize, maf_cutoff = None):
         self.missings = ("0", "0")
@@ -204,7 +205,7 @@ class MarkerMaker:
 
     def apply(self, data):
         # temp raw haplotype, maf and variant names data
-        haplotypes = OrderedDict() 
+        haplotypes = OrderedDict()
         mafs = {}
         varnames = {}
         try:
@@ -224,7 +225,7 @@ class MarkerMaker:
             return -1
         self.__FormatHaplotypes(data)
         return 0
-    
+
     def __Haplotype(self, data, haplotypes, mafs, varnames):
         '''genetic haplotyping. haplotypes stores per family data'''
         # FIXME: it is SWIG's (2.0.12) fault not to properly destroy the object "Pedigree" in "Execute()"
@@ -271,7 +272,7 @@ class MarkerMaker:
                         gt = hap[2 + idxv][1] if hap[2 + idxv][0].isupper() else hap[2 + idxv][0]
                         if not gt == "?":
                             mafs[v][0] += self.gtconv[gt]
-                            mafs[v][1] += 1.0 
+                            mafs[v][1] += 1.0
         #
         # Compute founder MAFs
         #
@@ -283,7 +284,7 @@ class MarkerMaker:
             with env.lock:
                 print("variant mafs = ", mafs, "\n", file = sys.stderr)
         #
-        # Drop some variants if maf is greater than given threshold 
+        # Drop some variants if maf is greater than given threshold
         #
         if self.maf_cutoff is not None:
             exclude_vars = []
@@ -336,7 +337,7 @@ class MarkerMaker:
                 print("LD blocks: ", blocks, file = sys.stderr)
                 print("LD clusters: ", clusters, file = sys.stderr)
         return clusters
-        
+
 
     def __CodeHaplotypes(self, data, haplotypes, mafs, varnames, clusters):
         # apply CHP coding
@@ -355,18 +356,20 @@ class MarkerMaker:
             if not line[1] in data:
                 # this sample is not in VCF file. Every variant site should be missing
                 # they have to be skipped for now
-                continue 
+                continue
             data[line[1]] = (line[2].split(','), line[3].split(','))
             if len(data[line[1]][0]) > data.superMarkerCount:
                 data.superMarkerCount = len(data[line[1]][0])
         # get MAF
         for item in haplotypes:
             data.maf[item] = self.coder.GetAlleleFrequencies(item)
+            data.maf[item] = tuple(tuple(np.array(v) / np.sum(v)) if np.sum(v) else v
+                              for v in data.maf[item])
         if env.debug:
             with env.lock:
                 print("marker freqs = ", data.maf, "\n", file = sys.stderr)
 
-                
+
     def __AssignSNVHaplotypes(self, data, haplotypes, mafs, varnames):
         for item in haplotypes:
             # each person's haplotype
@@ -375,13 +378,18 @@ class MarkerMaker:
                 if not idx % 2:
                     token = line[2][1] if line[2][0].isupper() else line[2][0]
                 else:
-                    data[line[1]] = (token, line[2][1] if line[2][0].isupper() else line[2][0]) 
+                    data[line[1]] = (token, line[2][1] if line[2][0].isupper() else line[2][0])
             # get maf
             data.maf[item] = [(1 - mafs[varnames[item][0]], mafs[varnames[item][0]])]
-    
+            data.maf[item] = tuple(tuple(np.array(v) / np.sum(v)) if np.sum(v) else v
+                              for v in data.maf[item])
+        if env.debug:
+            with env.lock:
+                print("marker freqs = ", data.maf, "\n", file = sys.stderr)
+
 
     def __FormatHaplotypes(self, data):
-        # Reformat sample genotypes 
+        # Reformat sample genotypes
         for person in data:
             if type(data[person]) is not tuple:
                 data[person] = self.missings
@@ -390,7 +398,7 @@ class MarkerMaker:
             data[person] = zip(*data[person])
             if diff > 0:
                 data[person].extend([self.missings] * diff)
-        
+
     def __PedToHaplotype(self, ped):
         '''convert prephased ped format to haplotype format.
         Input: e.g. [['13346', '5888', '0', '0', '1', '11', '11', '11'], ['13346', '5856', '0', '0', '2', '12', '12', '12'], ['13346', '5920', '5888', '5856', '1', '12', '12', '12'], ['13346', '6589', '5888', '5856', '1', '11', '11', '11']]
@@ -432,7 +440,7 @@ class LinkageWriter:
                 list(itertools.chain(*gs)) + self.missings*self.num_missing) + "\n"
             # freqs
             for k in data.maf:
-                self.freq += env.delimiter.join([k, self.name] + map(str, data.maf[k][0])) + "\n" 
+                self.freq += env.delimiter.join([k, self.name] + map(str, data.maf[k][0])) + "\n"
         else:
             # have to expand each region into mutiple chunks to account for different recomb points
             gs = zip(*[data[s] for s in data.samples])
@@ -460,7 +468,7 @@ class LinkageWriter:
                         break
                     cid += 1
                     self.freq += env.delimiter.join([k, '{}[{}]'.format(self.name, cid)] + \
-                                                    map(str, data.maf[k][idx])) + "\n" 
+                                                    map(str, data.maf[k][idx])) + "\n"
         if self.counter < env.batch:
             self.counter += data.superMarkerCount
         else:
@@ -485,7 +493,7 @@ class LinkageWriter:
         self.freq = ''
         self.counter = 0
         self.prev_chrom = self.chrom
-            
+
     def getRegion(self, region):
         self.chrom = region[0]
         self.name, self.distance_avg, self.distance_m, self.distance_f = region[3:]
@@ -505,7 +513,7 @@ class EncoderWorker(Process):
     def report(self):
         env.log('{:,d} units processed {{{:.2%}}} ...'.\
                 format(env.success_counter.value, env.total_counter.value / self.numGrps), flush = True)
-        
+
     def run(self):
         while True:
             try:
@@ -582,7 +590,7 @@ def main(args):
             env.error("Fail to extract samples from [{}]".format(args.vcf), exit = True)
         env.log('{:,d} samples found in [{}]'.format(len(samples_vcf), args.vcf))
         samples_not_vcf = checkSamples(samples_vcf, getColumn(args.tfam, 2))[1]
-        # load sample info 
+        # load sample info
         data = RData(samples_vcf, TFAMParser(args.tfam))
         if len(data.families) == 0:
             env.error('No valid family to process. ' \
@@ -630,7 +638,7 @@ def main(args):
             env.log('{:,d} units (from {:,d} variants) processed; '\
                 '{:,d} Mendelian inconsistencies and {:,d} recombination events handled\n'.\
                 format(env.success_counter.value,
-                       env.variants_counter.value, 
+                       env.variants_counter.value,
                        env.mendelerror_counter.value,
                        env.recomb_counter.value), flush = True)
             if env.triallelic_counter.value:
@@ -698,7 +706,7 @@ def main(args):
                 env.log('{} "unknown" runtime errors occurred'.format(env.unknown_counter.value))
             if env.mlink_counter.value:
                 env.log('{} "mlink" runtime errors occurred'.format(env.mlink_counter.value))
-            cache.write(arcroot = 'heatmap', source_dir = os.path.join(env.output, 'heatmap'), mode = 'a') 
+            cache.write(arcroot = 'heatmap', source_dir = os.path.join(env.output, 'heatmap'), mode = 'a')
         html(args.theta_inc, args.theta_max, args.output_limit)
     else:
         env.log('Saving data to [{}]'.format(os.path.abspath(env.output)))

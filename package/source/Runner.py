@@ -1,6 +1,7 @@
 #!/usr/bin/python2.7
 # Di Zhang diz@bcm.edu
 #
+from __future__ import print_function
 from SEQLinkage.Utils import *
 from collections import deque, defaultdict
 from os.path import splitext, basename, isdir, isfile
@@ -27,7 +28,7 @@ def format(tpeds, tfam, prev, wild_pen, muta_pen, out_format, inherit_mode, thet
     elif out_format == 'linkage':
         parmap(lambda x: format_linkage(x, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max, theta_inc), tpeds, env.jobs)
 
-#plink format, ped and map 
+#plink format, ped and map
 def format_plink(tped, tfam):
     out_base = '{}/PLINK/{}'.format(env.outdir, splitext(basename(tped))[0])
     with open(tped) as tped_fh, open(tfam) as tfam_fh:
@@ -43,7 +44,7 @@ def format_plink(tped, tfam):
                 map(lambda x: p.write(' {} {}'.format(x.popleft(), x.popleft)), geno)
                 p.write("\n")
 
-#mega2 format, datain.01, pedin.01, map.01 
+#mega2 format, datain.01, pedin.01, map.01
 def format_mega2(tped, tfam):
     trait = 'A' if env.trait == 'binary' else 'T'
     pedheader = ['Pedigree', 'ID', 'Father', 'Mother', 'Sex', 'Trait.{}'.format(trait)]
@@ -67,7 +68,7 @@ def format_mega2(tped, tfam):
                     with env.format_counter.get_lock():
                         env.format_counter.value += 1
                 if env.format_counter.value % (env.batch * env.jobs) == 0:
-                    env.log('{:,d} units processed {{{:.2%}}} ...'.format(env.format_counter.value, float(env.format_counter.value)/env.success_counter.value), flush=True)                
+                    env.log('{:,d} units processed {{{:.2%}}} ...'.format(env.format_counter.value, float(env.format_counter.value)/env.success_counter.value), flush=True)
                 d.write('M\t{}\n'.format(s[1]))
                 dis = s[2].split(';')
                 dis.insert(1,s[1])
@@ -202,8 +203,8 @@ def format_linkage(tped, tfam, prev, wild_pen, muta_pen, inherit_mode, theta_max
     tped_fh.close()
     tfam_fh.close()
     removeEmptyDir('{}'.format(out_base))
-  
-#parse tfam file, store families into the Pedigree class                
+
+#parse tfam file, store families into the Pedigree class
 def parse_tfam(fh):
     fams = defaultdict(lambda: Pedigree())
     idx = 0
@@ -221,19 +222,19 @@ class Pedigree:
         self.data = {}
         self.graph = defaultdict(lambda:[]) #, defaultdict(lambda:[])]
         self.sorted = []
-        
+
     def add_member(self, info, idx): #list [pid, father, mother, sex, pheno]
         if info[1] != '0' and info[2] != '0':
             self.graph[info[1]].append(info[0])
             self.graph[info[2]].append(info[0])
         self.data[info[0]] = info + [idx]
-        
+
     def get_member_info(self, pid):
         return self.data[pid][:-1]
 
     def get_member_idx(self, pid):
         return self.data[pid][-1]
-    
+
     def get_member_ids(self):
         return self.data.keys()
 
@@ -272,7 +273,7 @@ def run_linkage(blueprint, theta_inc, theta_max, to_plot = True):
     with open(os.path.join(env.tmp_dir, 'LinkageRuntimeError.txt'), 'w') as runtime_err:
         workdirs = glob.glob('{}/LINKAGE/{}.chr*'.format(env.tmp_dir, env.output))
         parmap(lambda x: linkage_worker(blueprint, x, theta_inc, theta_max, runtime_err, to_plot) , workdirs, env.jobs)
-    
+
 def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = True):
     #env.log("Start running LINKAGE for {} ...".format(workdir), flush=True)
     #hash genes into genemap
@@ -310,6 +311,9 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
                     step1 = runCommand(['makeped', 'pedfile.pre', 'pedfile.ped', 'n'],
                                        show_stderr = False, return_zero = False)
                     if step1[1]:
+                        if env.debug:
+                            with env.lock:
+                                print("makeped error:", step1[1], file = sys.stderr)
                         with env.makeped_counter.get_lock():
                             env.makeped_counter.value += 1
                         with env.lock:
@@ -318,17 +322,26 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
                     step2 = runCommand(['pedcheck', '-p', 'pedfile.ped', '-d', 'datafile.dat', '-c'],
                                        show_stderr = False, return_zero = False)
                     if step2[1]:
-                        lines = step2[1].split('\n')
-                        if len(lines) > 10:
+                        lines = [x for x in step2[1].split('\n')
+                                 if not x.strip().startswith('*') and x.strip()]
+                        if len(lines) > 0:
                             env.log('{} lines'.format(len(lines)))
-                            with env.pedcheck_counter.get_lock():
-                                env.pedcheck_counter.value += 1
                             with env.lock:
                                 errfile.write(step2[1])
-                            continue                            
-                    copy_file('zeroout.dat', 'pedfile.dat')
+                            if env.debug:
+                                with env.lock:
+                                    print("pedcheck error:", '\n'.join(lines), file = sys.stderr)
+                    try:
+                        copy_file('zeroout.dat', 'pedfile.dat')
+                    except:
+                        with env.pedcheck_counter.get_lock():
+                            env.pedcheck_counter.value += 1
+                        continue
                     step3 = runCommand('unknown', show_stderr = False, return_zero = False)
                     if step3[1]:
+                        if env.debug:
+                            with env.lock:
+                                print("unkn error:", step3[1], file = sys.stderr)
                         with env.unknown_counter.get_lock():
                             env.unknown_counter.value += 1
                         with env.lock:
@@ -336,12 +349,17 @@ def linkage_worker(blueprint, workdir, theta_inc, theta_max, errfile, to_plot = 
                         continue
                     step4 = runCommand('mlink', show_stderr = False, return_zero = False)
                     if step4[1]:
-                        with env.mlink_counter.get_lock():
-                            env.mlink_counter.value += 1
+                        if env.debug:
+                            with env.lock:
+                                print("mlink error:", step4[1], file = sys.stderr)
                         with env.lock:
                             errfile.write(step4[1])
+                    try:
+                        copy_file('outfile.dat', '{}.out'.format(unit))
+                    except:
+                        with env.mlink_counter.get_lock():
+                            env.mlink_counter.value += 1
                         continue
-                    copy_file('outfile.dat', '{}.out'.format(unit))        
                     #clean linkage tmp files
                     for f in set(glob.glob('*.dat') + glob.glob('ped*') + ['names.tmp']):
                         os.remove(f)
@@ -394,8 +412,8 @@ def hinton(filename, max_weight=None, ax=None):
     ax.autoscale_view()
     ax.invert_yaxis()
     plt.savefig(filename)
-    
-        
+
+
 def heatmap(file, theta_inc, theta_max):
     #env.log("Start ploting heatmap for {} ...".format(file), flush=True)
     if os.path.getsize(file) == 0:
@@ -428,8 +446,8 @@ def heatmap(file, theta_inc, theta_max):
 def hlod_fun(Li, sign=1):
     def _fun(alpha):
         return sign * sum(np.log10(alpha*np.power(10, Li) + 1 - alpha))
-    return _fun 
-    
+    return _fun
+
 def html(theta_inc, theta_max, limit):
     if limit <= 0:
         return
@@ -513,7 +531,7 @@ def html_img(ltype):
     imgs = ['heatmap/{0}.chr{1}.{2}s.png'.format(env.output, chrID, ltype) for chrID in chrs]
     exist_imgs = [img for img in imgs if isfile('{}/{}'.format(env.outdir,img))]
     return ''.join('<img src={}></img>'.format(img) for img in exist_imgs)
-        
+
 def html_table(type, theta_inc, theta_max, limit):
     colNum = int(round(theta_max/theta_inc))
     theta_orders = range(colNum)
@@ -546,14 +564,14 @@ def html_table(type, theta_inc, theta_max, limit):
                     lods[int(round(float(theta)/theta_inc))][gene] = ['<b>{}</b><br>&#945;={}'.format(round(float(lod),3), round(float(a),3)), gene, chrId, start, end]
                 else:
                     env.error('Wrong type of LOD')
-                
+
     #collect result
     res = np.empty((len(theta_orders), limit), dtype=list)
     for theta_order in theta_orders:
         i=0
         for gene in sorted(lods[theta_order].keys(), key=lambda x: lods[theta_order][x][0], reverse=True):
             if i >= limit:
-                break     
+                break
             res[theta_order][i] = lods[theta_order][gene]
             i += 1
     #print res

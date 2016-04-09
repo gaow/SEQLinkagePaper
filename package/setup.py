@@ -43,5 +43,6 @@ setup(name = NAME,
       packages = [NAME],
       scripts = ['source/seqlink'],
       package_dir = {NAME:'source'},
-      install_requires = ['prettyplotlib', 'faulthandler', 'matplotlib', 'scipy', 'numpy']
+      install_requires = ['prettyplotlib', 'tornado', 'brewer2mpl',
+                          'faulthandler', 'matplotlib', 'scipy', 'numpy']
 )
