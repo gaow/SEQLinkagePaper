@@ -36,7 +36,7 @@ class Publisher:
 
     def compile(self, page):
         print("Compiling {0} ...".format(page))
-        os.system("tigernotes dokuwiki {0} --lite --showall {1}".format(page, '--toc' if page != 'start.notes' else ''))
+        os.system("tigernotes dokuwiki {0} --lite --showall".format(page))
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in ['local', 'pub']:
