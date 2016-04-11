@@ -23,10 +23,10 @@
 ###
 # Latest version
 ###
-#[{{icons:download.png?64}}|@http://www.bioinformatics.org/seqlink/ccount/click.php?id=2@]
-# Please read [installation guide|@http://bioinformatics.org/seqlink/installation@] to install the package.
+#[{{icons:entrance.png?32}}|@http://www.bioinformatics.org/seqlink/installation@]
 #! ChangeLog
 #{list
+# ""2016.04.08"" Version 1.0.0, various bug fixes and move source code to [github|@https://github.com/gaow/SEQLinkage@]
 # ""2014.04.28"" Version 1.0 alpha, first public release of SEQLinkage
 # ""2014.04.02"" Version 0.0.4, integrated linkage analysis pipeline
 ## graphic summary and table output for linkage analysis results in HTML format
