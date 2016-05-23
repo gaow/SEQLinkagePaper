@@ -23,7 +23,7 @@
 ###
 # Latest version
 ###
-#[{{icons:entrance.png?32}}|@http://www.bioinformatics.org/seqlink/installation@]
+#[{{icons:download.png?64}}|@http://bioinformatics.org/seqlink/ccount/click.php?id=2@]
 #! ChangeLog
 #{list
 # ""2016.04.08"" Version 1.0.0, various bug fixes and move source code to [github|@https://github.com/gaow/SEQLinkage@]
@@ -42,7 +42,7 @@
 ###
 # Gao T. Wang, Di Zhang, Biao Li, Hang Dai and Suzanne M. Leal, "Collapsed Haplotype Pattern Method for Linkage Analysis of Next-Generation Sequencing Data". European Journal of Human Genetics. In Press (2015)
 #! Special Acknowledgment
-# # Development of SEQLinkage was supported by the [Centers for Mendelian Genomics|@http://www.mendelian.org/@]. We thank Dr. Daniel Weeks, Dr. Jeff O'Connell ([pedcheck program|@http://watson.hgen.pitt.edu/register@]) and Dr. Alejandro Schaffer ([FASTLINK package|@http://www.ncbi.nlm.nih.gov/CBBresearch/Schaffer/fastlink.html@]) for the permission to recompile the source code of their programs and to publish the binaries on this website.
+# Development of SEQLinkage was supported by the [Centers for Mendelian Genomics|@http://www.mendelian.org/@]. We thank Dr. Daniel Weeks, Dr. Jeff O'Connell ([pedcheck program|@http://watson.hgen.pitt.edu/register@]) and Dr. Alejandro Schaffer ([FASTLINK package|@http://www.ncbi.nlm.nih.gov/CBBresearch/Schaffer/fastlink.html@]) for the permission to recompile the source code of their programs and to publish the binaries on this website.
 
 ###
 # SEQLinkage forum

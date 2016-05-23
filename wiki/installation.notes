@@ -4,9 +4,16 @@
 ###
 # SEQLinkage docker image
 ###
-#[{{icons:download.png?64}}|@http://bioinformatics.org/seqlink/404@]
-# Starting from version 1.0.0, binary release for Linux and MacOS are no longer supported. Instead we release Docker image for SEQLinkage which can be executed on both Linux and MacOS.
-# To run SEQLinkage with docker ... ""[to be updated!]""
+# Starting from version 1.0.0, binary release for Linux and MacOS are no longer supported. Instead we release Docker image for SEQLinkage which can be executed on both Linux and MacOS. Although overall execution time of a command ""may increase by over 10%"", we believe the straightforward installation and guaranteed reproducibility are well worth the loss in speed.
+# In order to run the docker image we provide, you should have Docker installed on your machine. If you do not have Docker, please follow this [jump-start guide|@docker-guide@] to it up on your system. Otherwise you can pull the docker image and run it:
+docker pull gaow/seqx
+docker run -v $PWD:/home/seqx/data gaow/seqx \
+       seqlink -h
+# It is recommended that you add to your shell configuration script (@@~/.bashrc@@ on Linux and @@~/.bash_profile@@ on Mac)
+alias seqlink='docker run -v $PWD:/home/seqx/data gaow/seqx seqlink'
+# So next time you can simply run
+seqlink -h
+# to evoke the program instead of having to type @@docker run@@ command.
 ###
 # Supporting data
 ###
@@ -15,7 +22,7 @@
 # Install from source
 ###
 #! Source code download
-#[{{icons:download.png?64}}|@http://bioinformatics.org/seqlink/ccount/click.php?id=2@]
+#[{{icons:download.png?64}}|@http://bioinformatics.org/seqlink/ccount/click.php?id=3@]
 #! Dependencies
 # To successfully compile the program from source you need to have on your OS @@gcc@@ (version 4.9+) [@@swig@@|@http://swig.org@] and [@@anaconda@@|@http://continuum.io/downloads@] installed.
 #!! Dependency packages installation on Debian Linux
